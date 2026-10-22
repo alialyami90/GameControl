@@ -520,6 +520,7 @@ end
 local function handleCommand(command, value)
   if type(command) ~= "string" then return end
   value = tonumber(value) or 1
+  logI("command " .. command .. " " .. tostring(value))
 
   -- action.<beamngActionName>: press / release any BeamNG input action
   local actionName = command:match("^action%.([%w_]+)$")
@@ -871,6 +872,12 @@ local function onVehicleSpawned(id)
   end
 end
 
+local function onExtensionLoaded()
+  if socket then
+    logI(string.format("Game Controller mod %s loaded, looking for the companion on %s:%d", MOD_VERSION, HOST, PORT))
+  end
+end
+
 local function onExtensionUnloaded()
   if status == "connected" then onDisconnected("mod unloaded") end
   closeSocket()
@@ -879,6 +886,7 @@ end
 M.onUpdate = onUpdate
 M.onVehicleSwitched = onVehicleSwitched
 M.onVehicleSpawned = onVehicleSpawned
+M.onExtensionLoaded = onExtensionLoaded
 M.onExtensionUnloaded = onExtensionUnloaded
 
 M.onVehicleState = onVehicleState

@@ -11,6 +11,12 @@ There are two ways to connect, and you can use both at the same time.
 | Lamps on the phone follow the game | No (lamps follow your own taps) | Yes, with the BeamNG mod or OutGauge |
 | BeamNG game commands and macros | Macros yes, BeamNG commands no | Yes |
 
+## 0. Download
+
+Every beta is on the GitHub releases page: https://github.com/alialyami90/GameControl/releases. Each one has
+`GameCtl.apk` (phone app), `GameCtl-companion-win-x64.zip` (PC companion), `gamecontroller.zip` (BeamNG mod),
+this guide and `SMOKE_TEST.md`, the single end-to-end test to run after installing.
+
 ## 1. Install the app
 
 1. Copy `GameCtl.apk` to the phone and open it. Allow "Install unknown apps" for your file manager when asked.

@@ -4,6 +4,14 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Create a GitHub release with this tag (for example beta-1). Leave empty for a normal CI run."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
 
 jobs:
   android:
@@ -79,3 +87,34 @@ jobs:
         with:
           name: GameCtl-beamng-mod
           path: out/gamecontroller.zip
+
+  release:
+    name: Release package
+    needs: [android, windows, beamng]
+    if: inputs.release_tag != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Assemble package
+        run: |
+          set -e
+          mkdir -p pkg
+          cp artifacts/GameCtl-android/GameCtl.apk pkg/
+          cp artifacts/GameCtl-beamng-mod/gamecontroller.zip pkg/
+          (cd artifacts/GameCtl-companion-win-x64 && zip -qr ../../pkg/GameCtl-companion-win-x64.zip .)
+          cp docs/INSTALL.md docs/SMOKE_TEST.md pkg/
+          (cd pkg && sha256sum * > SHA256SUMS.txt)
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          set -e
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" pkg/* --clobber
+          else
+            gh release create "$TAG" pkg/* --target "$GITHUB_SHA" --prerelease --title "GameCtl $TAG" --notes "Beta package built from $GITHUB_SHA. Install with INSTALL.md, then run SMOKE_TEST.md."
+          fi
