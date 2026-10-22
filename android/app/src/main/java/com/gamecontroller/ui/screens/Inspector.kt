@@ -50,6 +50,7 @@ import com.gamecontroller.ui.components.Hint
 import com.gamecontroller.ui.components.SectionHeader
 import com.gamecontroller.ui.components.SlantButton
 import com.gamecontroller.ui.components.SlantStyle
+import com.gamecontroller.ui.components.StateTag
 import com.gamecontroller.ui.components.Stepper
 import com.gamecontroller.ui.components.Swatch
 import com.gamecontroller.ui.components.ToggleRow
@@ -75,9 +76,17 @@ fun Inspector(
     var picking by remember { mutableStateOf(false) }
     val c = control
     Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(c.type.displayName().uppercase(), style = RaceType.unit, color = Race.Electric)
-            Text(c.label.ifBlank { "Untitled" }, style = MaterialTheme.typography.headlineSmall, color = Race.Ink, maxLines = 1)
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                c.label.ifBlank { "Untitled" },
+                style = MaterialTheme.typography.headlineSmall,
+                color = Race.Ink,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Spacer(Modifier.width(10.dp))
+            StateTag(c.type.displayName(), quiet = true)
         }
         IconButton(onClick = { onDelete(c.id) }) { Icon(Icons.Rounded.Delete, contentDescription = "Delete ${c.label}", tint = Race.Red) }
         IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, contentDescription = "Close inspector", tint = Race.InkMuted) }

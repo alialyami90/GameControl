@@ -71,7 +71,7 @@ fun HidUi.summary(): LinkSummary = when (status) {
 
 /** Compact link badge: icon, status lamp, short status. */
 @Composable
-fun LinkBadge(icon: ImageVector, name: String, summary: LinkSummary, modifier: Modifier = Modifier) {
+fun LinkBadge(icon: ImageVector, name: String, summary: LinkSummary, modifier: Modifier = Modifier, compact: Boolean = false) {
     Row(
         modifier
             .height(32.dp)
@@ -85,6 +85,7 @@ fun LinkBadge(icon: ImageVector, name: String, summary: LinkSummary, modifier: M
         Icon(icon, contentDescription = null, tint = if (summary.tone == LinkTone.OFF) Race.InkFaint else Race.Ink, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
         StatusLamp(summary.tone.color(), lit = summary.tone != LinkTone.OFF)
+        if (compact) return@Row
         Spacer(Modifier.width(6.dp))
         Text(name, style = RaceType.unit, color = Race.InkMuted)
         Spacer(Modifier.width(4.dp))
@@ -104,14 +105,14 @@ fun StatusLamp(color: Color, lit: Boolean, modifier: Modifier = Modifier, size: 
 }
 
 @Composable
-fun BluetoothLinkBadge(hid: HidUi, modifier: Modifier = Modifier) = LinkBadge(
+fun BluetoothLinkBadge(hid: HidUi, modifier: Modifier = Modifier, compact: Boolean = false) = LinkBadge(
     if (hid.status == HidStatus.UNSUPPORTED) Icons.Rounded.BluetoothDisabled else Icons.Rounded.Bluetooth,
-    "BT", hid.summary(), modifier,
+    "BT", hid.summary(), modifier, compact,
 )
 
 @Composable
-fun PcLinkBadge(connection: ConnectionUi, modifier: Modifier = Modifier) =
-    LinkBadge(Icons.Rounded.Computer, "PC", connection.summary(), modifier)
+fun PcLinkBadge(connection: ConnectionUi, modifier: Modifier = Modifier, compact: Boolean = false) =
+    LinkBadge(Icons.Rounded.Computer, "PC", connection.summary(), modifier, compact)
 
 /** Game readouts from telemetry. Draws nothing for games that report no state. */
 @Composable

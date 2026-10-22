@@ -52,6 +52,8 @@ object RaceType {
     val readoutLarge = cond(34, 34, FontWeight.ExtraBold, italic = true).copy(fontFeatureSettings = "tnum")
     val readoutHuge = cond(52, 52, FontWeight.ExtraBold, -0.01, italic = true).copy(fontFeatureSettings = "tnum")
     val unit = cond(11, 12, FontWeight.SemiBold, 0.1)
+    /** Profile and item names in the italic title voice. */
+    val title = cond(20, 24, FontWeight.Bold, italic = true)
     /** Screen title plate: italic, uppercase in use. */
     val plate = cond(26, 28, FontWeight.ExtraBold, 0.01, italic = true)
 }

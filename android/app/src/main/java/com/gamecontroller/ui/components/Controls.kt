@@ -549,12 +549,14 @@ private fun RotaryKnob(
 ) {
     val accent = control.accent.lit()
     val haptics = LocalHapticFeedback.current
+    val density = LocalDensity.current
     var angle by remember { mutableFloatStateOf(0f) }
     var steps by remember { mutableIntStateOf(0) }
     var turning by remember { mutableStateOf(false) }
     val shownAngle by animateFloatAsState(angle, RaceMotion.settle(), label = "knob")
     val currentOnStep by rememberUpdatedState(onStep)
     val stepDeg = 15f
+    var showLabel by remember { mutableStateOf(true) }
 
     fun step(d: Int) {
         steps += d
@@ -564,11 +566,14 @@ private fun RotaryKnob(
     }
 
     Column(
-        modifier.semantics {
-            contentDescription = control.label
-            if (!enabled) stateDescription = "Not available on this vehicle"
-            onClick(label = "Step clockwise") { step(1); true }
-        },
+        modifier
+            // Same rule as CapFace: no label on controls too short to print it.
+            .onSizeChanged { showLabel = it.height >= 0 && with(density) { it.height.toDp() } >= 72.dp }
+            .semantics {
+                contentDescription = control.label
+                if (!enabled) stateDescription = "Not available on this vehicle"
+                onClick(label = "Step clockwise") { step(1); true }
+            },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -654,7 +659,7 @@ private fun RotaryKnob(
                 }
             }
         }
-        if (control.label.isNotBlank()) {
+        if (control.label.isNotBlank() && showLabel) {
             Text(
                 control.label.uppercase(),
                 style = RaceType.capLabel,

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -82,6 +83,7 @@ import com.gamecontroller.ui.components.SectionHeader
 import com.gamecontroller.ui.components.SlantButton
 import com.gamecontroller.ui.components.SlantStyle
 import com.gamecontroller.ui.components.SlantTabs
+import com.gamecontroller.ui.components.StateTag
 import com.gamecontroller.ui.components.Stepper
 import com.gamecontroller.ui.icons.IconLibrary
 import com.gamecontroller.ui.theme.CapShape
@@ -173,9 +175,10 @@ fun EditorScreen(
             IconButton(onClick = { if (state.dirty) confirmDiscard = true else onDiscard() }) {
                 Icon(Icons.Rounded.Close, contentDescription = "Close without saving", tint = Race.InkMuted)
             }
-            Column(Modifier.padding(end = 16.dp)) {
-                Text("EDIT LAYOUT", style = RaceType.unit, color = Race.Electric)
-                Text(profile.name, style = RaceType.capLabelLarge, color = Race.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(Modifier.widthIn(max = 300.dp).padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(profile.name, style = RaceType.title, color = Race.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Spacer(Modifier.width(10.dp))
+                StateTag("Editing")
             }
             Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
                 SlantTabs(profile.pages.map { it.name }, pageIndex, onPageChange)

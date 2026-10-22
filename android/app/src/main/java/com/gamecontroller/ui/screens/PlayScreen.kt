@@ -50,6 +50,9 @@ import com.gamecontroller.ui.components.ControlView
 import com.gamecontroller.ui.components.GameReadouts
 import com.gamecontroller.ui.components.PcLinkBadge
 import com.gamecontroller.ui.components.SlantButton
+import com.gamecontroller.ui.components.SlantStyle
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import com.gamecontroller.ui.components.SlantTabs
 import com.gamecontroller.ui.theme.Race
 import com.gamecontroller.ui.theme.OnAccent
@@ -134,39 +137,46 @@ fun ControlGrid(page: Page, modifier: Modifier = Modifier, content: @Composable 
 
 @Composable
 private fun PlayHud(state: PlayState, pageIndex: Int, onPageChange: (Int) -> Unit, onEdit: () -> Unit, onBack: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().height(56.dp).padding(start = 4.dp, end = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconButton(onClick = onBack) {
-            Icon(Icons.Rounded.ArrowBack, contentDescription = "Back to profiles", tint = Race.InkMuted)
+    BoxWithConstraints(Modifier.fillMaxWidth().height(56.dp)) {
+        // Below ~840dp the link badges drop their words; Edit and Back never shrink.
+        val compact = maxWidth < 840.dp
+        Row(
+            Modifier.fillMaxSize().padding(start = 4.dp, end = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Rounded.ArrowBack, contentDescription = "Back to profiles", tint = Race.InkMuted)
+            }
+            Column(Modifier.widthIn(min = 96.dp, max = if (compact) 180.dp else 240.dp).padding(end = 14.dp)) {
+                Text(
+                    state.profile.name,
+                    style = RaceType.title,
+                    color = Race.Ink,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    state.profile.game.tag().uppercase(),
+                    style = RaceType.unit,
+                    color = Race.InkFaint,
+                    maxLines = 1,
+                )
+            }
+            Box(Modifier.weight(1f)) {
+                if (state.profile.pages.size > 1) {
+                    Box(Modifier.horizontalScroll(rememberScrollState())) {
+                        PageTabs(state.profile.pages.map { it.name }, pageIndex, onPageChange)
+                    }
+                }
+            }
+            GameReadouts(state.game, Modifier.padding(start = 12.dp, end = 14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                BluetoothLinkBadge(state.hid, compact = compact)
+                PcLinkBadge(state.connection, compact = compact)
+            }
+            Spacer(Modifier.width(10.dp))
+            SlantButton(text = "Edit", icon = Icons.Rounded.Tune, onClick = onEdit, modifier = Modifier.widthIn(min = 104.dp))
         }
-        Column(Modifier.widthIn(min = 96.dp, max = 220.dp).padding(end = 16.dp)) {
-            Text(
-                state.profile.name,
-                style = RaceType.capLabelLarge,
-                color = Race.Ink,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                (if (state.profile.game == GameId.CUSTOM) "Any game" else state.profile.game.displayName).uppercase(),
-                style = RaceType.unit,
-                color = Race.InkFaint,
-                maxLines = 1,
-            )
-        }
-        if (state.profile.pages.size > 1) {
-            PageTabs(state.profile.pages.map { it.name }, pageIndex, onPageChange)
-        }
-        Spacer(Modifier.weight(1f))
-        GameReadouts(state.game, Modifier.padding(end = 16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            BluetoothLinkBadge(state.hid)
-            PcLinkBadge(state.connection)
-        }
-        Spacer(Modifier.width(10.dp))
-        SlantButton(text = "Edit", icon = Icons.Rounded.Tune, onClick = onEdit)
     }
 }
 
@@ -190,10 +200,6 @@ private fun EmptyPage(onEdit: () -> Unit) {
             color = Race.InkMuted,
         )
         Spacer(Modifier.height(20.dp))
-        FilledTonalButton(onClick = onEdit) {
-            Icon(Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Open the editor")
-        }
+        SlantButton("Open the editor", onEdit, icon = Icons.Rounded.Tune, style = SlantStyle.PRIMARY)
     }
 }

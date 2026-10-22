@@ -115,3 +115,23 @@ fun SlantTabs(
         }
     }
 }
+
+/** Small slanted tag that states a mode or type inline, beside a title rather than above it. */
+@Composable
+fun StateTag(text: String, modifier: Modifier = Modifier, quiet: Boolean = false) {
+    Box(
+        modifier
+            .height(22.dp)
+            .clip(SlantShape())
+            .background(if (quiet) Race.CapHigh else Race.Electric)
+            .padding(horizontal = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text.uppercase(),
+            style = RaceType.unit.copy(fontStyle = FontStyle.Italic),
+            color = if (quiet) Race.Ink else OnAccent,
+            maxLines = 1,
+        )
+    }
+}

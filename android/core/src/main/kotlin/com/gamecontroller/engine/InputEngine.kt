@@ -109,7 +109,8 @@ class InputEngine(
         if (control.type == ControlType.SLIDER) lastMoved[control.id] = clock()
 
         // A release always goes out on the route its press used (A3); a press picks the current route.
-        val route = if (release) routeOf[control.id] ?: routeFor(control) else routeFor(control)
+        // A release with nothing held (the link that carried the press already dropped) goes nowhere.
+        val route = if (release) routeOf[control.id] ?: Route.NONE else routeFor(control)
         routeOf[control.id] = route
         when (route) {
             Route.HID -> applyHid(control, previous, value)

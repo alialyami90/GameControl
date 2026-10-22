@@ -62,6 +62,7 @@ import com.gamecontroller.ui.components.PcLinkBadge
 import com.gamecontroller.ui.components.SlantButton
 import com.gamecontroller.ui.components.SlantStyle
 import com.gamecontroller.ui.components.SlantTabs
+import com.gamecontroller.ui.components.StateTag
 import com.gamecontroller.ui.theme.CapShape
 import com.gamecontroller.ui.theme.OnAccent
 import com.gamecontroller.ui.theme.Race
@@ -194,29 +195,18 @@ private fun ProfileCard(
     ) {
         LayoutMiniature(
             profile.pages.firstOrNull(),
-            Modifier.fillMaxWidth().aspectRatio(3.2f).background(Race.Ground.copy(alpha = 0.6f)).padding(14.dp),
+            Modifier.fillMaxWidth().height(120.dp).background(Race.Ground.copy(alpha = 0.6f)).padding(14.dp),
         )
-        Column(Modifier.padding(start = 18.dp, end = 4.dp, top = 12.dp, bottom = 12.dp)) {
+        Column(Modifier.padding(start = 18.dp, end = 4.dp, top = 6.dp, bottom = 14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier
-                        .height(22.dp)
-                        .clip(SlantShape())
-                        .background(if (profile.game == GameId.CUSTOM) Race.CapHigh else Race.Electric)
-                        .padding(horizontal = 10.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        profile.game.tag().uppercase(),
-                        style = RaceType.unit.copy(fontStyle = FontStyle.Italic),
-                        color = if (profile.game == GameId.CUSTOM) Race.Ink else OnAccent,
-                    )
-                }
-                if (profile.builtIn) {
-                    Spacer(Modifier.width(8.dp))
-                    Text("BUILT-IN", style = RaceType.unit, color = Race.InkFaint)
-                }
-                Spacer(Modifier.weight(1f))
+                Text(
+                    profile.name,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Race.Ink,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
                 Box {
                     IconButton(onClick = { menu = true }) {
                         Icon(Icons.Rounded.MoreVert, contentDescription = "More for ${profile.name}", tint = Race.InkMuted)
@@ -231,14 +221,6 @@ private fun ProfileCard(
                     }
                 }
             }
-            Text(
-                profile.name,
-                style = MaterialTheme.typography.titleLarge,
-                color = Race.Ink,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(end = 14.dp),
-            )
             if (profile.description.isNotBlank()) {
                 Text(
                     profile.description,
@@ -246,13 +228,19 @@ private fun ProfileCard(
                     color = Race.InkMuted,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp, end = 14.dp),
+                    modifier = Modifier.padding(end = 14.dp),
                 )
             }
-            Gap(8)
-            Row(verticalAlignment = Alignment.Bottom) {
+            Gap(10)
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 14.dp)) {
+                StateTag(profile.game.tag(), quiet = profile.game == GameId.CUSTOM)
+                if (profile.builtIn) {
+                    Spacer(Modifier.width(8.dp))
+                    Text("BUILT-IN", style = RaceType.unit, color = Race.InkFaint)
+                }
+                Spacer(Modifier.weight(1f))
                 Stat(profile.pages.size, if (profile.pages.size == 1) "PAGE" else "PAGES")
-                Spacer(Modifier.width(18.dp))
+                Spacer(Modifier.width(14.dp))
                 Stat(controls, if (controls == 1) "CONTROL" else "CONTROLS")
             }
         }
