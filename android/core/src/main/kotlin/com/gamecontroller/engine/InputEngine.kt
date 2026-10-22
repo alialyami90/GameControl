@@ -111,15 +111,16 @@ class InputEngine(
         val previous = lastValue[id]
         lastValue[id] = value
         if (previous == null || previous == value) return
-        // A hold the phone drives over HID must follow the game's word, or the refcount drifts (A21).
+        // A hold the phone drives over HID must let go when the game says off, or the refcount drifts (A21).
+        // Only releases are applied: a game-initiated ON must not press a button the user never touched (A29).
         val c = findControl(id) ?: return
-        if (routeOf[id] != Route.HID) return
+        if (routeOf[id] != Route.HID || !isRelease(c, value)) return
         when (val a = c.action) {
             is Action.VJoyButton, is Action.VJoyAxis -> applyLevel(c, a, previous, value)
             is Action.Key -> if (a.trigger == KeyTrigger.HOLD) applyLevel(c, a, previous, value)
             else -> Unit
         }
-        if (isRelease(c, value)) routeOf.remove(id)
+        routeOf.remove(id)
     }
 
     /** True while the engine still drives [id] on a live link (a held button, a moved slider, a latch). */
@@ -142,8 +143,10 @@ class InputEngine(
         val route = if (release) routeOf[control.id] ?: Route.NONE else routeFor(control)
         val oldRoute = routeOf[control.id]
         var prev = previous
-        if (!release && oldRoute != null && oldRoute != route && prev != restValue(control)) {
-            // The route changed under a held control: let go on the old route first (A24).
+        val parkable = control.type == ControlType.MOMENTARY || control.type == ControlType.SLIDER
+        if (!release && parkable && oldRoute != null && oldRoute != route && prev != restValue(control)) {
+            // The route changed under a held button or a moved slider: let go on the old route first (A24).
+            // Discrete controls are not parked: their rest is a real position, so sending it would tap it (A28).
             val rest = restValue(control)
             when (oldRoute) {
                 Route.HID -> applyHid(control, prev, rest)

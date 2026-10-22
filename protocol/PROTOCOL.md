@@ -129,7 +129,7 @@ A `switch`/`radio` position bound to `vjoy_axis` sets that axis to index/(n-1) o
 
 Duplicates: an event is a duplicate only when its sequence number `s` is not greater than the last one applied for that control id (see Control events). The companion must **not** compare values: after the game changes state on its own (a signal self-cancels, the gearbox goes back to P) the phone legitimately sends the same value again. Repeated `latching`/`switch`/`radio` events with new sequence numbers are applied again; the built-in profiles use idempotent setters so that is harmless.
 
-Route change on the phone: when a held control (momentary or slider) changes route (Bluetooth HID came up or went down) the phone first sends the rest value on the old route, then continues on the new one, so no axis or button is left set behind.
+Route change on the phone: when a held control (momentary or slider) changes route (Bluetooth HID came up or went down) the phone first sends the rest value on the old route, then continues on the new one, so no axis or button is left set behind. Discrete controls (latching, switch, radio) are not parked: their rest value is a real position and sending it would be a tap, so they simply continue on the new route.
 
 ### Which channel carries which event
 

@@ -24,6 +24,7 @@ import com.gamecontroller.profiles.ProfileJson
 import com.gamecontroller.protocol.Incoming
 import com.gamecontroller.protocol.Protocol
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -88,6 +89,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val linkDrops = MutableStateFlow(0)
     private val knownStateKeys = MutableStateFlow<Set<String>>(emptySet())
     private var lastBindRequest: Pair<String, Int>? = null // device, requested count
+    private var bindTimeout: Job? = null
 
     val playState: StateFlow<PlayState?> = combine(
         combine(activeProfile, pageIndex, values) { p, i, v -> Triple(p, i, v) },
@@ -128,10 +130,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 _editor.update { it?.copy(beamngCommands = list) }
             }
             override fun onBindingsResult(r: Incoming.BindingsResult) {
+                bindTimeout?.cancel()
                 val (device, requested) = lastBindRequest ?: (r.device to r.count)
                 val result = BindResult(
-                    ok = r.ok, message = r.message, device = device, requested = requested, count = r.count,
-                    unknown = r.unknown, written = r.written, busy = r.busy, alreadyBound = r.alreadyBound,
+                    ok = r.ok, device = device,
+                    message = if (r.busy && !r.ok) r.message.ifEmpty { "BeamNG is still writing the last request. Try again in a second." } else r.message, requested = requested, count = r.count,
+                    unknown = r.unknown, written = r.written, alreadyBound = r.alreadyBound,
+                    // The mod's busy is a rejection, not progress: it keeps a message so the UI shows a red row (U28).
+                    busy = r.busy,
                     atMillis = System.currentTimeMillis(),
                 )
                 _editor.update { it?.copy(bindResult = result) }
@@ -276,7 +282,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             (c.type in setOf(ControlType.SWITCH, ControlType.RADIO) && c.positionKey != null)
         if (tracksGame && game.value.isNotEmpty()) pending.update { it + (id to System.currentTimeMillis()) }
         engine.onValue(c, value)
-        if (!links.hidConnected && !links.companionConnected) notifyOnceNoLink()
+        // Only a press or a slider move counts as a dropped input; a release has nothing to drop (A31).
+        if (!links.hidConnected && !links.companionConnected && !InputEngine.isRelease(c, value)) notifyOnceNoLink()
     }
 
     fun onRotaryStep(id: String, delta: Int) {
@@ -333,7 +340,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * control has a `bindTo` BeamNG action. Uses the Bluetooth pad when it is connected, else vJoy.
      */
     fun applyGameBindings(profileId: String) {
-        val p = repo.get(profileId) ?: _editor.value?.profile?.takeIf { it.id == profileId } ?: return
+        // The editor's unsaved profile wins over the stored one, so what is previewed is what is sent (U28).
+        val p = bindProfile(profileId) ?: return
         if (!companion.isConnected) {
             notify("Connect to the PC companion first. The BeamNG mod writes the bindings.")
             return
@@ -345,15 +353,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         val device = if (hid.isConnected) "hid" else "vjoy1"
         lastBindRequest = device to bindings.size
+        val sentAt = System.currentTimeMillis()
+        // busy with an empty message = request in flight; the mod's reply or the timeout below replaces it.
+        _editor.update { it?.copy(bindResult = BindResult(ok = false, message = "", device = device, requested = bindings.size, count = 0, busy = true, atMillis = sentAt)) }
+        bindTimeout?.cancel()
+        bindTimeout = viewModelScope.launch {
+            delay(BIND_TIMEOUT_MS)
+            _editor.update { e ->
+                val r = e?.bindResult
+                if (r != null && r.busy && r.atMillis == sentAt) e.copy(bindResult = r.copy(busy = false, message = "No answer from BeamNG. Is the game running with the mod enabled?"))
+                else e
+            }
+        }
         companion.send(Protocol.beamngBindingsApply(device, bindings))
-        notify("Sent ${bindings.size} bindings to BeamNG…")
     }
 
     /** What "Bind in game" would send for [profileId]: (BeamNG action, button) pairs and the device. */
     fun previewGameBindings(profileId: String): Pair<String, List<Pair<String, Int>>> {
-        val p = repo.get(profileId) ?: _editor.value?.profile?.takeIf { it.id == profileId }
+        val p = bindProfile(profileId)
         return (if (hid.isConnected) "hid" else "vjoy1") to (p?.let { gameBindings(it) } ?: emptyList())
     }
+
+    private fun bindProfile(profileId: String): Profile? =
+        _editor.value?.profile?.takeIf { it.id == profileId } ?: repo.get(profileId)
 
     // ---- connection ------------------------------------------------------------------------
 
@@ -462,6 +484,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
+        const val BIND_TIMEOUT_MS = 10_000L
         /** (BeamNG action, gamepad button) pairs for every control that asks to be bound in the game. */
         fun gameBindings(p: Profile): List<Pair<String, Int>> = p.pages.flatMap { it.controls }.mapNotNull { c ->
             val name = c.bindTo ?: return@mapNotNull null

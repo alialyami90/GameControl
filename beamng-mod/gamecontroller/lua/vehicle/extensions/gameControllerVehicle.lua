@@ -115,6 +115,16 @@ end
 
 -- ============= VEHICLE SCAN =============
 
+-- A real ESC controller exports toggleESCMode. A stand-in that answers every key with a function
+-- (like getControllerSafe's dummy) is recognised by also answering a key no controller has.
+local function isRealEscController(c)
+  if type(c) ~= "table" then return false end
+  local ok, real = pcall(function()
+    return type(c.toggleESCMode) == "function" and type(c.__gameControllerProbe_noSuchKey) ~= "function"
+  end)
+  return ok and real
+end
+
 local function findEscController()
   if not controller then return nil end
   local candidates = {}
@@ -129,8 +139,7 @@ local function findEscController()
     end
   end
   for _, c in ipairs(candidates) do
-    -- rawget: a stand-in object that answers every key (like getControllerSafe's dummy) doesn't count
-    if type(c) == "table" and type(rawget(c, "toggleESCMode")) == "function" then return c end
+    if isRealEscController(c) then return c end
   end
   return nil
 end

@@ -377,7 +377,7 @@ private fun SidePanel(
     } else {
         PageAndProfile(state.profile, page, pageIndex, onRenamePage, onDeletePage, onGridChange, onProfileChange, onApplyGameBindings)
         if (state.profile.game == GameId.BEAMNG) {
-            BindInGame(state.canBindInGame, state.bindResult, onApplyGameBindings, onPreviewGameBindings)
+            BindInGame(state.profile, state.canBindInGame, state.bindResult, onApplyGameBindings, onPreviewGameBindings)
         }
         Gap(24)
     }
@@ -616,6 +616,7 @@ private fun bindDeviceName(device: String): String = when {
  */
 @Composable
 private fun BindInGame(
+    profile: Profile,
     canBind: Boolean,
     result: BindResult?,
     onApply: () -> Unit,
@@ -625,24 +626,35 @@ private fun BindInGame(
     SectionHeader("BeamNG")
     Hint("Writes this profile's gamepad buttons into BeamNG's input bindings, so each control works in game without setup.")
     Gap(8)
-    val busy = result?.busy == true
+    // In progress: busy with no verdict yet. Busy *with* a message is the mod turning a second
+    // request away, which is a result (red row, button stays enabled), not a wait.
+    val inProgress = result != null && result.busy && !result.ok && result.message.isBlank()
+    val rejected = result != null && result.busy && result.message.isNotBlank()
+    // Pairs come from the editor's current (unsaved) profile, so recount whenever it changes.
+    val pairCount = remember(profile) { onPreview?.invoke()?.second?.size }
+    val nothingToBind = pairCount == 0
     SlantButton(
-        if (busy) "Binding…" else "Bind in game",
+        if (inProgress) "Binding…" else "Bind in game",
         { val p = onPreview?.invoke(); if (p != null) preview = p else onApply() },
         icon = Icons.Rounded.Link,
         style = SlantStyle.OUTLINE,
-        enabled = canBind && !busy,
+        enabled = canBind && !inProgress && !nothingToBind,
     )
-    if (!canBind) Hint("Needs the PC companion linked and BeamNG running with the GameCtl mod.")
-    if (result != null && !result.busy) {
+    when {
+        !canBind -> Hint("Needs the PC companion linked and BeamNG running with the GameCtl mod.")
+        nothingToBind -> Hint("Nothing to bind yet: give gamepad-button controls a \"Bind in game to\" action in the inspector.")
+    }
+    if (result != null && !inProgress) {
         Gap(8)
         val tone = when {
+            rejected -> Race.Red
             result.ok && result.unknown.isEmpty() -> Race.Green
             result.ok || result.written -> Race.Amber
             else -> Race.Red
         }
         val time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(result.atMillis))
         val headline = when {
+            rejected -> "Not bound · $time"
             result.alreadyBound -> "Already bound · $time"
             result.ok -> "Bound ${result.count} of ${result.requested} · $time"
             else -> "Not bound · $time"
@@ -661,7 +673,8 @@ private fun BindInGame(
             Column {
                 Text(headline, style = MaterialTheme.typography.bodyMedium, color = Race.Ink)
                 Text("on ${bindDeviceName(result.device)}", style = MaterialTheme.typography.bodySmall, color = Race.InkMuted)
-                if (result.message.isNotBlank() && !result.ok) Text(result.message, style = MaterialTheme.typography.bodySmall, color = Race.Red)
+                if (rejected) Text("BeamNG is still writing the last request. Try again in a second.", style = MaterialTheme.typography.bodySmall, color = Race.Red)
+                else if (result.message.isNotBlank() && !result.ok) Text(result.message, style = MaterialTheme.typography.bodySmall, color = Race.Red)
                 if (result.unknown.isNotEmpty()) {
                     Text("BeamNG didn't recognise: " + result.unknown.joinToString(), style = MaterialTheme.typography.bodySmall, color = Race.Amber)
                 }

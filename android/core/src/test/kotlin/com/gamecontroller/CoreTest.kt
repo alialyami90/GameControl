@@ -324,6 +324,35 @@ class CoreTest {
         advanceUntilIdle()
     }
 
+    @Test fun a28_switchRouteFlipDoesNotTapPositionZeroOnCompanion() = runTest {
+        val links = FakeLinks(hidConnected = false, companionConnected = true)
+        val e = InputEngine(this, links) { testScheduler.currentTime }
+        e.profile = BuiltInProfiles.gamepad()
+        val sw = e.profile!!.pages[0].controls.first { it.id == "gp_mode" }
+        e.onValue(sw, 2f)
+        links.hidConnected = true
+        e.onLinkChanged()
+        links.companion.clear()
+        e.onValue(sw, 1f)
+        assertTrue(links.companion.none { it.id == sw.id }, "a discrete control is not parked on the old route: ${links.companion}")
+        advanceUntilIdle()
+    }
+
+    @Test fun a29_gameInitiatedOnDoesNotPressHidButton() = runTest {
+        val links = FakeLinks(hidConnected = true)
+        val e = InputEngine(this, links) { testScheduler.currentTime }
+        e.profile = BuiltInProfiles.gamepad()
+        val t = e.profile!!.pages[0].controls.first { it.id == "gp_t13" }
+        fun bit13() = links.hid.lastOrNull { it.first == HidDescriptor.GAMEPAD_REPORT_ID }?.second?.get(1)?.toInt()?.and(0x10) ?: 0
+        e.onValue(t, 1f); e.onValue(t, 0f); assertEquals(0, bit13())
+        links.hid.clear()
+        e.syncValue(t.id, 1f)
+        assertEquals(0, bit13(), "the game turning a feature on must not press the button")
+        e.syncValue(t.id, 0f)
+        assertEquals(0, bit13())
+        advanceUntilIdle()
+    }
+
     @Test fun layoutOpsClampAndPages() {
         var p = LayoutOps.newProfile("Test", GameId.CUSTOM)
         val (p2, id) = LayoutOps.addControl(p, 0, ControlType.SLIDER, 100, 100)

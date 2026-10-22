@@ -79,6 +79,8 @@ local function closeSocket()
   retryTimer = 0
 end
 
+local onDisconnected -- defined with the connection code; every exit path goes through it
+
 local function flush()
   if not sock or status ~= "connected" or sendBuffer == "" then return end
   local sent, err, lastIndex = sock:send(sendBuffer)
@@ -88,7 +90,7 @@ local function flush()
     sendBuffer = string.sub(sendBuffer, (lastIndex or 0) + 1)
   else
     logW("send failed: " .. tostring(err))
-    closeSocket()
+    onDisconnected("send failed: " .. tostring(err))
   end
 end
 
@@ -98,7 +100,8 @@ local function send(msg)
   sendBuffer = sendBuffer .. encode(msg) .. "\n"
   if #sendBuffer > MAX_SEND_BUFFER then
     logW("companion is not reading, dropping the connection")
-    closeSocket()
+    sendBuffer = ""
+    onDisconnected("send buffer full")
     return
   end
   flush()
@@ -283,7 +286,8 @@ local function runAction(name, value, opts)
   end
   value = tonumber(value) or 1
   local down = value >= 0.5
-  local veh = opts.vehicle or playerVehicle()
+  local veh = opts.vehicle
+  if not opts.fixedVehicle then veh = veh or playerVehicle() end
   local vid = veh and veh:getID() or -1
   local snippets = {}
   if down and type(def.onDown) == "string" then table.insert(snippets, def.onDown) end
@@ -672,7 +676,7 @@ finishBindings = function()
     result.message = string.format("Bound %d action%s to %s", n, plural, p.label)
     if p.alreadyLive then
       result.alreadyBound = true
-      result.message = result.message .. " (they were already bound in the game)"
+      result.message = result.message .. " (already bound)"
     end
   elseif loaded == false then
     result.ok = false
@@ -697,7 +701,7 @@ local function handleMessage(line)
   if type(msg.v) == "number" and msg.v > PROTOCOL_VERSION then
     send({ type = "error", code = "version_mismatch", message = "mod supports protocol " .. PROTOCOL_VERSION })
     flush()
-    closeSocket()
+    if status == "connected" then onDisconnected("version mismatch") end
     return
   end
   local t = msg.type
@@ -714,14 +718,18 @@ end
 
 -- release every held command (horn, starter, recover, action.*) in the given vehicle, so nothing
 -- stays pressed after a disconnect or a vehicle switch
+-- (veh may be nil: then nothing is aimed at a vehicle, and nothing falls through to the player's car).
 releaseHeld = function(veh)
   for name, route in pairs(heldActions) do
     local def = oneShots[name]
     local actionName = name:match("^action%.([%w_]+)$")
     if route == "vehicle" then
-      pcall(vehicleCommandTo, veh, name, "once", 0)
+      if veh then pcall(vehicleCommandTo, veh, name, "once", 0) end
     elseif actionName or (def and def.action) then
-      pcall(runAction, actionName or def.action, 0, { vehicle = veh })
+      -- the game's action may address "the player's vehicle" (game engine Lua), which after a switch is
+      -- the new car, so commands with a vehicle route also release directly in the given car
+      pcall(runAction, actionName or def.action, 0, { vehicle = veh, fixedVehicle = true })
+      if def and def.vehicle and veh then pcall(vehicleCommandTo, veh, name, "once", 0) end
     end
   end
   heldActions = {}
@@ -739,7 +747,8 @@ local function onConnected()
   requestFullState()
 end
 
-local function onDisconnected(reason)
+onDisconnected = function(reason)
+  if not sock then return end
   logI("companion connection closed: " .. tostring(reason))
   if status == "connected" then toast("warning", "Game Controller companion disconnected") end
   releaseHeld(playerVehicle())
