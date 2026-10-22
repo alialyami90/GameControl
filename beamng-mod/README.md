@@ -60,22 +60,36 @@ The test mocks follow the mod's own understanding of the BeamNG APIs, so they ca
 
 ## In-game smoke test
 
-Run this once in BeamNG.drive with the PC companion and the phone connected, using the built-in BeamNG profile on the phone. It takes about 20 minutes.
+Run this once in BeamNG.drive with the PC companion running and the phone connected to it. It takes about 25 minutes. Control names below are exactly as they appear on the phone.
 
-**Where to look.** Press the ` key (left of 1) to open the in-game console and type `gameController` in its filter box to see only this mod's lines. The same lines are saved in `beamng.log` in the BeamNG user folder (in game: **Options > Other > Open user folder**). Each time you get into a car, the mod writes one line like `vehicle pickup: has.esc=true has.cruise=true ...`. That line says what the mod found on the car: `unknown` means it couldn't tell, so the phone keeps that control visible.
+**Where to look.** Press the ` key (left of 1) to open the in-game console, and type `gameController` in its filter box to see only this mod's lines. The same lines are saved in `beamng.log` in the BeamNG user folder (in game: **Options > Other > Open user folder**).
 
-**Cars to use.** The Gavril D-Series (4WD, low range, diff locks, ESC, cruise control), a police car for the light bar (for example the Gavril Grand Marshal police version), and a car without ESC (for example the Bruckell Bastion, any older config).
+**Cars.**
+- **Gavril D-Series**: 4WD, low range, front and rear diff locks, ESC, cruise control. It has a part-time transfer case, so the phone hiding **Center diff** for it is expected.
+- A police car for the light bar, for example the **Gavril Grand Marshal** police version.
+- A car without ESC, for example the **Ibishu Pigeon**.
+
+**Profiles.** Steps 1-3 and 5-12 use the **BeamNG.drive** profile. It has two pages: **Drive** and **4x4** (switch with the tabs at the top). Step 4 uses the **BeamNG.drive (Bluetooth pad)** profile.
 
 1. **Connection.** Start BeamNG, then the companion. Within about 3 seconds a message says "Connected to the Game Controller companion" and the phone shows BeamNG as connected. Close the companion: a message says it disconnected. Start it again: it reconnects within about 3 seconds.
-2. **Game actions (review item B1).** In the D-Series, press these phone controls: **Gear up** and **Gear down** (put the gearbox in manual first), hold **Recover** for two seconds then let go (the car rewinds while held), **Reset**, **Slow motion**, **Slower** and **Faster**, and hold **Look back**. Each one does the same as its keyboard key. In the console, a line "action failed in game engine Lua, running it in vehicle Lua (this is normal for some actions)" is fine. Write down any line that says "action failed in vehicle Lua" or "action not available".
-3. **4WD, diff locks, range (B2).** In the D-Series, press **4WD**, **Low range**, and each **Diff lock** (front, center, rear). The car's dash or the Drivetrain app (add it with **UI Apps**) shows the change, and the phone's lamp for that control follows. Turn **4WD** off and on again: it comes back in the same mode it was in.
-4. **Bindings (B3).** In the phone app's editor, use **Bind in game** for vJoy. After about a second the phone shows a result. Success reads "Bound N actions to vJoy device 1". If it reads "Saved N bindings ... BeamNG could not confirm they are active", make sure vJoy is installed and its device is enabled, then try again. Close and reopen **Options > Controls** (it only refreshes when opened), choose the vJoy device, and check the buttons are bound. Press a bound control on the phone with the output set to vJoy: the action runs. In the user folder, `settings/inputmaps/bead1234_gamecontroller.json` exists, and your own files there are unchanged.
-5. **ESC (B4).** In the D-Series, press **ESC** on the phone: the game shows the new ESC mode name at the top of the screen, and the phone's ESC lamp goes out when the mode is the one with ESC off. Then get into the car without ESC and check its `vehicle ...:` console line: it must say `has.esc=unknown`, not `has.esc=true`.
-6. **Cruise control (B5).** Drive the D-Series at about 50 km/h and press **Cruise set**: the car holds its speed and the phone shows cruise on at that speed. **Cruise +** and **Cruise -** change it by 5 km/h. **Cruise** off lets go.
-7. **Starter (B6).** Press **Ignition** on the phone to turn it off, then hold **Starter**: the engine cranks and starts, and stops cranking when you let go. The console shows `starter: mainController.setStarter` (the main route) or `starter: ignition level fallback`. Write down which one.
-8. **Rest of the profile.** Low beam, high beam, fog lights, light bar (police car), left and right signals, hazards, horn, parking brake, gearbox P/R/N/D/S/M, camera next and previous, pause. Each one works and its lamp on the phone follows.
-9. **Changing cars.** Switch to another car (**Ctrl+E**), spawn a new one from the vehicle menu, and reload the current one (**Ctrl+R**). After each, the phone's lamps match the new car within a second.
-10. **Nothing stays pressed.** Hold **Horn** on the phone and switch car with **Ctrl+E** while holding it: the horn of the first car stops. Hold **Horn** again and close the companion: the horn stops.
-11. **Slow motion soak.** Turn on slow motion at its slowest setting and drive for two minutes. The phone's speed and lamps keep updating, and the console does not show "vehicle Lua went quiet, reloading the vehicle part".
+2. **What the mod found.** Get into each of the three cars once. Each time, the console shows a line that starts `vehicle <name>:` followed by `has.esc=…`, `has.cruise=…` and others. **Copy all three lines into your report**, whatever they say. (`unknown` means the mod couldn't tell, so the phone keeps that control visible.)
+3. **Game actions.** In the D-Series, on the **Drive** page: switch the gearbox to manual (in game, Q), then press **Shift up** and **Shift down**. Hold **Recover** for two seconds and let go: the car rewinds while you hold it. Then try **Reset**, **Slow-mo** (on, then off), hold **Look back**, and on the **4x4** page **Center cam**. Each one does what its keyboard key does. In the console, a line "action failed in game engine Lua, running it in vehicle Lua (this is normal for some actions)" is fine. Write down any line that says "action failed in vehicle Lua" or "action not available".
+4. **Bind in game.** Pick the **BeamNG.drive (Bluetooth pad)** profile and open its editor. Tap **Bind in game** and confirm. About a second later the editor shows a result:
+   - "Bound N actions to vJoy device 1" (phone connected through the PC companion, using vJoy) or "Bound N actions to the phone controller" (phone paired with the PC over Bluetooth) means it worked.
+   - "Saved N bindings … BeamNG could not confirm they are active" means the file was written, but BeamNG doesn't see the controller yet. Check that vJoy is installed or the phone is paired over Bluetooth, then tap **Bind in game** again.
 
-Send the list of steps that failed, with the console lines around each one.
+   Then, in BeamNG, close and reopen **Options > Controls** (it only refreshes when opened), pick the vJoy device or "GameCtl Pad", and check its buttons are bound. Go back to play and press **Horn** and **Hazard** in this profile: they work. In the user folder, `settings/inputmaps/` has a new file ending in `_gamecontroller.json`, and your other files there are unchanged.
+5. **4WD, diff locks, range.** In the D-Series, on the **4x4** page, press **4WD**, **Low range**, **Front diff** and **Rear diff**. The dash or the Drivetrain app (add it with **UI Apps**) shows each change, and the control's lamp on the phone follows. Turn **4WD** off and on again: it comes back in the same mode it was in.
+6. **ESC.** In the D-Series, on the **4x4** page, press **ESC / TC** a few times: the game shows the ESC mode name at the top of the screen each time, and the phone's lamp is off for the mode that turns ESC off. In the Ibishu Pigeon, the `vehicle …` line from step 2 must say `has.esc=unknown`, not `has.esc=true`.
+7. **Cruise control.** In the D-Series, on the **Drive** page, drive at about 50 km/h and press **Set**: the car holds its speed, and **Cruise** lights up. Turn the **Cruise speed** dial one click each way: the target changes by 5 km/h. Press **Cruise** to turn it off.
+8. **Ignition and Start.** On the **Drive** page, press **Ignition** to turn the engine off, then hold **Start**: the engine cranks and starts, and stops cranking when you let go. The console shows `starter: mainController.setStarter` or `starter: ignition level fallback`. Write down which one.
+9. **Rest of the Drive page.** **Low beam**, **High beam**, **Fog**, **Light bar** (police car), **Left**, **Right**, **Hazard**, **Horn**, **Park brake**, the **Gearbox** switch (P/R/N/D/S/M), **Cam prev**, **Cam next**, **Pause**. Each one works, and its lamp follows the game.
+10. **Changing cars.** Switch car with **Ctrl+E**, spawn a new car from the vehicle menu, and reload the current one with **Ctrl+R**. After each, the phone's lamps match the new car within a second.
+11. **Nothing stays pressed.**
+    - Hold **Horn**, and while holding it switch car with **Ctrl+E**: the first car's horn stops.
+    - Hold **Recover** in one car, and while holding it switch car with **Ctrl+E**: the first car stops rewinding.
+    - Hold **Horn** and spawn a new car from the vehicle menu: no horn is left on.
+    - Hold **Horn** and close the companion: the horn stops.
+12. **Low frame rate.** Press **Ctrl+F** to show the frame rate, and get it under 20 fps (spawn a lot of traffic, or raise the graphics settings). Drive for two minutes. The phone's speed and lamps keep updating, and the console does not show "vehicle Lua went quiet, reloading the vehicle part".
+
+Send the three `vehicle …` lines from step 2, plus each step that failed with the console lines around it.

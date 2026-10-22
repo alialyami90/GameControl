@@ -195,7 +195,9 @@ local actionFiles = {
   ["/lua/ge/extensions/core/input/actions/vehicle.json"] = {
     toggle_slow_motion = { cat = "x", order = 1, onDown = "testHits.slowmo = (testHits.slowmo or 0) + 1" },
     shiftUp = { ctx = "vlua", onDown = "electrics.values.gear = 'D'" },
-    recover_vehicle = { ctx = "vlua", onDown = "recovery.startRecovering()", onUp = "recovery.stopRecovering()" },
+    -- as the game ships it: game engine Lua that addresses whatever car the player is in
+    recover_vehicle = { onDown = "be:getPlayerVehicle(0):queueLuaCommand('recovery.startRecovering()')",
+      onUp = "be:getPlayerVehicle(0):queueLuaCommand('recovery.stopRecovering()')" },
     reset_physics = { onDown = "testHits.reset = VEHICLEID" },
     horn_test = { onChange = "testHits.hornValue = VALUE" },
     veh_code_no_ctx = { onDown = "electrics.values.testVeh = 1" },
@@ -521,6 +523,16 @@ ve.gameControllerVehicle.onReset()
 pump(8)
 check(merged()["has.esc"] == true, "ESC controller found again")
 
+-- an ESC controller whose functions live behind a metatable still counts (B27)
+local realEsc = escCtrl
+escCtrl = setmetatable({}, { __index = realEsc })
+ve.gameControllerVehicle.onReset()
+pump(8)
+check(merged()["has.esc"] == true and merged()["esc.mode"] ~= nil, "ESC controller behind a metatable is found")
+escCtrl = realEsc
+ve.gameControllerVehicle.onReset()
+pump(8)
+
 -- a vehicle Lua action that fails falls back to the native route
 actionFiles["/lua/ge/extensions/core/input/actions/vehicle.json"].shiftUp.onDown = "error('renamed in this version')"
 link.onVehicleSpawned(7) -- clears the action cache
@@ -559,6 +571,23 @@ check(e.horn == 0, "horn released in the old car on switch")
 local releasedInNew = false
 for _, code in ipairs(veh2Queue) do if code:find('"horn"') then releasedInNew = true end end
 check(not releasedInNew, "release not sent to the new car")
+playerId = 7
+link.onVehicleSwitched(8, 7)
+pump(10)
+
+-- Recover held across a switch: the old car stops rewinding even though the game's action targets the new car
+command("recover", 1)
+local started = false
+for _, c in ipairs(calls) do if c[1] == "startRecovering" then started = true end end
+check(started, "recover started in car 7")
+calls = {}
+veh2Queue = {}
+playerId = 8
+link.onVehicleSwitched(7, 8)
+pump(4)
+local stoppedOld = false
+for _, c in ipairs(calls) do if c[1] == "stopRecovering" then stoppedOld = true end end
+check(stoppedOld, "recover stopped in the old car on switch")
 playerId = 7
 link.onVehicleSwitched(8, 7)
 pump(10)

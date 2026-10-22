@@ -1,5 +1,11 @@
 package com.gamecontroller.ui.screens
 
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.ChevronLeft
 import com.gamecontroller.ui.components.rememberPressHaptic
 import androidx.compose.foundation.layout.heightIn
 import com.gamecontroller.model.HidStatus
@@ -192,7 +198,7 @@ private fun PlayHud(
             IconButton(onClick = onBack) {
                 Icon(Icons.Rounded.ArrowBack, contentDescription = "Back to profiles", tint = Race.InkMuted)
             }
-            Column(Modifier.widthIn(min = 96.dp, max = if (tight) 128.dp else if (compact) 180.dp else 240.dp).padding(end = 14.dp)) {
+            Column(Modifier.widthIn(min = if (tight) 72.dp else 96.dp, max = if (tight) 84.dp else if (compact) 180.dp else 240.dp).padding(end = 14.dp)) {
                 Text(
                     state.profile.name,
                     style = RaceType.title,
@@ -208,15 +214,21 @@ private fun PlayHud(
             }
             Box(Modifier.weight(1f)) {
                 if (state.profile.pages.size > 1) {
-                    Box(Modifier.horizontalScroll(rememberScrollState())) {
-                        PageTabs(state.profile.pages.map { it.name }, pageIndex, onPageChange)
+                    if (tight) {
+                        // Smallest phones: a pager can't clip the way a scrolled tab row can.
+                        PagePager(state.profile.pages.map { it.name }, pageIndex, onPageChange)
+                    } else {
+                        Box(Modifier.horizontalScroll(rememberScrollState())) {
+                            PageTabs(state.profile.pages.map { it.name }, pageIndex, onPageChange)
+                        }
                     }
                 }
             }
-            GameReadouts(state.game, Modifier.padding(start = 12.dp, end = 14.dp), imperial = imperial, showRpm = !tight)
+            GameReadouts(state.game, Modifier.padding(start = if (tight) 4.dp else 12.dp, end = if (tight) 8.dp else 14.dp), imperial = imperial, showRpm = !tight)
             Row(
                 Modifier
                     .heightIn(min = 48.dp)
+                    .semantics { liveRegion = LiveRegionMode.Assertive }
                     .then(if (onOpenConnection != null) Modifier.clip(SlantShape()).clickable(onClickLabel = "Open connections", onClick = onOpenConnection) else Modifier),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -225,13 +237,14 @@ private fun PlayHud(
                 PcLinkBadge(state.connection, compact = compact, lampOnly = tight, alert = noLink)
             }
             Spacer(Modifier.width(10.dp))
+            // Tight: Edit goes icon-only so the page pager keeps room for the page name.
             SlantButton(
-                text = if (holdHint) "Hold" else "Edit",
+                text = if (holdHint) "Hold" else if (tight) "" else "Edit",
                 icon = Icons.Rounded.Tune,
                 onClick = if (live) ({ holdHint = true }) else onEdit,
                 onLongClick = if (live) onEdit else null,
                 longClickLabel = "Edit layout",
-                modifier = Modifier.widthIn(min = 104.dp),
+                modifier = Modifier.widthIn(min = if (tight) 64.dp else 104.dp).semantics { contentDescription = "Edit layout" },
             )
         }
     }
@@ -241,6 +254,37 @@ private fun PlayHud(
 @Composable
 fun PageTabs(names: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) =
     SlantTabs(names, selected, onSelect, modifier)
+
+/** Previous / next with the current page name between: always fits, two 48dp targets. */
+@Composable
+private fun PagePager(names: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = { onSelect(selected - 1) }, enabled = selected > 0) {
+            Icon(Icons.Rounded.ChevronLeft, contentDescription = "Previous page", tint = if (selected > 0) Race.Ink else Race.InkFaint)
+        }
+        Box(
+            Modifier
+                .weight(1f, fill = false)
+                .heightIn(min = 36.dp)
+                .clip(SlantShape())
+                .background(Race.Electric)
+                .padding(horizontal = 10.dp)
+                .semantics { contentDescription = "Page ${selected + 1} of ${names.size}: ${names[selected]}" },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                names[selected].uppercase(),
+                style = RaceType.capLabel.copy(fontStyle = FontStyle.Italic),
+                color = OnAccent,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        IconButton(onClick = { onSelect(selected + 1) }, enabled = selected < names.lastIndex) {
+            Icon(Icons.Rounded.ChevronRight, contentDescription = "Next page", tint = if (selected < names.lastIndex) Race.Ink else Race.InkFaint)
+        }
+    }
+}
 
 @Composable
 private fun EmptyPage(onEdit: () -> Unit) {

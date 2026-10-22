@@ -1,5 +1,6 @@
 package com.gamecontroller.ui.screens
 
+import androidx.compose.ui.graphics.Brush
 import com.gamecontroller.ui.components.StatusLamp
 import com.gamecontroller.model.BindResult
 import kotlinx.coroutines.launch
@@ -187,23 +188,33 @@ fun EditorScreen(
     val scope = rememberCoroutineScope()
     val currentProfile by rememberUpdatedState(profile)
 
-    // Deletes take effect at once and offer Undo, which puts the whole profile back as it was.
-    fun undoable(message: String, act: () -> Unit) {
-        val before = currentProfile
+    // Deletes take effect at once and offer Undo, which puts back only what was deleted, so
+    // edits made while the snackbar is up survive.
+    fun undoable(message: String, act: () -> Unit, undo: () -> Unit) {
         act()
         scope.launch {
             snackbar.currentSnackbarData?.dismiss()
-            if (snackbar.showSnackbar(message, actionLabel = "Undo", duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed) {
-                onProfileChange { before }
-            }
+            if (snackbar.showSnackbar(message, actionLabel = "Undo", duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed) undo()
         }
     }
     val deleteControl: (String) -> Unit = { id ->
-        val label = page.controls.firstOrNull { it.id == id }?.label.orEmpty().ifBlank { "Control" }
-        undoable("$label deleted") { onDelete(id) }
+        val gone = page.controls.firstOrNull { it.id == id }
+        val pageId = page.id
+        if (gone != null) undoable("${gone.label.ifBlank { "Control" }} deleted", { onDelete(id) }) {
+            onProfileChange { p ->
+                p.copy(pages = p.pages.map { pg -> if (pg.id == pageId && pg.controls.none { it.id == id }) pg.copy(controls = pg.controls + gone) else pg })
+            }
+        }
     }
     val deletePage: (Int) -> Unit = { i ->
-        undoable("Page ${profile.pages.getOrNull(i)?.name.orEmpty()} deleted") { onDeletePage(i) }
+        val gone = currentProfile.pages.getOrNull(i)
+        if (gone != null) undoable("Page ${gone.name} deleted", { onDeletePage(i) }) {
+            onProfileChange { p ->
+                if (p.pages.any { it.id == gone.id }) p
+                else p.copy(pages = p.pages.toMutableList().apply { add(i.coerceAtMost(size), gone) })
+            }
+            onPageChange(i)
+        }
     }
 
     // System Back is the X: it asks before throwing edits away and never saves. Done is the only save.
@@ -389,11 +400,28 @@ private fun SidePanel(
  */
 @Composable
 private fun Palette(rail: Boolean, full: Boolean, onAdd: (ControlType) -> Unit) {
+    val scroll = rememberScrollState()
+    Box(Modifier.width(if (rail) 56.dp else 104.dp).fillMaxHeight()) {
+        PaletteItems(rail, full, onAdd, scroll)
+        // Scroll cue: the last items fade out while more are below.
+        if (scroll.canScrollForward) {
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(28.dp)
+                    .background(Brush.verticalGradient(listOf(Race.Ground.copy(alpha = 0f), Race.Ground))),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PaletteItems(rail: Boolean, full: Boolean, onAdd: (ControlType) -> Unit, scroll: androidx.compose.foundation.ScrollState) {
     Column(
         Modifier
-            .width(if (rail) 56.dp else 104.dp)
-            .fillMaxHeight()
-            .verticalScroll(rememberScrollState())
+            .fillMaxSize()
+            .verticalScroll(scroll)
             .padding(start = if (rail) 4.dp else 12.dp, end = if (rail) 4.dp else 8.dp, top = 4.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(if (rail) 6.dp else 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -535,11 +563,13 @@ private fun EditableControl(
                         drawOutline(o, Race.Electric, style = Stroke(5.dp.toPx()))
                     },
             )
-            // Resize tab: a 48dp touch target around a small slanted plate, kept small so it doesn't cover the cap.
-            Box(
+            // Resize tab: never more than half the cap each way, so the rest of the cap still moves
+            // it. On caps too small for a usable tab, the inspector's Width/Height steppers resize.
+            val handle = minOf(48.dp, m.w(c.w) / 2, m.h(c.h) / 2)
+            if (handle >= 32.dp) Box(
                 Modifier
                     .align(Alignment.BottomEnd)
-                    .size(48.dp)
+                    .size(handle)
                     .pointerInput(c.id, pitchX, pitchY) {
                         detectDragGestures(
                             onDragEnd = {

@@ -103,9 +103,10 @@ fun SlantButton(
         ) {
             if (icon != null) {
                 Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
+                if (text.isNotEmpty()) Spacer(Modifier.width(8.dp))
             }
-            Text(text.uppercase(), style = RaceType.capLabelLarge.copy(fontStyle = FontStyle.Italic), color = fg, maxLines = 1)
+            // Empty text gives an icon-only button; the caller supplies its contentDescription.
+            if (text.isNotEmpty()) Text(text.uppercase(), style = RaceType.capLabelLarge.copy(fontStyle = FontStyle.Italic), color = fg, maxLines = 1)
         }
     }
 }

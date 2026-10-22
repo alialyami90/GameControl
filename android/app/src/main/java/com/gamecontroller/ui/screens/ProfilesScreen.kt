@@ -184,7 +184,10 @@ fun ProfilesScreen(
                 TextButton(onClick = { confirmRestore = null; onDelete(p.id) }) { Text("Restore", color = Race.Red) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmRestore = null; onDuplicate(p.id) }) { Text("Duplicate instead") }
+                Row {
+                    TextButton(onClick = { confirmRestore = null }) { Text("Keep it") }
+                    TextButton(onClick = { confirmRestore = null; onDuplicate(p.id) }) { Text("Duplicate instead") }
+                }
             },
             containerColor = Race.PanelRaised,
         )

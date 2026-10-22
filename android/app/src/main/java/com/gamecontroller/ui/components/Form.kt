@@ -1,5 +1,6 @@
 package com.gamecontroller.ui.components
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -189,21 +190,28 @@ fun ChoiceChips(options: List<String>, selected: String?, onSelect: (String) -> 
     androidx.compose.foundation.layout.FlowRow(
         modifier,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
         options.forEach { o ->
             val on = o == selected
+            // 48dp touch target around a 40dp slanted chip.
             Box(
                 Modifier
-                    .height(40.dp)
-                    .clip(com.gamecontroller.ui.theme.SlantShape())
-                    .background(if (on) Race.Electric else Race.Cap)
+                    .heightIn(min = 48.dp)
                     .semantics { role = Role.RadioButton; this.selected = on }
-                    .clickable { onSelect(o) }
-                    .padding(horizontal = 16.dp),
+                    .clickable { onSelect(o) },
                 contentAlignment = Alignment.Center,
             ) {
-                Text(o, style = RaceType.capLabel, color = if (on) OnAccent else Race.Ink)
+                Box(
+                    Modifier
+                        .height(40.dp)
+                        .clip(com.gamecontroller.ui.theme.SlantShape())
+                        .background(if (on) Race.Electric else Race.Cap)
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(o, style = RaceType.capLabel, color = if (on) OnAccent else Race.Ink)
+                }
             }
         }
     }

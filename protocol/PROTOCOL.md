@@ -195,7 +195,7 @@ Companion to mod:
 {"v":1,"type":"state.request"}
 ```
 
-`bindings.result` fields: `ok` (true only once BeamNG's input system shows the bindings loaded), `message` (always shown to the user when `ok` is false), `written` (the inputmap file was saved), `count` (bindings written), `unknown` (action names this game version does not have), `device`, `busy` (a previous apply is still being confirmed; retry in a second), `alreadyBound` (the same pairs were already live from the user's own `.diff`).
+`bindings.result` fields: `ok` (true only once BeamNG's input system shows the bindings loaded), `message` (always shown to the user when `ok` is false), `written` (the inputmap file was saved), `count` (bindings written), `unknown` (action names this game version does not have), `device`, `busy` (a previous apply is still being confirmed; retry in a second), `alreadyBound` (the same pairs were already bound in the game, so nothing was written).
 
 `bindings.apply`: BeamNG keys joystick input maps by `vidpid` (lowercase PID+VID hex, e.g. vJoy = `bead1234`). GE Lua has no device-list API, so the **companion adds `"vidpid"`** to every `bindings.apply` it forwards: it reads the VID/PID of the vJoy device (`device:"vjoy1"`) or of the paired "GameCtl Pad" Bluetooth HID device (`device:"hid"`) from Windows. Without it the mod falls back to `bead1234` for `vjoy1` and answers `ok:false` for `hid`. Protocol button N maps to BeamNG `button{N-1}`. The mod writes `settings/inputmaps/<vidpid>_gamecontroller.json` in the user folder and reloads input; users can still rebind in Options > Controls.
 
@@ -215,7 +215,7 @@ Phone to companion, to ask the mod to write in-game bindings for the vJoy button
 
 ### BeamNG command names
 
-`<feature>.toggle` flips state on the rising edge; `<feature>` with value 1/0 sets state idempotently (setters exist for every toggle feature below); plain names for one-shots. The mod owns the exact list and reports it in `commands`. Minimum set used by the built-in profile:
+`<feature>.toggle` flips state once per event it receives (the phone sends it on the rising edge from a `momentary` control and on every change from a `latching` one, see Duplicates above); `<feature>` with value 1/0 sets state idempotently (setters exist for every toggle feature below); plain names for one-shots. The mod owns the exact list and reports it in `commands`. Minimum set used by the built-in profile:
 
 `action.<beamngActionName>` (value 1 = press, 0 = release; runs any BeamNG input action by name, passes the value through), `ignition.toggle`, `starter` (value 1 = crank, 0 = stop), `lights.low.toggle`, `lights.high.toggle`, `lights.fog.toggle`, `lights.light_bar.toggle`, `signal.left.toggle`, `signal.right.toggle`, `hazard.toggle`, `horn` (value 1/0), `parkingbrake.toggle`, `esc.toggle`, `tcs.toggle`, `diff.front.toggle`, `diff.center.toggle`, `diff.rear.toggle`, `awd.toggle`, `range.toggle`, `gearbox.mode` (value = index into P,R,N,D,S,M), `gear.up`, `gear.down`, `cruise.toggle`, `cruise.set`, `cruise.up`, `cruise.down`, `camera.next`, `camera.prev`, `recover` (value 1/0, hold to rewind), `reset`, `reset.full`, `slowmo.toggle`, `slowmo.faster`, `slowmo.slower`, `pause.toggle`.
 

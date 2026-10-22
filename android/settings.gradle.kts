@@ -27,4 +27,7 @@ include(":core")
 // Pass -PcoreOnly=true to build/test the core on a machine without the Android SDK.
 if (providers.gradleProperty("coreOnly").orNull != "true") {
     include(":app")
+} else {
+    // The core-only root build file declares no Android plugins, so nothing is fetched from Google's Maven.
+    rootProject.buildFileName = "build-core.gradle.kts"
 }

@@ -1,5 +1,6 @@
 package com.gamecontroller.ui.screens
 
+import androidx.compose.runtime.LaunchedEffect
 import com.gamecontroller.ui.components.raceFieldColors
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.text.AnnotatedString
@@ -312,14 +313,20 @@ private fun CompanionPanel(
             }
             ConnectionStatus.PAIRING -> {
                 var pin by remember { mutableStateOf("") }
+                // A wrong PIN clears the field; the error shows until the first new digit.
+                var pinError by remember { mutableStateOf<String?>(null) }
+                LaunchedEffect(connection.message) {
+                    if (connection.message != null) { pin = ""; pinError = connection.message }
+                }
                 SectionHeader("Enter the PIN")
                 Hint("The PC companion is showing a 6-digit PIN. Type it here to pair this phone.")
                 Gap(8)
                 PinField(pin, { v ->
+                    pinError = null
                     pin = v.filter { it.isDigit() }.take(PinLength)
                     // The sixth digit submits; a wrong PIN comes back as the field's error.
                     if (pin.length == PinLength) onSubmitPin(pin)
-                }, error = connection.message)
+                }, error = pinError)
                 Gap(8)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SlantButton("Pair", { onSubmitPin(pin) }, style = SlantStyle.PRIMARY, enabled = pin.length == PinLength)

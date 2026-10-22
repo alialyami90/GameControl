@@ -12,7 +12,8 @@ import com.gamecontroller.model.Page
 fun Control.minSpan(page: Page): Pair<Int, Int> {
     val n = positions.size.coerceAtLeast(2)
     val (w, h) = when (type) {
-        ControlType.SWITCH, ControlType.RADIO -> if (this.w >= this.h) n to 1 else 1 to n
+        // Horizontal only, matching core's sanitize, so what the editor allows survives a reload.
+        ControlType.SWITCH, ControlType.RADIO -> n to 1
         ControlType.SLIDER -> if (vertical) 1 to 2 else 2 to 1
         ControlType.ROTARY -> 2 to 2
         ControlType.MOMENTARY, ControlType.LATCHING -> 1 to 1
