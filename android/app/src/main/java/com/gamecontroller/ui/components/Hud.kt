@@ -71,20 +71,29 @@ fun HidUi.summary(): LinkSummary = when (status) {
 
 /** Compact link badge: icon, status lamp, short status. */
 @Composable
-fun LinkBadge(icon: ImageVector, name: String, summary: LinkSummary, modifier: Modifier = Modifier, compact: Boolean = false) {
+fun LinkBadge(
+    icon: ImageVector,
+    name: String,
+    summary: LinkSummary,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+    lampOnly: Boolean = false,
+) {
     Row(
         modifier
             .height(32.dp)
             .clip(SlantShape())
             .background(Race.Panel)
             .border(1.dp, Race.Line, SlantShape())
-            .padding(horizontal = 14.dp)
+            .padding(horizontal = if (lampOnly) 12.dp else 14.dp)
             .semantics(mergeDescendants = true) { contentDescription = summary.long },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, contentDescription = null, tint = if (summary.tone == LinkTone.OFF) Race.InkFaint else Race.Ink, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
-        StatusLamp(summary.tone.color(), lit = summary.tone != LinkTone.OFF, half = summary.tone == LinkTone.BUSY)
+        // Lamp-only (narrowest phones): the lamp's fill still says linked / connecting / off.
+        StatusLamp(summary.tone.color(), lit = summary.tone != LinkTone.OFF, half = summary.tone == LinkTone.BUSY, size = if (lampOnly) 10 else 8)
+        if (lampOnly) return@Row
         Spacer(Modifier.width(6.dp))
         if (!compact) {
             Text(name, style = RaceType.unit, color = Race.InkMuted)
@@ -113,24 +122,27 @@ fun StatusLamp(color: Color, lit: Boolean, modifier: Modifier = Modifier, size: 
 }
 
 @Composable
-fun BluetoothLinkBadge(hid: HidUi, modifier: Modifier = Modifier, compact: Boolean = false) = LinkBadge(
+fun BluetoothLinkBadge(hid: HidUi, modifier: Modifier = Modifier, compact: Boolean = false, lampOnly: Boolean = false) = LinkBadge(
     if (hid.status == HidStatus.UNSUPPORTED) Icons.Rounded.BluetoothDisabled else Icons.Rounded.Bluetooth,
-    "BT", hid.summary(), modifier, compact,
+    "BT", hid.summary(), modifier, compact, lampOnly,
 )
 
 @Composable
-fun PcLinkBadge(connection: ConnectionUi, modifier: Modifier = Modifier, compact: Boolean = false) =
-    LinkBadge(Icons.Rounded.Computer, "PC", connection.summary(), modifier, compact)
+fun PcLinkBadge(connection: ConnectionUi, modifier: Modifier = Modifier, compact: Boolean = false, lampOnly: Boolean = false) =
+    LinkBadge(Icons.Rounded.Computer, "PC", connection.summary(), modifier, compact, lampOnly)
 
-/** Game readouts from telemetry. Draws nothing for games that report no state. */
+/**
+ * Game readouts from telemetry. Draws nothing for games that report no state. Speed arrives in
+ * m/s and shows in km/h or, with [imperial], mph. [showRpm] false keeps only speed and gear.
+ */
 @Composable
-fun GameReadouts(game: Map<String, Any>, modifier: Modifier = Modifier) {
+fun GameReadouts(game: Map<String, Any>, modifier: Modifier = Modifier, imperial: Boolean = false, showRpm: Boolean = true) {
     val gear = game["gear"]?.toString()
-    val speed = (game["speed"] as? Number)?.toDouble()?.let { (it * 3.6).roundToInt() }
-    val rpm = (game["rpm"] as? Number)?.toInt()
+    val speed = (game["speed"] as? Number)?.toDouble()?.let { (it * if (imperial) 2.23694 else 3.6).roundToInt() }
+    val rpm = (game["rpm"] as? Number)?.toInt()?.takeIf { showRpm }
     if (gear == null && speed == null && rpm == null) return
     Row(modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        if (speed != null) Readout(speed.toString(), "KM/H", Modifier.widthIn(min = 44.dp))
+        if (speed != null) Readout(speed.toString(), if (imperial) "MPH" else "KM/H", Modifier.widthIn(min = 44.dp))
         if (rpm != null) Readout("%,d".format(rpm), "RPM", Modifier.widthIn(min = 56.dp))
         if (gear != null) {
             Box(

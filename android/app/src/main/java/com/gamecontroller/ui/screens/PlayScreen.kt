@@ -1,5 +1,13 @@
 package com.gamecontroller.ui.screens
 
+import com.gamecontroller.model.HidStatus
+import com.gamecontroller.model.ConnectionStatus
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -88,6 +96,7 @@ fun PlayScreen(
     onPageChange: (Int) -> Unit,
     onEdit: () -> Unit,
     onBack: () -> Unit,
+    imperialUnits: Boolean = false,
 ) {
     val pages = state.profile.pages
     val pageIndex = state.pageIndex.coerceIn(0, (pages.size - 1).coerceAtLeast(0))
@@ -98,7 +107,7 @@ fun PlayScreen(
             .background(Race.Ground)
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        PlayHud(state, pageIndex, onPageChange, onEdit, onBack)
+        PlayHud(state, pageIndex, imperialUnits, onPageChange, onEdit, onBack)
         Box(Modifier.weight(1f).fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp, top = 4.dp)) {
             if (page == null || page.controls.isEmpty()) {
                 EmptyPage(onEdit)
@@ -136,7 +145,20 @@ fun ControlGrid(page: Page, modifier: Modifier = Modifier, content: @Composable 
 }
 
 @Composable
-private fun PlayHud(state: PlayState, pageIndex: Int, onPageChange: (Int) -> Unit, onEdit: () -> Unit, onBack: () -> Unit) {
+private fun PlayHud(
+    state: PlayState,
+    pageIndex: Int,
+    imperial: Boolean,
+    onPageChange: (Int) -> Unit,
+    onEdit: () -> Unit,
+    onBack: () -> Unit,
+) {
+    // While anything is linked the player is probably mid-game: Edit then needs a hold, and a
+    // stray tap only says so, instead of dropping them into the editor.
+    val live = state.game.isNotEmpty() || state.connection.status == ConnectionStatus.CONNECTED ||
+        state.hid.status == HidStatus.CONNECTED
+    var holdHint by remember { mutableStateOf(false) }
+    LaunchedEffect(holdHint) { if (holdHint) { delay(1600); holdHint = false } }
     BoxWithConstraints(Modifier.fillMaxWidth().height(56.dp)) {
         // Link badges drop their "BT"/"PC" names only when the strip would otherwise overflow;
         // their status words, lamps, Edit and Back always stay.
@@ -144,6 +166,8 @@ private fun PlayHud(state: PlayState, pageIndex: Int, onPageChange: (Int) -> Uni
         val needed = 48.dp + 200.dp + (if (pages > 1) 112.dp * pages else 0.dp) +
             (if (state.game.isNotEmpty()) 280.dp else 0.dp) + 300.dp + 130.dp
         val compact = maxWidth < needed
+        // Narrowest phones (640dp class): lamp-only badges, no rpm, shorter name, so Edit stays on screen.
+        val tight = maxWidth < 720.dp
         Row(
             Modifier.fillMaxSize().padding(start = 4.dp, end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -151,7 +175,7 @@ private fun PlayHud(state: PlayState, pageIndex: Int, onPageChange: (Int) -> Uni
             IconButton(onClick = onBack) {
                 Icon(Icons.Rounded.ArrowBack, contentDescription = "Back to profiles", tint = Race.InkMuted)
             }
-            Column(Modifier.widthIn(min = 96.dp, max = if (compact) 180.dp else 240.dp).padding(end = 14.dp)) {
+            Column(Modifier.widthIn(min = 96.dp, max = if (tight) 128.dp else if (compact) 180.dp else 240.dp).padding(end = 14.dp)) {
                 Text(
                     state.profile.name,
                     style = RaceType.title,
@@ -173,13 +197,20 @@ private fun PlayHud(state: PlayState, pageIndex: Int, onPageChange: (Int) -> Uni
                     }
                 }
             }
-            GameReadouts(state.game, Modifier.padding(start = 12.dp, end = 14.dp))
+            GameReadouts(state.game, Modifier.padding(start = 12.dp, end = 14.dp), imperial = imperial, showRpm = !tight)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                BluetoothLinkBadge(state.hid, compact = compact)
-                PcLinkBadge(state.connection, compact = compact)
+                BluetoothLinkBadge(state.hid, compact = compact, lampOnly = tight)
+                PcLinkBadge(state.connection, compact = compact, lampOnly = tight)
             }
             Spacer(Modifier.width(10.dp))
-            SlantButton(text = "Edit", icon = Icons.Rounded.Tune, onClick = onEdit, modifier = Modifier.widthIn(min = 104.dp))
+            SlantButton(
+                text = if (holdHint) "Hold" else "Edit",
+                icon = Icons.Rounded.Tune,
+                onClick = if (live) ({ holdHint = true }) else onEdit,
+                onLongClick = if (live) onEdit else null,
+                longClickLabel = "Edit layout",
+                modifier = Modifier.widthIn(min = 104.dp),
+            )
         }
     }
 }

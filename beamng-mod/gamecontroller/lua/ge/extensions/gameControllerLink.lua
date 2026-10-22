@@ -5,7 +5,11 @@
 
 local M = {}
 
-local socket = require("socket")
+local socketOk, socket = pcall(require, "socket")
+if not socketOk then
+  log('E', 'gameController', 'LuaSocket is not available in this game version, the Game Controller link is disabled: ' .. tostring(socket))
+  socket = nil
+end
 
 local PROTOCOL_VERSION = 1
 local MOD_VERSION = "1.0.0"
@@ -13,9 +17,10 @@ local HOST = "127.0.0.1"
 local PORT = 47803
 local RETRY_INTERVAL = 3      -- seconds between connection attempts
 local CONNECT_TIMEOUT = 3     -- seconds to wait for the TCP handshake
-local VEHICLE_TIMEOUT = 3     -- seconds without vehicle Lua messages before reloading it
+local VEHICLE_TIMEOUT = 3     -- seconds (real time) without vehicle Lua messages before reloading it
 local MAX_SEND_BUFFER = 1024 * 1024
 local BINDINGS_SUFFIX = "_gamecontroller"
+local BINDINGS_VERIFY_DELAY = 1 -- seconds after writing before checking the input system loaded them
 local VJOY_VIDPID = "bead1234" -- vJoy: VID 0x1234, PID 0xBEAD, BeamNG writes PID then VID
 
 local sock = nil
@@ -24,7 +29,8 @@ local retryTimer = RETRY_INTERVAL
 local connectTimer = 0
 local recvPartial = ""
 local sendBuffer = ""
-local hasWarnedOffline = false
+local pendingBindings = nil   -- bindings waiting to be confirmed as loaded
+local finishBindings          -- defined with the bindings code
 
 local state = {}              -- last known values, merged
 local pending = {}            -- values changed since the last send
@@ -97,23 +103,31 @@ local function send(msg)
 end
 
 -- ============= ACTIONS =============
--- BeamNG input actions are read from the game's own definition files and run with the
--- same code the keyboard would run, so commands follow whatever the installed game version does.
+-- BeamNG input actions run with the same code the keyboard would run, so commands follow whatever
+-- the installed game version does. Definitions come from the input system when it exposes them,
+-- otherwise from the game's own files. Per the BeamNG docs a missing ctx means "tlua" (game engine)
+-- for regular actions and "vlua" for vehicle-specific ones.
 
-local function readActionFiles(dir, into, defaultCtx)
+local DEPRECATED_CTX = { ui = true, ts = true, slua = true }
+
+local function addDefs(data, into, defaultCtx)
+  if type(data) ~= "table" then return end
+  for name, def in pairs(data) do
+    if type(name) == "string" and type(def) == "table" then
+      def._ctx = def.ctx or defaultCtx
+      def._ctxExplicit = def.ctx ~= nil
+      into[name] = def
+    end
+  end
+end
+
+local function readActionFiles(dir, pattern, into, defaultCtx)
   if not (FS and FS.findFiles) then return end
-  local ok, files = pcall(FS.findFiles, FS, dir, "*.json", 0, true, false)
+  local ok, files = pcall(FS.findFiles, FS, dir, pattern, 0, true, false)
   if not ok or type(files) ~= "table" then return end
   for _, file in ipairs(files) do
-    local data = jsonReadFile(file)
-    if type(data) == "table" then
-      for name, def in pairs(data) do
-        if type(def) == "table" then
-          def._ctx = def.ctx or defaultCtx
-          into[name] = def
-        end
-      end
-    end
+    local okRead, data = pcall(jsonReadFile, file)
+    if okRead then addDefs(data, into, defaultCtx) end
   end
 end
 
@@ -128,29 +142,35 @@ local function vehicleDir(veh)
   return nil
 end
 
+-- the input system's own merged list, if this game version exposes one
+local function activeActionsFromGame()
+  local mod = rawget(_G, "core_input_actions")
+  if type(mod) ~= "table" or type(mod.getActiveActions) ~= "function" then return nil end
+  local ok, list = pcall(mod.getActiveActions)
+  if not ok or type(list) ~= "table" or next(list) == nil then return nil end
+  return list
+end
+
 local function loadActions()
   local veh = playerVehicle()
   local dir = vehicleDir(veh)
   if actions and actionsVehicle == dir then return actions end
   local list = {}
-  readActionFiles("/lua/ge/extensions/core/input/actions/", list, "tlua")
-  if dir then
-    -- vehicle-specific actions: vehicles/<dir>/input_actions*.json, run in vehicle Lua by default
-    local vehicleList = {}
-    if FS and FS.findFiles then
-      local ok, files = pcall(FS.findFiles, FS, "/vehicles/" .. dir .. "/", "input_actions*.json", 0, true, false)
-      if ok and type(files) == "table" then
-        for _, file in ipairs(files) do
-          local data = jsonReadFile(file)
-          if type(data) == "table" then
-            for name, def in pairs(data) do
-              if type(def) == "table" then def._ctx = def.ctx or "vlua"; vehicleList[name] = def end
-            end
-          end
-        end
+  readActionFiles("/lua/ge/extensions/core/input/actions/", "*.json", list, "tlua")
+  readActionFiles("/vehicles/common/", "input_actions*.json", list, "vlua")
+  if dir then readActionFiles("/vehicles/" .. dir .. "/", "input_actions*.json", list, "vlua") end
+  -- the game's merged list wins where it has an entry; its ctx is already resolved
+  local fromGame = activeActionsFromGame()
+  if fromGame then
+    for name, def in pairs(fromGame) do
+      if type(name) == "string" and type(def) == "table" then
+        local known = list[name]
+        local ctx = def.ctx or (known and known._ctx) or (def.vehicle and "vlua") or "tlua"
+        def._ctx = ctx
+        def._ctxExplicit = def.ctx ~= nil or (known and known._ctxExplicit) or false
+        list[name] = def
       end
     end
-    for name, def in pairs(vehicleList) do list[name] = def end
   end
   actions = list
   actionsVehicle = dir
@@ -165,29 +185,49 @@ local function substitute(code, value, vid)
   return (code:gsub("%f[%w_]([%u]+)%f[^%w_]", function(word) return subs[word] end))
 end
 
-local function runCode(ctx, code)
+-- returns true when the code was run (game engine) or queued (vehicle Lua)
+local function runCode(ctx, code, ctxExplicit)
   local veh = playerVehicle()
   if ctx == "vlua" then
-    if veh then veh:queueLuaCommand(code) end
+    if not veh then return false end
+    veh:queueLuaCommand(code)
+    return true
   elseif ctx == "bvlua" then
     be:queueAllObjectLua(code)
-  else
-    local fn, err = loadstring(code)
-    if not fn then logW("action code failed to compile: " .. tostring(err)) return end
-    local ok, runErr = pcall(fn)
-    if not ok then logW("action failed: " .. tostring(runErr)) end
+    return true
   end
+  local fn, err = loadstring(code)
+  if not fn then logW("action code failed to compile: " .. tostring(err)) return false end
+  local ok, runErr = pcall(fn)
+  if ok then return true end
+  -- an action without an explicit ctx that fails in game engine Lua may be vehicle code: try it there once
+  if not ctxExplicit and veh then
+    logI("action failed in game engine Lua, running it in vehicle Lua: " .. tostring(runErr))
+    veh:queueLuaCommand(code)
+    return true
+  end
+  logW("action failed: " .. tostring(runErr))
+  return false
 end
 
 local function hasAction(name)
-  return loadActions()[name] ~= nil
+  local def = loadActions()[name]
+  return def ~= nil and not DEPRECATED_CTX[def._ctx]
 end
 
--- value 1 = press, 0 = release
-local function runAction(name, value)
+local function vehicleDirect(feature)
+  local veh = playerVehicle()
+  if not veh then return end
+  veh:queueLuaCommand(string.format("local m = extensions.gameControllerVehicle if m then m.command(%q, 'direct', 1) end", feature))
+end
+
+-- value 1 = press, 0 = release. Returns false if the action is missing or failed.
+-- fallbackFeature (from vehicle Lua): toggle that feature directly instead when the action can't run.
+local function runAction(name, value, fallbackFeature)
   local def = loadActions()[name]
-  if not def then
-    logW("BeamNG action not found: " .. tostring(name))
+  if not def or DEPRECATED_CTX[def._ctx] then
+    logW("BeamNG action not available: " .. tostring(name))
+    if fallbackFeature then vehicleDirect(fallbackFeature) end
     return false
   end
   value = tonumber(value) or 1
@@ -195,13 +235,15 @@ local function runAction(name, value)
   local veh = playerVehicle()
   local vid = veh and veh:getID() or -1
   local snippets = {}
-  if down and def.onDown then table.insert(snippets, def.onDown) end
-  if not down and def.onUp then table.insert(snippets, def.onUp) end
-  if def.onChange then table.insert(snippets, def.onChange) end
+  if down and type(def.onDown) == "string" then table.insert(snippets, def.onDown) end
+  if not down and type(def.onUp) == "string" then table.insert(snippets, def.onUp) end
+  if type(def.onChange) == "string" then table.insert(snippets, def.onChange) end
+  local ran = #snippets == 0 -- nothing to do for this edge is not a failure
   for _, code in ipairs(snippets) do
-    if type(code) == "string" then runCode(def._ctx, substitute(code, down and 1 or 0, vid)) end
+    if runCode(def._ctx, substitute(code, down and 1 or 0, vid), def._ctxExplicit) then ran = true end
   end
-  return true
+  if not ran and fallbackFeature then vehicleDirect(fallbackFeature) end
+  return ran
 end
 
 local function tapAction(name)
@@ -234,13 +276,15 @@ end
 
 local function readGameState()
   if simTimeAuthority then
+    local paused = false
     if simTimeAuthority.getPause then
-      local ok, paused = pcall(simTimeAuthority.getPause)
-      if ok then setValue("game.paused", paused == true) end
+      local ok, p = pcall(simTimeAuthority.getPause)
+      if ok then paused = p == true; setValue("game.paused", paused) end
     end
-    if simTimeAuthority.getReal then
+    -- while paused the sim speed reads as stopped, so keep the last slow motion value
+    if not paused and simTimeAuthority.getReal then
       local ok, speed = pcall(simTimeAuthority.getReal)
-      if ok and type(speed) == "number" then setValue("game.slowmo", speed < 0.999) end
+      if ok and type(speed) == "number" and speed > 0 then setValue("game.slowmo", speed < 0.999) end
     end
   end
   if core_camera and core_camera.getActiveCamName then
@@ -282,7 +326,7 @@ local function attachVehicle()
     return
   end
   fullPending = true
-  veh:queueLuaCommand("if not gameControllerVehicle then extensions.load('gameControllerVehicle') end if gameControllerVehicle then gameControllerVehicle.requestFull() end")
+  veh:queueLuaCommand("local m = extensions.gameControllerVehicle if not m then extensions.load('gameControllerVehicle') m = extensions.gameControllerVehicle end if m then m.requestFull() end")
 end
 
 local function requestFullState()
@@ -295,7 +339,7 @@ end
 local function vehicleCommand(name, mode, value)
   local veh = playerVehicle()
   if not veh then return end
-  veh:queueLuaCommand(string.format("if gameControllerVehicle then gameControllerVehicle.command(%q, %q, %s) end",
+  veh:queueLuaCommand(string.format("local m = extensions.gameControllerVehicle if m then m.command(%q, %q, %s) end",
     name, mode, tostring(tonumber(value) or 1)))
 end
 
@@ -375,12 +419,16 @@ local function runOneShot(name, def, value)
   end
   if def.hold then
     -- press on 1, release on 0
-    if def.action and hasAction(def.action) then
-      if down == (heldActions[name] == true) then return end
-      heldActions[name] = down or nil
-      runAction(def.action, down and 1 or 0)
+    if down == (heldActions[name] ~= nil) then return end
+    if not down then
+      local route = heldActions[name]
+      heldActions[name] = nil
+      if route == "action" then runAction(def.action, 0) else vehicleCommand(name, "once", 0) end
+    elseif def.action and runAction(def.action, 1) then
+      heldActions[name] = "action"
     elseif def.vehicle then
-      vehicleCommand(name, "once", down and 1 or 0)
+      heldActions[name] = "vehicle"
+      vehicleCommand(name, "once", 1)
     end
     return
   end
@@ -489,16 +537,69 @@ local function applyBindings(msg)
     return
   end
 
-  local label = device:match("^vjoy(%d*)$") and ("vJoy device " .. (device:match("^vjoy(%d+)$") or "1")) or "the phone controller"
-  local message
+  local label = device:match("^vjoy") and ("vJoy device " .. (device:match("^vjoy(%d+)$") or "1")) or "the phone controller"
   if #list == 0 then
-    message = "Removed the in-game bindings for " .. label
-  else
-    message = string.format("Bound %d action%s to %s", #list, #list == 1 and "" or "s", label)
-    if #unknown > 0 then message = message .. ". Not found in this game version: " .. table.concat(unknown, ", ") end
+    local message = "Removed the in-game bindings for " .. label
+    send({ type = "bindings.result", ok = true, device = device, count = 0, message = message })
+    toast("info", message)
+    return
   end
-  send({ type = "bindings.result", ok = true, device = device, count = #list, unknown = #unknown > 0 and unknown or nil, message = message })
-  toast("info", message)
+  -- give the input system a moment, then check it really loaded them before reporting ok
+  pendingBindings = { wait = BINDINGS_VERIFY_DELAY, device = device, vidpid = vidpid, list = list,
+    unknown = unknown, label = label, path = path }
+end
+
+-- true: the input system has every binding for this device; false: it has the device but not
+-- our bindings; nil: it can't be checked (device not plugged in, or this game version keeps
+-- bindings somewhere else)
+local function bindingsLoaded(vidpid, list)
+  local cib = rawget(_G, "core_input_bindings")
+  if type(cib) ~= "table" or type(cib.bindings) ~= "table" then return nil end
+  local found = nil
+  for _, entry in pairs(cib.bindings) do
+    if type(entry) == "table" then
+      local contents = type(entry.contents) == "table" and entry.contents or entry
+      local vp = contents.vidpid or entry.vidpid
+      if type(vp) == "string" and string.lower(vp) == vidpid and type(contents.bindings) == "table" then
+        local have = {}
+        for _, b in pairs(contents.bindings) do
+          if type(b) == "table" then have[tostring(b.control) .. "|" .. tostring(b.action)] = true end
+        end
+        local all = true
+        for _, b in ipairs(list) do
+          if not have[b.control .. "|" .. b.action] then all = false break end
+        end
+        if all then return true end
+        found = false
+      end
+    end
+  end
+  return found
+end
+
+finishBindings = function()
+  local p = pendingBindings
+  pendingBindings = nil
+  if not p then return end
+  local okCheck, loaded = pcall(bindingsLoaded, p.vidpid, p.list)
+  if not okCheck then loaded = nil end
+  local n = #p.list
+  local plural = n == 1 and "" or "s"
+  local result = { type = "bindings.result", device = p.device, count = n, written = true,
+    unknown = #p.unknown > 0 and p.unknown or nil }
+  if loaded then
+    result.ok = true
+    result.message = string.format("Bound %d action%s to %s", n, plural, p.label)
+  elseif loaded == false then
+    result.ok = false
+    result.message = string.format("Saved %d binding%s for %s, but BeamNG did not load them. Check Options > Controls in the game.", n, plural, p.label)
+  else
+    result.ok = false
+    result.message = string.format("Saved %d binding%s for %s. BeamNG could not confirm they are active: make sure the controller is connected, then check Options > Controls.", n, plural, p.label)
+  end
+  if #p.unknown > 0 then result.message = result.message .. " Not found in this game version: " .. table.concat(p.unknown, ", ") .. "." end
+  send(result)
+  toast(result.ok and "info" or "warning", result.message)
 end
 
 -- ============= MESSAGES =============
@@ -529,7 +630,9 @@ end
 
 local function onConnected()
   status = "connected"
-  hasWarnedOffline = false
+  -- Nagle plus delayed ACKs would add ~200 ms per message on Windows; set it on the connected socket
+  local ok, err = pcall(sock.setoption, sock, "tcp-nodelay", true)
+  if not ok then logW("could not set tcp-nodelay: " .. tostring(err)) end
   logI("connected to the companion")
   toast("success", "Connected to the Game Controller companion")
   send({ type = "hello", role = "beamng", modVersion = MOD_VERSION, gameVersion = tostring(beamng_versionb or beamng_version or "unknown") })
@@ -541,23 +644,30 @@ local function onDisconnected(reason)
   logI("companion connection closed: " .. tostring(reason))
   if status == "connected" then toast("warning", "Game Controller companion disconnected") end
   -- release anything held so nothing stays pressed
-  for name in pairs(heldActions) do
+  for name, route in pairs(heldActions) do
     local def = oneShots[name]
-    local actionName = name:match("^action%.([%w_]+)$") or (def and def.action)
-    if actionName then pcall(runAction, actionName, 0) end
+    local actionName = name:match("^action%.([%w_]+)$")
+    if route == "vehicle" then
+      pcall(vehicleCommand, name, "once", 0)
+    elseif actionName or (def and def.action) then
+      pcall(runAction, actionName or def.action, 0)
+    end
   end
   heldActions = {}
   closeSocket()
 end
 
+local function inProgress(err)
+  return err == "timeout" or err == "Operation already in progress" or err == "Operation now in progress"
+end
+
 local function startConnect()
   sock = socket.tcp()
   sock:settimeout(0)
-  pcall(sock.setoption, sock, "tcp-nodelay", true)
   local ok, err = sock:connect(HOST, PORT)
   if ok then
     onConnected()
-  elseif err == "timeout" or err == "Operation already in progress" then
+  elseif inProgress(err) then
     status = "connecting"
     connectTimer = 0
   else
@@ -565,17 +675,17 @@ local function startConnect()
   end
 end
 
+-- Calling connect again reports the handshake result on every platform (a refused connect on
+-- Windows only shows up in the except set, which select does not watch).
 local function pollConnecting(dt)
   connectTimer = connectTimer + dt
-  local _, writable = socket.select(nil, { sock }, 0)
-  if writable and #writable > 0 then
-    if sock:getpeername() then
-      onConnected()
-    else
-      closeSocket() -- refused
-    end
-  elseif connectTimer > CONNECT_TIMEOUT then
-    closeSocket()
+  local ok, err = sock:connect(HOST, PORT)
+  if ok or err == "already connected" then
+    if sock:getpeername() then onConnected() else closeSocket() end
+  elseif inProgress(err) then
+    if connectTimer > CONNECT_TIMEOUT then closeSocket() end
+  else
+    closeSocket() -- refused or failed; retry after RETRY_INTERVAL
   end
 end
 
@@ -599,6 +709,7 @@ end
 
 local function onUpdate(dtReal)
   dtReal = tonumber(dtReal) or 0
+  if not socket then return end
   if status == "idle" then
     retryTimer = retryTimer + dtReal
     if retryTimer >= RETRY_INTERVAL then
@@ -621,8 +732,14 @@ local function onUpdate(dtReal)
     readGameState()
   end
 
-  -- reload the vehicle extension if the player vehicle went quiet (reloaded with Ctrl+R, new vehicle...)
-  vehicleSilence = vehicleSilence + dtReal
+  if pendingBindings then
+    pendingBindings.wait = pendingBindings.wait - dtReal
+    if pendingBindings.wait <= 0 then finishBindings() end
+  end
+
+  -- reload the vehicle extension if the player vehicle went quiet (reloaded with Ctrl+R, new vehicle...).
+  -- Vehicle Lua may not run while the game is paused, so don't count that time.
+  if not state["game.paused"] then vehicleSilence = vehicleSilence + dtReal end
   local playerId = be:getPlayerVehicleID(0)
   if playerId == nil or playerId < 0 then
     if vehicleId ~= nil or fullPending then attachVehicle() end -- left the vehicle: report game state only
@@ -637,7 +754,7 @@ end
 local function onVehicleSwitched(oldId, newId)
   if oldId and oldId >= 0 then
     local old = be:getObjectByID(oldId)
-    if old then old:queueLuaCommand("if gameControllerVehicle then gameControllerVehicle.setActive(false) end") end
+    if old then old:queueLuaCommand("local m = extensions.gameControllerVehicle if m then m.setActive(false) end") end
   end
   vehicleId = nil
   actions = nil

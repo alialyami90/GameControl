@@ -113,6 +113,26 @@ ve.extensions = {
     end
   end,
 }
+ve._G = ve
+-- vehicle data the mod searches for fog lights and light bars
+ve.v = { data = { props = { { func = "lowbeam" }, { func = "fog" } }, glowMap = { lightbar_mat = { simpleFunction = { lightbar = 1 } } } } }
+local deviceModeCalls = {}
+ve.powertrain.setDeviceMode = function(name, mode)
+  table.insert(deviceModeCalls, name)
+  local devices = ve.powertrain.getDevices()
+  devices[name]:setMode(mode)
+end
+-- cruise control is a vehicle extension that has to be loaded
+local cruiseExt = ve.extensions.cruiseControl
+ve.extensions.cruiseControl = nil
+local baseLoad = ve.extensions.load
+ve.extensions.load = function(name)
+  if name == "cruiseControl" then ve.cruiseControl = cruiseExt; ve.extensions.cruiseControl = cruiseExt return end
+  baseLoad(name)
+end
+setmetatable(ve.extensions, { __index = function(t, k) return rawget(ve, k) end })
+local starterCalls = {}
+ve.controller.mainController.setStarter = function(on) table.insert(starterCalls, on) end
 ve.recovery = { startRecovering = record("startRecovering"), stopRecovering = record("stopRecovering") }
 ve.obj = {
   getID = function() return 7 end,
@@ -148,7 +168,15 @@ ge.core_camera = {
   getActiveCamName = function() return "cam" .. camIndex end,
 }
 local reloaded = {}
-ge.core_input_bindings = { onFileChanged = function(p) table.insert(reloaded, p) end }
+local bindingsLoad = true -- whether the mocked input system picks up our file
+ge.core_input_bindings = { bindings = {} }
+ge.core_input_bindings.onFileChanged = function(p)
+  table.insert(reloaded, p)
+  ge.core_input_bindings.bindings = {}
+  if bindingsLoad and files[p] then
+    table.insert(ge.core_input_bindings.bindings, { devname = "joystick0", contents = json.decode(files[p]) })
+  end
+end
 ge.guihooks = { trigger = function() end }
 ge.beamng_versionb = "0.38.3.0"
 local actionFiles = {
@@ -158,8 +186,11 @@ local actionFiles = {
     recover_vehicle = { ctx = "vlua", onDown = "recovery.startRecovering()", onUp = "recovery.stopRecovering()" },
     reset_physics = { onDown = "testHits.reset = VEHICLEID" },
     horn_test = { onChange = "testHits.hornValue = VALUE" },
+    veh_code_no_ctx = { onDown = "electrics.values.testVeh = 1" },
+    ui_only = { ctx = "ui", onDown = "testHits.ui = true" },
   },
 }
+ge._G = ge
 ge.testHits = {}
 -- in the game, action code runs in the global GE environment; here that is the ge table
 ge.loadstring = function(code) local fn, err = loadstring(code); if fn then setfenv(fn, ge) end; return fn, err end
@@ -183,6 +214,7 @@ ge.gameControllerLink = link
 local server = assert(socket.bind("127.0.0.1", 47803))
 server:settimeout(0)
 local client
+local clientPartial = ""
 local inbox = {}
 
 local function pump(frames)
@@ -193,12 +225,17 @@ local function pump(frames)
     runQueued(geQueue, ge)
     if not client then
       client = server:accept()
-      if client then client:settimeout(0) end
+      if client then client:settimeout(0); client:setoption("tcp-nodelay", true); clientPartial = "" end
     end
     if client then
       while true do
-        local line, err = client:receive("*l")
-        if not line then break end
+        local line, err, partial = client:receive("*l", clientPartial)
+        if not line then
+          clientPartial = partial or ""
+          if err == "closed" then client = nil end
+          break
+        end
+        clientPartial = ""
         table.insert(inbox, json.decode(line))
       end
     end
@@ -261,6 +298,8 @@ check(s["has.diff.front"] == true and s["has.diff.rear"] == true and s["has.diff
 check(s["has.awd"] == true and s["awd.active"] == true, "awd detected")
 check(s["has.range"] == true and s["range.low"] == false, "range detected")
 check(s["has.esc"] == true and s["esc.active"] == true and s["esc.mode"] == "Regular", "esc state")
+check(s["has.fog"] == true and s["has.light_bar"] == true, "fog and light bar found in vehicle data")
+check(s["has.cruise"] == true, "cruise control extension loaded")
 check(s["gear"] == "P" and s["gearbox.mode"] == "P" and s["has.gearbox.modes"] == true, "gear state")
 check(s["fuel"] == 0.75 and s["rpm"] == 800, "fuel and rpm")
 check(s["game.paused"] == false and s["game.slowmo"] == false and s["camera.mode"] == "cam0", "game state")
@@ -303,9 +342,16 @@ check(merged()["parkingbrake"] == false, "parking brake off")
 command("ignition.toggle", 1)
 check(merged()["ignition"] == false and e.ignitionLevel == 0, "ignition off")
 command("starter", 1)
-check(e.ignitionLevel == 3, "starter cranks")
+check(starterCalls[1] == true, "starter cranks through mainController.setStarter")
 command("starter", 0)
-check(e.ignitionLevel == 2 and merged()["ignition"] == true, "starter released")
+check(starterCalls[2] == false, "starter released")
+local savedSetStarter = ve.controller.mainController.setStarter
+ve.controller.mainController.setStarter = nil
+command("starter", 1)
+check(e.ignitionLevel == 3, "starter fallback: ignition key to start")
+command("starter", 0)
+check(e.ignitionLevel == 2 and merged()["ignition"] == true, "starter fallback released")
+ve.controller.mainController.setStarter = savedSetStarter
 
 -- ESC / TC
 command("esc.toggle", 1)
@@ -328,6 +374,9 @@ command("diff.rear", 0)
 check(diffR.mode == "lsd", "rear diff back to lsd")
 command("awd.toggle", 1)
 check(transfer.mode == "disconnected" and merged()["awd.active"] == false, "awd off")
+check(#deviceModeCalls > 0, "modes change through powertrain.setDeviceMode")
+command("awd", 1)
+check(transfer.mode == "connected" and merged()["awd.active"] == true, "awd on restores the engaged mode")
 command("range", 1)
 check(rangebox.mode == "low" and merged()["range.low"] == true, "low range")
 
@@ -382,18 +431,35 @@ check(ge.testHits.hornValue == 1, "generic action press")
 command("action.horn_test", 0)
 check(ge.testHits.hornValue == 0, "generic action release")
 
--- bindings
+-- action context: GE first, vehicle Lua when code without a ctx fails in GE; ui actions are skipped
+command("action.veh_code_no_ctx", 1)
+command("action.veh_code_no_ctx", 0)
+check(e.testVeh == 1, "action without ctx that needs vehicle Lua runs there")
+check(link.runAction("ui_only", 1) == false and ge.testHits.ui == nil, "ui actions are not run as Lua")
+check(link.runAction("does_not_exist", 1) == false, "missing action returns false")
+
+-- bindings (the result comes after the mod has checked the input system loaded them)
 sendToMod({ type = "bindings.apply", device = "vjoy1", vidpid = "BEAD1234",
   bindings = { { beamngAction = "toggle_slow_motion", button = 5 }, { beamngAction = "missing_action", button = 1 }, { beamngAction = "bad name", button = 2 } } })
 pump(4)
+check(lastOfType("bindings.result") == nil, "bindings result waits for the check")
+pump(30)
 local res = lastOfType("bindings.result")
 local written = files["/settings/inputmaps/bead1234_gamecontroller.json"]
-check(res and res.ok == true and res.count == 2, "bindings result ok")
+check(res and res.ok == true and res.count == 2, "bindings result ok once loaded")
 check(written ~= nil, "bindings file written")
 local map = written and json.decode(written)
 check(map and map.vidpid == "bead1234" and map.bindings[1].control == "button4" and map.bindings[1].action == "toggle_slow_motion", "bindings content")
 check(reloaded[#reloaded] == "/settings/inputmaps/bead1234_gamecontroller.json", "input bindings reloaded")
 check(res and res.unknown and res.unknown[1] == "missing_action", "unknown actions reported")
+inbox = {}
+bindingsLoad = false
+sendToMod({ type = "bindings.apply", device = "hid", vidpid = "0001abcd", bindings = { { beamngAction = "horn", button = 1 } } })
+pump(34)
+res = lastOfType("bindings.result")
+check(res and res.ok == false and res.written == true, "unconfirmed bindings report ok:false")
+bindingsLoad = true
+inbox = {}
 sendToMod({ type = "bindings.apply", device = "hid", bindings = { { beamngAction = "horn", button = 1 } } })
 pump(4)
 res = lastOfType("bindings.result")
@@ -401,6 +467,13 @@ check(res and res.ok == false, "hid without vidpid fails")
 sendToMod({ type = "bindings.apply", device = "vjoy1", bindings = {} })
 pump(4)
 check(files["/settings/inputmaps/bead1234_gamecontroller.json"] == nil, "empty bindings remove the file")
+
+-- a message split across TCP packets
+client:send('{"v":1,"type":"command","comm')
+pump(2)
+client:send('and":"lights.fog","value":0}\n')
+pump(6)
+check(merged()["lights.fog"] == false, "split line is reassembled")
 
 -- state.request gives a new full snapshot
 local before = #inbox
@@ -421,13 +494,37 @@ link.onVehicleSwitched(-1, 7)
 pump(10)
 check(merged()["gear"] ~= nil, "vehicle back: vehicle keys reported again")
 
+-- holds are released when the companion goes away
+command("horn", 1)
+check(merged()["horn"] == true, "horn held")
+command("recover", 1)
+calls = {}
+client:close(); client = nil
+pump(6)
+check(e.horn == 0, "horn released on disconnect")
+local stopped = false
+for _, c in ipairs(calls) do if c[1] == "stopRecovering" then stopped = true end end
+check(stopped, "recover released on disconnect")
+
+-- refused connects are retried every 3 s, then it connects again
+server:close()
+pump(70)
+check(link._status() ~= "connected", "not connected while the companion is down")
+server = assert(socket.bind("127.0.0.1", 47803))
+server:settimeout(0)
+pump(80)
+check(client ~= nil and link._status() == "connected", "reconnects after the companion comes back")
+if not client then print(string.format("%d passed, %d failed", passes, failures + 1)) os.exit(1) end
+pump(10)
+
 -- version mismatch closes
 client:send(json.encode({ v = 2, type = "command", command = "horn", value = 1 }) .. "\n")
 pump(4)
 local err = lastOfType("error")
 check(err and err.code == "version_mismatch", "version mismatch error")
 check(link._status() ~= "connected", "connection closed on version mismatch")
-client:close(); client = nil
+if client then client:close() end
+client = nil
 
 -- reconnects after 3 s
 pump(80)

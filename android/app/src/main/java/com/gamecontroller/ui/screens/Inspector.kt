@@ -123,8 +123,8 @@ fun Inspector(
     Row {
         Accent.entries.forEach { a -> Swatch(a.lit(), a == c.accent, a.displayName()) { onUpdate(c.copy(accent = a)) } }
     }
-    Stepper("Width", c.w, 1..(page.columns - c.x), { onResize(c.id, it, c.h) })
-    Stepper("Height", c.h, 1..(page.rows - c.y), { onResize(c.id, c.w, it) })
+    Stepper("Width", c.w, widthRange(c, page), { onResize(c.id, it, c.h) })
+    Stepper("Height", c.h, heightRange(c, page), { onResize(c.id, c.w, it) })
 
     when (c.type) {
         ControlType.MOMENTARY, ControlType.LATCHING -> {

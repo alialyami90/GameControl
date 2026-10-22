@@ -27,7 +27,7 @@ import com.gamecontroller.ui.theme.RaceType
 
 /**
  * Icon, label and optional readout printed on a cap. Scales the icon with the cap and drops
- * the label on caps too small to print it legibly (it stays in the accessibility label).
+ * the label below 48dp of face height, where it can't be printed legibly (it stays in the accessibility label).
  */
 @Composable
 fun CapFace(
@@ -43,7 +43,9 @@ fun CapFace(
     BoxWithConstraints(modifier.fillMaxSize().padding(top = LatchBandHeight, start = 6.dp, end = 6.dp, bottom = 6.dp)) {
         val minSide = if (maxWidth < maxHeight) maxWidth else maxHeight
         val wide = maxWidth >= 120.dp
-        val showLabel = maxHeight >= 64.dp && label.isNotBlank()
+        // Small caps (48-64dp inside) keep the label in the compact unit style rather than dropping it.
+        val showLabel = maxHeight >= 48.dp && label.isNotBlank()
+        val small = maxHeight < 64.dp
         val vector = IconLibrary[icon]
         val iconSize = (minSide * if (showLabel) 0.42f else 0.56f).coerceIn(20.dp, 56.dp)
         Column(
@@ -69,10 +71,14 @@ fun CapFace(
                 )
             }
             if (showLabel && (vector != null || readout != null)) {
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(if (small) 2.dp else 6.dp))
                 Text(
                     label.uppercase(),
-                    style = if (wide) RaceType.capLabelLarge else RaceType.capLabel,
+                    style = when {
+                        small -> RaceType.unit
+                        wide -> RaceType.capLabelLarge
+                        else -> RaceType.capLabel
+                    },
                     color = labelInk,
                     textAlign = TextAlign.Center,
                     maxLines = 1,

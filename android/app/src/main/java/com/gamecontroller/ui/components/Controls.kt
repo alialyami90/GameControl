@@ -27,6 +27,8 @@ import androidx.compose.foundation.border
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -106,14 +108,27 @@ fun ControlView(
     }
 }
 
-/** Fires on finger down and finger up, so momentary controls feel like real switches. */
-private fun Modifier.pressAndRelease(active: Boolean, onDown: () -> Unit, onUp: () -> Unit): Modifier =
+/**
+ * Fires on finger down and finger up, so momentary controls feel like real switches.
+ * [onCancel] runs instead of [onUp] when the gesture is taken away (another handler consumed
+ * it, the control turned inactive, or it left composition), so a held key is always released.
+ */
+private fun Modifier.pressAndRelease(
+    active: Boolean,
+    onDown: () -> Unit,
+    onUp: () -> Unit,
+    onCancel: () -> Unit = onUp,
+): Modifier =
     if (!active) this else pointerInput(Unit) {
         awaitEachGesture {
             awaitFirstDown(requireUnconsumed = false).consume()
             onDown()
-            waitForUpOrCancellation()
-            onUp()
+            var released = false
+            try {
+                released = waitForUpOrCancellation() != null
+            } finally {
+                if (released) onUp() else onCancel()
+            }
         }
     }
 
@@ -127,10 +142,15 @@ private fun MomentaryButton(
     modifier: Modifier,
 ) {
     var pressed by remember { mutableStateOf(false) }
-    val haptics = LocalHapticFeedback.current
+    val haptic = rememberPressHaptic()
     val currentOnValue by rememberUpdatedState(onValue)
     val accent = control.accent.lit()
     val lit = pressed || indicator?.lit == true
+    fun release() {
+        if (pressed) { pressed = false; currentOnValue(0f) }
+    }
+    // Leaving composition mid-press (page switch, visibleWhen, profile reload) must not leave the key down.
+    DisposableEffect(Unit) { onDispose { release() } }
     ControlCap(
         modifier = modifier
             .semantics {
@@ -140,8 +160,8 @@ private fun MomentaryButton(
             }
             .pressAndRelease(
                 active,
-                onDown = { pressed = true; haptics.performHapticFeedback(HapticFeedbackType.LongPress); currentOnValue(1f) },
-                onUp = { pressed = false; currentOnValue(0f) },
+                onDown = { pressed = true; haptic(); currentOnValue(1f) },
+                onUp = { release() },
             ),
         lit = lit,
         accent = accent,
@@ -166,7 +186,7 @@ private fun LatchingButton(
     modifier: Modifier,
 ) {
     var pressed by remember { mutableStateOf(false) }
-    val haptics = LocalHapticFeedback.current
+    val haptic = rememberPressHaptic()
     val on = value >= 0.5f
     val lit = indicator?.lit ?: on
     val accent = control.accent.lit()
@@ -189,9 +209,11 @@ private fun LatchingButton(
                 onDown = { pressed = true },
                 onUp = {
                     pressed = false
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    haptic()
                     currentOnValue(if (currentOn) 0f else 1f)
                 },
+                // A cancelled tap does not toggle.
+                onCancel = { pressed = false },
             ),
         lit = lit,
         accent = accent,
@@ -333,7 +355,8 @@ private fun RadioKeys(
     val positions = control.positions
     val index = activeIndex(control, value, indicator)
     val accent = control.accent.lit()
-    val haptics = LocalHapticFeedback.current
+    val haptic = rememberPressHaptic()
+    val currentOnValue by rememberUpdatedState(onValue)
     BoxWithConstraints(modifier) {
         val horizontal = maxWidth >= maxHeight
         val n = positions.size.coerceAtLeast(1)
@@ -357,9 +380,10 @@ private fun RadioKeys(
                             onDown = { pressed = true },
                             onUp = {
                                 pressed = false
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onValue(i.toFloat())
+                                haptic()
+                                currentOnValue(i.toFloat())
                             },
+                            onCancel = { pressed = false },
                         ),
                     lit = selected,
                     accent = accent,
@@ -397,8 +421,10 @@ private fun AxisSlider(
     val scope = rememberCoroutineScope()
     var dragging by remember { mutableStateOf(false) }
     val shown = remember { Animatable(value) }
-    if (!dragging && !shown.isRunning && shown.value != value) {
-        scope.launch { shown.animateTo(value, RaceMotion.settle()) }
+    // Follow outside changes (game echo, profile reload) unless the finger owns the thumb or a
+    // spring-back is already heading there. A drag leaves shown == value, so no re-sync is needed after it.
+    LaunchedEffect(value) {
+        if (!dragging && shown.value != value && shown.targetValue != value) shown.animateTo(value, RaceMotion.settle())
     }
     var box by remember { mutableStateOf(IntSize.Zero) }
     val vertical = control.vertical
@@ -456,7 +482,8 @@ private fun AxisSlider(
                             var last = valueAt(down.position)
                             scope.launch { shown.snapTo(last) }
                             currentOnValue(last)
-                            while (true) {
+                            // finally: a cancelled drag (page switch, slider removed) still springs back.
+                            try { while (true) {
                                 val event = awaitPointerEvent()
                                 val c = event.changes.firstOrNull { it.id == down.id } ?: break
                                 if (!c.pressed) break
@@ -467,11 +494,12 @@ private fun AxisSlider(
                                 scope.launch { shown.snapTo(v) }
                                 currentOnValue(v)
                                 c.consume()
-                            }
-                            dragging = false
-                            if (control.springReturn) {
-                                currentOnValue(rest)
-                                scope.launch { shown.animateTo(rest, RaceMotion.springBack()) }
+                            } } finally {
+                                dragging = false
+                                if (control.springReturn) {
+                                    currentOnValue(rest)
+                                    scope.launch { shown.animateTo(rest, RaceMotion.springBack()) }
+                                }
                             }
                         }
                     }

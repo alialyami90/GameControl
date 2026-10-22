@@ -65,10 +65,10 @@ object LayoutOps {
         val c = when (type) {
             ControlType.MOMENTARY -> base.copy(action = Action.VJoyButton(1, 1), accent = Accent.NEUTRAL)
             ControlType.LATCHING -> base.copy(action = Action.VJoyButton(1, 1), accent = Accent.AMBER)
-            ControlType.SWITCH -> base.copy(w = 2, accent = Accent.CYAN, positions = listOf(Position("A"), Position("B"), Position("C")))
+            ControlType.SWITCH -> base.copy(w = 3, accent = Accent.CYAN, positions = listOf(Position("A"), Position("B"), Position("C")))
             ControlType.RADIO -> base.copy(w = 3, accent = Accent.CYAN, positions = listOf(Position("1"), Position("2"), Position("3")))
             ControlType.SLIDER -> base.copy(h = 2, accent = Accent.GREEN, action = Action.VJoyAxis(1, "SL0", AxisRange.UNIPOLAR), range = AxisRange.UNIPOLAR)
-            ControlType.ROTARY -> base.copy(accent = Accent.CYAN)
+            ControlType.ROTARY -> base.copy(w = 2, h = 2, accent = Accent.CYAN)
         }
         return clamp(c, page)
     }
@@ -82,9 +82,19 @@ object LayoutOps {
         ControlType.ROTARY -> "Dial"
     }
 
+    /** Smallest span (w, h) a control may have so it stays usable at touch size. */
+    fun minSpan(c: Control): Pair<Int, Int> = when (c.type) {
+        ControlType.SWITCH, ControlType.RADIO -> c.positions.size.coerceAtLeast(2) to 1
+        ControlType.ROTARY -> 2 to 2
+        ControlType.SLIDER -> if (c.vertical) 1 to 2 else 2 to 1
+        else -> 1 to 1
+    }
+
+    /** Applies the minimum span, then keeps the control inside the page grid. */
     fun clamp(c: Control, page: Page): Control {
-        val w = c.w.coerceIn(1, page.columns)
-        val h = c.h.coerceIn(1, page.rows)
+        val (minW, minH) = minSpan(c)
+        val w = c.w.coerceAtLeast(minW).coerceIn(1, page.columns)
+        val h = c.h.coerceAtLeast(minH).coerceIn(1, page.rows)
         return c.copy(w = w, h = h, x = c.x.coerceIn(0, page.columns - w), y = c.y.coerceIn(0, page.rows - h))
     }
 

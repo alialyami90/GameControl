@@ -131,6 +131,7 @@ private fun AppRoot(vm: AppViewModel) {
             Screen.Profiles -> ProfilesScreen(
                 profiles = profiles,
                 connection = connection,
+                hid = hid,
                 onOpen = vm::play,
                 onCreate = vm::createProfile,
                 onDuplicate = vm::duplicate,
@@ -165,6 +166,7 @@ private fun AppRoot(vm: AppViewModel) {
                     onPageChange = vm::onPageChange,
                     onEdit = { vm.edit(s.profileId) },
                     onBack = vm::back,
+                    imperialUnits = vm.settings.imperialUnits,
                 )
             }
             is Screen.Editor -> editor?.let { state ->

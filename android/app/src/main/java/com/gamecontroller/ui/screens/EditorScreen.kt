@@ -321,9 +321,9 @@ private fun EditableControl(
     var grow by remember { mutableStateOf(Offset.Zero) }
     val current by rememberUpdatedState(c)
     val dragging = drag != Offset.Zero
-    // Resize previews snap to whole cells.
-    val nw = (c.w + (grow.x / pitchX).roundToInt()).coerceIn(1, page.columns - c.x)
-    val nh = (c.h + (grow.y / pitchY).roundToInt()).coerceIn(1, page.rows - c.y)
+    // Resize previews snap to whole cells and stop at the control's minimum span.
+    val nw = (c.w + (grow.x / pitchX).roundToInt()).coerceIn(widthRange(c, page))
+    val nh = (c.h + (grow.y / pitchY).roundToInt()).coerceIn(heightRange(c, page))
 
     Box(
         Modifier
@@ -380,8 +380,8 @@ private fun EditableControl(
                     .pointerInput(c.id, pitchX, pitchY) {
                         detectDragGestures(
                             onDragEnd = {
-                                val w = (current.w + (grow.x / pitchX).roundToInt()).coerceIn(1, page.columns - current.x)
-                                val h = (current.h + (grow.y / pitchY).roundToInt()).coerceIn(1, page.rows - current.y)
+                                val w = (current.w + (grow.x / pitchX).roundToInt()).coerceIn(widthRange(current, page))
+                                val h = (current.h + (grow.y / pitchY).roundToInt()).coerceIn(heightRange(current, page))
                                 grow = Offset.Zero
                                 if (w != current.w || h != current.h) onResize(current.id, w, h)
                             },

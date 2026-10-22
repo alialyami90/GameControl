@@ -424,6 +424,10 @@ class Settings(context: Context) {
         get() = prefs.getString("lastHidHost", null)
         set(v) = prefs.edit().putString("lastHidHost", v).apply()
 
+    var imperialUnits: Boolean
+        get() = prefs.getBoolean("imperial", false)
+        set(v) = prefs.edit().putBoolean("imperial", v).apply()
+
     var haptics: Boolean
         get() = prefs.getBoolean("haptics", true)
         set(v) = prefs.edit().putBoolean("haptics", v).apply()

@@ -1,5 +1,8 @@
 package com.gamecontroller.ui.screens
 
+import androidx.compose.foundation.layout.heightIn
+import com.gamecontroller.ui.components.BluetoothLinkBadge
+import com.gamecontroller.model.HidUi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -80,6 +83,7 @@ fun GameId.tag(): String = if (this == GameId.CUSTOM) "Any game" else displayNam
 fun ProfilesScreen(
     profiles: List<Profile>,
     connection: ConnectionUi,
+    hid: HidUi,
     onOpen: (String) -> Unit,
     onCreate: (String, GameId) -> Unit,
     onDuplicate: (String) -> Unit,
@@ -110,8 +114,18 @@ fun ProfilesScreen(
                     color = Race.InkFaint,
                 )
                 Spacer(Modifier.weight(1f))
-                Box(Modifier.clip(SlantShape()).clickable(onClick = onOpenConnection)) {
-                    PcLinkBadge(connection)
+                // Both links in one target that opens Connect; icons name the link, so the badges run compact.
+                Row(
+                    Modifier
+                        .heightIn(min = 48.dp)
+                        .clip(SlantShape())
+                        .clickable(onClickLabel = "Open connections", onClick = onOpenConnection)
+                        .padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    BluetoothLinkBadge(hid, compact = true)
+                    PcLinkBadge(connection, compact = true)
                 }
                 Spacer(Modifier.width(4.dp))
                 IconButton(onClick = onImport) {

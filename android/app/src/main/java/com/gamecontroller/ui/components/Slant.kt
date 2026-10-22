@@ -2,7 +2,9 @@ package com.gamecontroller.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -36,6 +38,7 @@ import com.gamecontroller.ui.theme.SlantShape
 enum class SlantStyle { PRIMARY, OUTLINE, QUIET }
 
 /** The racing-menu button: a slanted plate with italic caps label. 48dp tall target. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SlantButton(
     text: String,
@@ -45,6 +48,8 @@ fun SlantButton(
     style: SlantStyle = SlantStyle.OUTLINE,
     enabled: Boolean = true,
     accent: Color = Race.Electric,
+    onLongClick: (() -> Unit)? = null,
+    longClickLabel: String? = null,
 ) {
     val shape = SlantShape()
     val fg = when {
@@ -70,7 +75,7 @@ fun SlantButton(
                         SlantStyle.QUIET -> Modifier.background(Race.Cap)
                     }
                 )
-                .clickable(enabled = enabled, onClick = onClick)
+                .combinedClickable(enabled = enabled, onLongClick = onLongClick, onLongClickLabel = longClickLabel, onClick = onClick)
                 .padding(horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

@@ -2,20 +2,25 @@
 -- Runs inside the player vehicle's Lua VM. Reads electrics, powertrain and controllers,
 -- sends changed state to the game engine side (gameControllerLink), and applies commands
 -- that need the vehicle VM. Loaded by gameControllerLink into the player vehicle.
+--
+-- Conservative rule: a has.* key is only sent when the mod could actually tell. Unknown
+-- availability is left out, so the phone shows the control.
 
 local M = {}
 
 local SEND_INTERVAL = 0.1     -- seconds between state checks
+local SEND_FRAMES = 6         -- or this many frames, so state still flows while paused (dt is 0)
 local HEARTBEAT_INTERVAL = 1  -- seconds between keep-alive messages when nothing changed
+local HEARTBEAT_FRAMES = 60
 local CRUISE_STEP = 5 / 3.6   -- cruise up/down step, m/s (5 km/h)
 
 local active = false
-local sendTimer = 0
-local heartbeatTimer = 0
+local sendTimer, sendFrames = 0, 0
+local heartbeatTimer, heartbeatFrames = 0, 0
 local lastSent = {}
 local fullRequested = true
 
--- powertrain features found on this vehicle, filled by scanVehicle()
+-- features found on this vehicle, filled by scanVehicle()
 local features = nil
 
 -- ============= HELPERS =============
@@ -43,8 +48,10 @@ local function toGE(code)
 end
 
 -- ask the game engine side to run a BeamNG input action instead (fallback route)
-local function geAction(actionName, value)
-  toGE(string.format("if gameControllerLink then gameControllerLink.runAction(%q, %d) end", actionName, value or 1))
+-- fallbackFeature: if the action is missing or fails, GE asks back for a direct toggle of this feature
+local function geAction(actionName, value, fallbackFeature)
+  toGE(string.format("if gameControllerLink then gameControllerLink.runAction(%q, %d, %s) end",
+    actionName, value or 1, fallbackFeature and string.format("%q", fallbackFeature) or "nil"))
 end
 
 local function listModes(device)
@@ -74,26 +81,106 @@ local function diffLocation(name)
   return nil
 end
 
+-- change a powertrain device mode through powertrain.setDeviceMode when the game has it,
+-- so the game's UI and electrics follow; otherwise on the device itself
+local function setDeviceMode(entry, mode)
+  if powertrain and type(powertrain.setDeviceMode) == "function" then
+    local ok = pcall(powertrain.setDeviceMode, entry.name, mode)
+    if ok then return end
+  end
+  entry.device:setMode(mode)
+end
+
+-- does the vehicle data mention this electric (props, glow maps)? Bounded search.
+local function vehicleDataMentions(pattern)
+  if not (v and type(v.data) == "table") then return nil end
+  local seen, budget = {}, 20000
+  local function walk(t, depth)
+    if budget <= 0 or depth > 6 or seen[t] then return false end
+    seen[t] = true
+    for k, val in pairs(t) do
+      budget = budget - 1
+      if type(k) == "string" and k:lower():find(pattern) then return true end
+      if type(val) == "string" and val:lower():find(pattern) then return true end
+      if type(val) == "table" and walk(val, depth + 1) then return true end
+    end
+    return false
+  end
+  local found = false
+  for _, section in ipairs({ "props", "glowMap", "flexbodies" }) do
+    if type(v.data[section]) == "table" and walk(v.data[section], 0) then found = true break end
+  end
+  return found
+end
+
 -- ============= VEHICLE SCAN =============
 
+local function findEscController()
+  if not controller then return nil end
+  local candidates = {}
+  if type(controller.getController) == "function" then
+    local ok, c = pcall(controller.getController, "esc")
+    if ok then table.insert(candidates, c) end
+  end
+  if type(controller.getControllerSafe) == "function" then
+    local ok, c = pcall(controller.getControllerSafe, "esc")
+    if ok then table.insert(candidates, c) end
+  end
+  if type(controller.getAllControllers) == "function" then
+    local ok, all = pcall(controller.getAllControllers)
+    if ok and type(all) == "table" then
+      for _, c in pairs(all) do table.insert(candidates, c) end
+    end
+  end
+  for _, c in ipairs(candidates) do
+    -- getControllerSafe returns a dummy for a missing controller, so check the real exports
+    if type(c) == "table" and type(c.toggleESCMode) == "function" then return c end
+  end
+  return nil
+end
+
+local function hasDriveModes()
+  if not (controller and type(controller.getController) == "function") then return false end
+  local ok, c = pcall(controller.getController, "driveModes")
+  return ok and type(c) == "table"
+end
+
+local function loadCruiseControl()
+  local cc = rawget(_G, "cruiseControl")
+  if not cc and extensions and type(extensions.load) == "function" then
+    pcall(extensions.load, "cruiseControl")
+    cc = rawget(_G, "cruiseControl")
+  end
+  if not cc and extensions then
+    local ok, ext = pcall(function() return extensions.cruiseControl end)
+    if ok then cc = ext end
+  end
+  if type(cc) == "table" and type(cc.setEnabled) == "function" then return cc end
+  return nil
+end
+
 local function scanVehicle()
-  features = { diff = {}, awd = nil, range = nil, esc = nil, gearbox = nil, hasEngine = false }
+  features = { diff = {}, diffDevices = 0, awd = nil, range = nil, esc = nil, gearbox = nil, hasEngine = false }
   local devices = (powertrain and powertrain.getDevices and powertrain.getDevices()) or {}
   for name, device in pairs(devices) do
     local dtype = string.lower(tostring(device.type or ""))
     local mode = device.mode
     local modes = listModes(device)
-    if dtype == "combustionengine" or dtype == "electricmotor" then
-      features.hasEngine = true
-    end
-    if name == "gearbox" or dtype:find("gearbox") then
-      features.gearbox = features.gearbox or device
-    end
+    if dtype == "combustionengine" or dtype == "electricmotor" then features.hasEngine = true end
+    if name == "gearbox" or dtype:find("gearbox") then features.gearbox = features.gearbox or device end
+    if dtype:find("differential") then features.diffDevices = features.diffDevices + 1 end
     if type(mode) == "string" and device.setMode then
+      local entry = { name = name, device = device, modes = modes }
       if dtype == "rangebox" or mode == "low" or mode == "high" or contains(modes, "low") then
-        features.range = features.range or { device = device }
-      elseif mode == "connected" or mode == "disconnected" or contains(modes, "disconnected") then
-        features.awd = features.awd or { device = device }
+        features.range = features.range or entry
+      elseif mode == "disconnected" or contains(modes, "disconnected") or (dtype ~= "differential" and mode == "connected") then
+        -- 4WD: any engaged mode counts as on; remember it so "on" restores the same one
+        entry.engaged = mode ~= "disconnected" and mode or nil
+        if not entry.engaged and modes then
+          for _, m in ipairs(modes) do if m ~= "disconnected" then entry.engaged = m break end end
+        end
+        entry.engaged = entry.engaged or "connected"
+        features.awd = features.awd or entry
       elseif dtype:find("differential") or mode == "locked" or mode == "open" or mode == "lsd" or mode == "viscous" or contains(modes, "locked") then
         local loc = diffLocation(name)
         if loc and not features.diff[loc] then
@@ -101,35 +188,45 @@ local function scanVehicle()
           if not unlocked and modes then
             for _, m in ipairs(modes) do if m ~= "locked" then unlocked = m break end end
           end
-          features.diff[loc] = { device = device, modes = modes, unlocked = unlocked or "open" }
+          entry.unlocked = unlocked or "open"
+          features.diff[loc] = entry
         end
       end
     end
   end
-  -- the ESC controller (also does traction control), found by its getCurrentConfigData export
-  if controller and controller.getAllControllers then
-    for _, c in pairs(controller.getAllControllers()) do
-      if type(c) == "table" and type(c.getCurrentConfigData) == "function" and type(c.toggleESCMode) == "function" then
-        features.esc = c
-        break
-      end
-    end
-  end
-  features.gearboxModes = false
+  features.esc = findEscController()
+  features.driveModes = hasDriveModes()
+  features.cruise = loadCruiseControl()
+  features.fog = vehicleDataMentions("fog")
+  features.lightbar = vehicleDataMentions("lightbar")
+  features.gearboxModes = nil
   if features.gearbox then
     local gtype = string.lower(tostring(features.gearbox.type or ""))
-    features.gearboxModes = gtype:find("automatic") or gtype:find("dct") or gtype:find("cvt") or false
-    features.gearboxModes = features.gearboxModes and true or false
-  elseif features.hasEngine and electrics.values.gear and type(electrics.values.gear) == "string" then
+    features.gearboxModes = (gtype:find("automatic") or gtype:find("dct") or gtype:find("cvt")) and true or false
+  elseif features.hasEngine and type(electrics.values.gear) == "string" then
     features.gearboxModes = true -- electric vehicles report P/R/N/D without a gearbox device
   end
 end
 
 local function escEnabled()
-  if not features or not features.esc then return nil end
-  local ok, cfg = pcall(features.esc.getCurrentConfigData)
-  if ok and type(cfg) == "table" then return cfg.escEnabled == true, cfg.name end
+  local esc = features and features.esc
+  if not esc or type(esc.getCurrentConfigData) ~= "function" then return nil end
+  local ok, cfg = pcall(esc.getCurrentConfigData)
+  if ok and type(cfg) == "table" and type(cfg.escEnabled) == "boolean" then return cfg.escEnabled, cfg.name end
   return nil
+end
+
+local function cruiseState()
+  local e = electrics.values
+  local on, target = e.cruiseControlActive, e.cruiseControlTarget
+  if (on == nil or target == nil) and features and features.cruise and type(features.cruise.getConfiguration) == "function" then
+    local ok, cfg = pcall(features.cruise.getConfiguration)
+    if ok and type(cfg) == "table" then
+      if on == nil then on = cfg.isEnabled end
+      if target == nil then target = cfg.targetSpeed end
+    end
+  end
+  return on, target
 end
 
 -- ============= STATE =============
@@ -161,7 +258,7 @@ local function collectState()
   elseif e.ignition ~= nil then
     s["ignition"] = truthy(e.ignition)
   end
-  s["engine.running"] = truthy(e.engineRunning)
+  if e.engineRunning ~= nil then s["engine.running"] = truthy(e.engineRunning) end
 
   local lightsState = tonumber(e.lights_state) or 0
   s["lights.low"] = lightsState >= 1
@@ -181,35 +278,52 @@ local function collectState()
   if pb == nil then pb = e.parkingbrake end
   s["parkingbrake"] = truthy(pb)
 
-  local escOn, escMode = escEnabled()
-  s["has.esc"] = features.esc ~= nil
-  s["has.tcs"] = features.esc ~= nil
-  if escOn ~= nil then
-    s["esc.active"] = escOn
-    s["tcs.active"] = escOn
-    s["esc.mode"] = escMode and tostring(escMode) or nil
+  if features.esc then
+    s["has.esc"] = true
+    s["has.tcs"] = true
+    local escOn, escMode = escEnabled()
+    if escOn ~= nil then
+      s["esc.active"] = escOn
+      s["tcs.active"] = escOn
+      if escMode then s["esc.mode"] = tostring(escMode) end
+    end
   end
   s["esc.intervening"] = truthy(e.escActive)
   s["tcs.intervening"] = truthy(e.tcsActive)
   s["abs.active"] = truthy(e.absActive)
 
-  s["cruise.active"] = truthy(e.cruiseControlActive)
-  if type(e.cruiseControlTarget) == "number" then s["cruise.speed"] = round(e.cruiseControlTarget, 0.1) end
-  s["has.cruise"] = features.hasEngine
+  local cruiseOn, cruiseTarget = cruiseState()
+  if features.cruise then s["has.cruise"] = true end
+  if cruiseOn ~= nil then s["cruise.active"] = truthy(cruiseOn) end
+  if type(cruiseTarget) == "number" then s["cruise.speed"] = round(cruiseTarget, 0.1) end
 
+  -- diff, 4WD and range availability is only sent when the powertrain scan found the car's diffs
+  local scanWorked = features.diffDevices > 0
   for _, loc in ipairs({ "front", "center", "rear" }) do
     local d = features.diff[loc]
-    s["has.diff." .. loc] = d ~= nil
-    if d then s["diff." .. loc .. ".locked"] = d.device.mode == "locked" end
+    if d then
+      s["has.diff." .. loc] = true
+      s["diff." .. loc .. ".locked"] = d.device.mode == "locked"
+    elseif scanWorked then
+      s["has.diff." .. loc] = false
+    end
   end
-  s["has.awd"] = features.awd ~= nil
-  if features.awd then s["awd.active"] = features.awd.device.mode == "connected" end
-  s["has.range"] = features.range ~= nil
-  if features.range then s["range.low"] = features.range.device.mode == "low" end
+  if features.awd then
+    s["has.awd"] = true
+    s["awd.active"] = features.awd.device.mode ~= "disconnected"
+  elseif scanWorked then
+    s["has.awd"] = false
+  end
+  if features.range then
+    s["has.range"] = true
+    s["range.low"] = features.range.device.mode == "low"
+  elseif scanWorked then
+    s["has.range"] = false
+  end
 
-  s["has.gearbox.modes"] = features.gearboxModes
-  s["has.fog"] = e.fog ~= nil
-  s["has.light_bar"] = e.lightbar ~= nil
+  if features.gearboxModes ~= nil then s["has.gearbox.modes"] = features.gearboxModes end
+  if features.fog then s["has.fog"] = true end
+  if features.lightbar then s["has.light_bar"] = true end
 
   local gear = e.gear
   if gear ~= nil then s["gear"] = tostring(gear) end
@@ -230,17 +344,15 @@ local function checkState(force)
   if force then
     lastSent = s
     sendState(s, true)
-    return
+    return true
   end
   local delta, changed = {}, false
-  for k, v in pairs(s) do
-    if lastSent[k] ~= v then delta[k] = v; changed = true end
+  for k, val in pairs(s) do
+    if lastSent[k] ~= val then delta[k] = val; changed = true end
   end
   lastSent = s
-  if changed then
-    sendState(delta, false)
-    heartbeatTimer = 0
-  end
+  if changed then sendState(delta, false) end
+  return changed
 end
 
 -- ============= COMMANDS =============
@@ -249,7 +361,8 @@ local function setLightsState(n)
   if electrics.setLightsState then electrics.setLightsState(n) end
 end
 
--- current value and setter for each on/off feature handled in vehicle Lua
+-- current value and setter for each on/off feature handled in vehicle Lua.
+-- fallbackAction: BeamNG action used for a toggle when the state can't be read on this vehicle.
 local features_onoff = {
   ["ignition"] = {
     get = function() return (tonumber(electrics.values.ignitionLevel) or 0) >= 2 end,
@@ -258,6 +371,7 @@ local features_onoff = {
   ["lights.low"] = {
     get = function() return (tonumber(electrics.values.lights_state) or 0) >= 1 end,
     set = function(on) setLightsState(on and math.max(1, tonumber(electrics.values.lights_state) or 0) or 0) end,
+    fallbackAction = "toggle_headlights",
   },
   ["lights.high"] = {
     get = function() return (tonumber(electrics.values.lights_state) or 0) >= 2 end,
@@ -266,10 +380,12 @@ local features_onoff = {
   ["lights.fog"] = {
     get = function() return truthy(electrics.values.fog) end,
     set = function(on) electrics.set_fog_lights(on and 1 or 0) end,
+    fallbackAction = "toggle_foglights",
   },
   ["lights.light_bar"] = {
     get = function() return truthy(electrics.values.lightbar) end,
     set = function(on) electrics.set_lightbar_signal(on and 1 or 0) end,
+    fallbackAction = "toggle_lightbar_signal",
   },
   ["hazard"] = {
     get = function()
@@ -277,6 +393,7 @@ local features_onoff = {
       return truthy(e.hazard_enabled) or (truthy(e.signal_left_input) and truthy(e.signal_right_input))
     end,
     set = function(on) electrics.set_warn_signal(on and 1 or 0) end,
+    fallbackAction = "toggle_hazard_signal",
   },
   ["parkingbrake"] = {
     get = function()
@@ -285,11 +402,16 @@ local features_onoff = {
       return truthy(pb)
     end,
     set = function(on) input.event("parkingbrake", on and 1 or 0, FILTER_DIRECT) end,
+    fallbackAction = "parkingbrake_toggle",
   },
   ["cruise"] = {
-    get = function() return truthy(electrics.values.cruiseControlActive) end,
+    get = function()
+      local on = cruiseState()
+      if on == nil then return nil end
+      return truthy(on)
+    end,
     set = function(on)
-      local cc = extensions.cruiseControl
+      local cc = features and features.cruise
       if not cc then return end
       if on then
         try(cc.holdCurrentSpeed)
@@ -310,6 +432,8 @@ local features_onoff = {
         esc.toggleESCMode()
       end
     end,
+    -- toggles go through the game's own action first (it also knows newer drive-mode systems)
+    toggleAction = "toggleESCMode",
     fallbackAction = "toggleESCMode",
   },
 }
@@ -332,6 +456,7 @@ local function signalFeature(side)
         electrics[toggle]()
       end
     end,
+    fallbackAction = toggle,
   }
 end
 features_onoff["signal.left"] = signalFeature("left")
@@ -347,8 +472,10 @@ local function diffFeature(loc)
     set = function(on)
       local d = features and features.diff[loc]
       if not d then return end
-      d.device:setMode(on and "locked" or d.unlocked)
+      if d.device.mode ~= "locked" then d.unlocked = d.device.mode end
+      setDeviceMode(d, on and "locked" or d.unlocked)
     end,
+    fallbackAction = "toggleDiffMode",
   }
 end
 features_onoff["diff.front"] = diffFeature("front")
@@ -358,9 +485,13 @@ features_onoff["diff.rear"] = diffFeature("rear")
 features_onoff["awd"] = {
   get = function()
     if not (features and features.awd) then return nil end
-    return features.awd.device.mode == "connected"
+    return features.awd.device.mode ~= "disconnected"
   end,
-  set = function(on) features.awd.device:setMode(on and "connected" or "disconnected") end,
+  set = function(on)
+    local a = features.awd
+    if a.device.mode ~= "disconnected" then a.engaged = a.device.mode end
+    setDeviceMode(a, on and a.engaged or "disconnected")
+  end,
   fallbackAction = "toggle4WDStatus",
 }
 features_onoff["range"] = {
@@ -368,14 +499,15 @@ features_onoff["range"] = {
     if not (features and features.range) then return nil end
     return features.range.device.mode == "low"
   end,
-  set = function(on) features.range.device:setMode(on and "low" or "high") end,
+  set = function(on) setDeviceMode(features.range, on and "low" or "high") end,
   fallbackAction = "toggleRangeStatus",
 }
 
 -- index into P,R,N,D,S,M as sent by the phone
 local GEARBOX_MODES = { [0] = "P", "R", "N", "D", "S", "M" }
--- shiftToGearIndex values for automatic-style gearboxes (same table BeamMP uses)
+-- shiftToGearIndex values for automatic-style gearboxes (same table BeamMP uses to sync gears)
 local AUTO_GEAR_INDEX = { P = 1, R = -1, N = 0, D = 2, S = 3, M = 6 }
+-- manual and sequential gearboxes: gear index (D, S and M pick first gear)
 local MANUAL_GEAR_INDEX = { R = -1, N = 0, D = 1, S = 1, M = 1 }
 
 local function setGearboxMode(index)
@@ -383,11 +515,12 @@ local function setGearboxMode(index)
   if not mode then return end
   if not features then scanVehicle() end
   local mc = controller.mainController
-  if features.gearboxModes and mc and mc.shiftToGearIndex then
-    if electrics.values.gearboxMode == "arcade" and mc.setGearboxMode then try(mc.setGearboxMode, "realistic") end
-    try(mc.shiftToGearIndex, AUTO_GEAR_INDEX[mode])
-  elseif features.gearbox and features.gearbox.setGearIndex and MANUAL_GEAR_INDEX[mode] then
-    try(features.gearbox.setGearIndex, features.gearbox, MANUAL_GEAR_INDEX[mode])
+  local target
+  if features.gearboxModes then target = AUTO_GEAR_INDEX[mode] else target = MANUAL_GEAR_INDEX[mode] end
+  if target == nil then return end -- P on a manual gearbox
+  if mc and mc.shiftToGearIndex and try(mc.shiftToGearIndex, target) then return end
+  if features.gearbox and features.gearbox.setGearIndex then
+    try(features.gearbox.setGearIndex, features.gearbox, target)
   end
 end
 
@@ -405,6 +538,9 @@ local function shift(up)
 end
 
 local function starter(down)
+  local mc = controller and controller.mainController
+  if mc and type(mc.setStarter) == "function" and try(mc.setStarter, down) then return end
+  -- fallback: ignition key to the start position while held
   local level = tonumber(electrics.values.ignitionLevel) or 0
   if down then
     if level < 3 then electrics.setIgnitionLevel(3) end
@@ -413,44 +549,47 @@ local function starter(down)
   end
 end
 
+local function changeCruise(delta)
+  local cc = features and features.cruise
+  if not cc then return end
+  if not try(cc.changeSpeed, delta) then
+    local _, target = cruiseState()
+    try(cc.setSpeed, math.max(0, (tonumber(target) or 0) + delta))
+  end
+end
+
 local oneShots = {
-  ["starter"] = function(v) starter(v >= 0.5) end,
-  ["horn"] = function(v) electrics.horn(v >= 0.5) end,
-  ["gearbox.mode"] = function(v) setGearboxMode(v) end,
-  ["gear.up"] = function(v) if v >= 0.5 then shift(true) end end,
-  ["gear.down"] = function(v) if v >= 0.5 then shift(false) end end,
-  ["cruise.set"] = function(v)
-    if v < 0.5 then return end
-    local cc = extensions.cruiseControl
+  ["starter"] = function(val) starter(val >= 0.5) end,
+  ["horn"] = function(val) electrics.horn(val >= 0.5) end,
+  ["gearbox.mode"] = function(val) setGearboxMode(val) end,
+  ["gear.up"] = function(val) if val >= 0.5 then shift(true) end end,
+  ["gear.down"] = function(val) if val >= 0.5 then shift(false) end end,
+  ["cruise.set"] = function(val)
+    if val < 0.5 then return end
+    local cc = features and features.cruise
     if cc then try(cc.holdCurrentSpeed); try(cc.setEnabled, true) end
   end,
-  ["cruise.up"] = function(v)
-    if v < 0.5 then return end
-    local cc = extensions.cruiseControl
-    if cc and not try(cc.changeSpeed, CRUISE_STEP) then
-      try(cc.setSpeed, (tonumber(electrics.values.cruiseControlTarget) or 0) + CRUISE_STEP)
-    end
-  end,
-  ["cruise.down"] = function(v)
-    if v < 0.5 then return end
-    local cc = extensions.cruiseControl
-    if cc and not try(cc.changeSpeed, -CRUISE_STEP) then
-      try(cc.setSpeed, math.max(0, (tonumber(electrics.values.cruiseControlTarget) or 0) - CRUISE_STEP))
-    end
-  end,
-  ["recover"] = function(v)
+  ["cruise.up"] = function(val) if val >= 0.5 then changeCruise(CRUISE_STEP) end end,
+  ["cruise.down"] = function(val) if val >= 0.5 then changeCruise(-CRUISE_STEP) end end,
+  ["recover"] = function(val)
     if not recovery then return end
-    if v >= 0.5 then try(recovery.startRecovering) else try(recovery.stopRecovering) end
+    if val >= 0.5 then try(recovery.startRecovering) else try(recovery.stopRecovering) end
   end,
-  ["reset"] = function(v) if v >= 0.5 then obj:requestReset(RESET_PHYSICS) end end,
+  ["reset"] = function(val) if val >= 0.5 then obj:requestReset(RESET_PHYSICS) end end,
 }
 
--- Entry point from gameControllerLink. mode is "toggle", "set" or "once".
+-- Entry point from gameControllerLink. mode is "toggle", "set", "once", or "direct"
+-- (a toggle that skips the game's action, used when that action is missing).
 local function command(name, mode, value)
   value = tonumber(value) or 1
   if not features then scanVehicle() end
   local f = features_onoff[name]
   if f then
+    if mode == "toggle" and f.toggleAction then
+      geAction(f.toggleAction, 1, name)
+      return
+    end
+    if mode == "direct" then mode = "toggle" end
     local ok, current = pcall(f.get)
     if not ok then current = nil end
     if current == nil then
@@ -460,29 +599,34 @@ local function command(name, mode, value)
     end
     local want
     if mode == "toggle" then want = not current else want = value >= 0.5 end
-    if want ~= current then try(f.set, want) end
+    if want ~= current and not try(f.set, want) and mode == "toggle" and f.fallbackAction then
+      geAction(f.fallbackAction, 1)
+    end
   elseif oneShots[name] then
     try(oneShots[name], value)
   else
     log('W', 'gameController', 'unknown vehicle command ' .. tostring(name))
   end
-  sendTimer = SEND_INTERVAL -- report the result on the next frame
+  sendFrames = SEND_FRAMES -- report the result on the next frame
 end
 
 -- ============= HOOKS =============
 
 local function updateGFX(dt)
   if not active then return end
-  sendTimer = sendTimer + dt
-  heartbeatTimer = heartbeatTimer + dt
-  if sendTimer < SEND_INTERVAL and not fullRequested then return end
-  sendTimer = 0
+  dt = tonumber(dt) or 0
+  sendTimer, sendFrames = sendTimer + dt, sendFrames + 1
+  heartbeatTimer, heartbeatFrames = heartbeatTimer + dt, heartbeatFrames + 1
+  if sendTimer < SEND_INTERVAL and sendFrames < SEND_FRAMES and not fullRequested then return end
+  sendTimer, sendFrames = 0, 0
   local force = fullRequested
   fullRequested = false
-  local ok, err = pcall(checkState, force)
-  if not ok then log('E', 'gameController', 'state check failed: ' .. tostring(err)) end
-  if heartbeatTimer >= HEARTBEAT_INTERVAL then
-    heartbeatTimer = 0
+  local ok, changed = pcall(checkState, force)
+  if not ok then log('E', 'gameController', 'state check failed: ' .. tostring(changed)) end
+  if ok and changed then
+    heartbeatTimer, heartbeatFrames = 0, 0
+  elseif heartbeatTimer >= HEARTBEAT_INTERVAL or heartbeatFrames >= HEARTBEAT_FRAMES then
+    heartbeatTimer, heartbeatFrames = 0, 0
     sendState({}, false)
   end
 end
