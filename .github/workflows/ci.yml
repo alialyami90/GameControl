@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  android:
+    name: Android app
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Unit tests (core)
+        run: ./gradlew --no-daemon :core:test
+      - name: Build APKs
+        run: ./gradlew --no-daemon :app:assembleDebug :app:assembleRelease
+      - name: Collect APK
+        run: |
+          mkdir -p ../out
+          cp app/build/outputs/apk/release/app-release.apk ../out/GameCtl.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GameCtl-android
+          path: out/GameCtl.apk
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-test-reports
+          path: android/core/build/reports/tests/
+
+  windows:
+    name: Windows companion
+    runs-on: windows-latest
+    if: ${{ hashFiles('windows/GameController.Companion.sln') != '' }}
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Test
+        run: dotnet test GameController.Companion.sln -c Release
+      - name: Publish
+        shell: pwsh
+        run: |
+          if (Test-Path build.ps1) { ./build.ps1 -Output ../out/companion } else {
+            $proj = Get-ChildItem -Recurse -Filter Companion.App.csproj | Select-Object -First 1
+            if (-not $proj) { $proj = Get-ChildItem -Recurse -Filter Companion.Cli.csproj | Select-Object -First 1 }
+            dotnet publish $proj.FullName -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ../out/companion
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GameCtl-companion-win-x64
+          path: out/companion/
+
+  beamng:
+    name: BeamNG mod
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('beamng-mod/build.sh') != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LuaJIT
+        run: sudo apt-get update && sudo apt-get install -y luajit lua-socket zip
+      - name: Test
+        working-directory: beamng-mod
+        run: luajit tests/run.lua
+      - name: Package
+        run: sh beamng-mod/build.sh out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GameCtl-beamng-mod
+          path: out/gamecontroller.zip

@@ -1,0 +1,74 @@
+using GameController.Companion.BeamNG;
+
+namespace GameController.Companion.Tests;
+
+public class BeamNgRuleTests
+{
+    static string B(string kind, string cmd) => "{\"id\":\"c\",\"kind\":\"" + kind + "\",\"action\":{\"type\":\"beamng\",\"command\":\"" + cmd + "\"}}";
+
+    [Theory]
+    [InlineData("lights.low.toggle", CommandStyle.Edge)]
+    [InlineData("reset", CommandStyle.Edge)]
+    [InlineData("camera.next", CommandStyle.Edge)]
+    [InlineData("horn", CommandStyle.Level)]
+    [InlineData("starter", CommandStyle.Level)]
+    [InlineData("recover", CommandStyle.Level)]
+    [InlineData("lights.low", CommandStyle.Level)]
+    [InlineData("action.look_back", CommandStyle.Level)]
+    [InlineData("gearbox.mode", CommandStyle.Indexed)]
+    public void Classify(string cmd, CommandStyle style) => Assert.Equal(style, BeamNgCommands.Classify(cmd));
+
+    [Fact]
+    public void Mod_reported_toggle_makes_its_setter_a_level_command() =>
+        Assert.Equal(CommandStyle.Level, BeamNgCommands.Classify("winch", new[] { "winch.toggle" }));
+
+    [Fact]
+    public void Toggle_on_momentary_fires_only_on_rising_edge()
+    {
+        var r = new Rig(B("momentary", "hazard.toggle"));
+        r.Send("c", 1); r.Send("c", 1); r.Send("c", 0);
+        Assert.Equal(new[] { ("hazard.toggle", 1.0) }, r.Commands.Sent);
+    }
+
+    [Fact]
+    public void Horn_passes_both_edges()
+    {
+        var r = new Rig(B("momentary", "horn"));
+        r.Send("c", 1); r.Send("c", 1); r.Send("c", 0);
+        Assert.Equal(new[] { ("horn", 1.0), ("horn", 0.0) }, r.Commands.Sent);
+    }
+
+    [Fact]
+    public void Latching_setter_sends_state_and_first_off()
+    {
+        var r = new Rig(B("latching", "lights.low"));
+        r.Send("c", 0); r.Send("c", 1); r.Send("c", 1); r.Send("c", 0);
+        Assert.Equal(new[] { ("lights.low", 0.0), ("lights.low", 1.0), ("lights.low", 0.0) }, r.Commands.Sent);
+    }
+
+    [Fact]
+    public void Gearbox_mode_switch_sends_index()
+    {
+        var r = new Rig("""{"id":"g","kind":"switch","positions":[{"type":"beamng","command":"gearbox.mode"},{"type":"beamng","command":"gearbox.mode"},{"type":"beamng","command":"gearbox.mode"},{"type":"beamng","command":"gearbox.mode"}]}""");
+        r.Send("g", 3); r.Send("g", 3); r.Send("g", 1);
+        Assert.Equal(new[] { ("gearbox.mode", 3.0), ("gearbox.mode", 1.0) }, r.Commands.Sent);
+    }
+
+    [Fact]
+    public void Held_command_on_rotary_is_pressed_and_released()
+    {
+        var r = new Rig("""{"id":"z","kind":"rotary","cw":{"type":"beamng","command":"action.look_back"},"ccw":{"type":"beamng","command":"camera.prev"}}""");
+        r.Send("z", 1); r.Send("z", -1);
+        Rig.Settle();
+        Assert.Equal(new[] { ("action.look_back", 1.0), ("camera.prev", 1.0), ("action.look_back", 0.0) }, r.Commands.Sent);
+    }
+
+    [Fact]
+    public void Nothing_is_sent_without_the_mod()
+    {
+        var r = new Rig(B("momentary", "horn"));
+        r.Commands.Connected = false;
+        r.Send("c", 1);
+        Assert.Empty(r.Commands.Sent);
+    }
+}

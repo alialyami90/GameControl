@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Steering wheel over a toggle switch, amber on carbon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:strokeColor="#FFFFB000" android:strokeWidth="5" android:fillColor="#00000000"
+        android:pathData="M54,30a24,24 0,1 0,0.01 0z" />
+    <path android:strokeColor="#FFFFB000" android:strokeWidth="5" android:fillColor="#00000000"
+        android:strokeLineCap="round"
+        android:pathData="M31,52L48,55M77,52L60,55M54,61L54,77" />
+    <path android:fillColor="#FFFFB000" android:pathData="M54,48a6,6 0,1 0,0.01 0z" />
+</vector>

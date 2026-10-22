@@ -1,0 +1,213 @@
+package com.gamecontroller
+
+import com.gamecontroller.engine.Feedback
+import com.gamecontroller.engine.InputEngine
+import com.gamecontroller.engine.OutputLinks
+import com.gamecontroller.engine.Route
+import com.gamecontroller.hid.HidDescriptor
+import com.gamecontroller.hid.HidState
+import com.gamecontroller.model.Action
+import com.gamecontroller.model.ControlType
+import com.gamecontroller.model.FeedbackSource
+import com.gamecontroller.model.GameId
+import com.gamecontroller.model.KeyTrigger
+import com.gamecontroller.model.OutputRoute
+import com.gamecontroller.profiles.BuiltInProfiles
+import com.gamecontroller.profiles.LayoutOps
+import com.gamecontroller.profiles.ProfileJson
+import com.gamecontroller.protocol.Incoming
+import com.gamecontroller.protocol.Protocol
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertIs
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+
+class FakeLinks(override var hidConnected: Boolean = false, override var companionConnected: Boolean = false) : OutputLinks {
+    val hid = mutableListOf<Pair<Int, ByteArray>>()
+    val companion = mutableListOf<CompanionEvent>()
+    data class CompanionEvent(val id: String, val value: Float, val seq: Long, val reliable: Boolean)
+    override fun sendHid(reportId: Int, payload: ByteArray) { hid += reportId to payload.copyOf() }
+    override fun sendCompanion(id: String, value: Float, seq: Long, reliable: Boolean) { companion += CompanionEvent(id, value, seq, reliable) }
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class CoreTest {
+    @Test fun builtInProfilesRoundTripThroughJson() {
+        for (p in BuiltInProfiles.all) {
+            val text = ProfileJson.export(p)
+            val back = ProfileJson.import(text, newId = p.id).copy(builtIn = p.builtIn)
+            assertEquals(p, back, "round trip of ${p.name}")
+        }
+    }
+
+    @Test fun builtInLayoutsFitTheirGridsWithoutOverlap() {
+        for (p in BuiltInProfiles.all) for (page in p.pages) {
+            val cells = HashMap<Pair<Int, Int>, String>()
+            for (c in page.controls) {
+                assertTrue(c.x >= 0 && c.y >= 0 && c.x + c.w <= page.columns && c.y + c.h <= page.rows, "${c.id} out of grid")
+                for (x in c.x until c.x + c.w) for (y in c.y until c.y + c.h) {
+                    val prev = cells.put(x to y, c.id)
+                    assertEquals(null, prev, "${c.id} overlaps $prev on ${p.name}/${page.name}")
+                }
+            }
+            assertEquals(page.controls.size, page.controls.map { it.id }.toSet().size, "duplicate ids")
+        }
+    }
+
+    @Test fun beamngProfileCoversRequiredFunctions() {
+        val cmds = BuiltInProfiles.beamng().pages.flatMap { it.controls }.flatMap { c ->
+            listOf(c.action, c.cw, c.ccw) + c.positions.map { it.action }
+        }.filterIsInstance<Action.BeamNG>().map { it.command }.toSet()
+        val required = listOf("lights.low", "lights.high", "signal.left", "signal.right", "hazard", "horn", "ignition.toggle", "starter",
+            "gearbox.mode", "esc", "diff.front", "diff.rear", "diff.center", "awd", "range", "parkingbrake", "cruise", "camera.next",
+            "recover", "reset", "slowmo", "pause")
+        for (r in required) assertTrue(r in cmds, "missing $r")
+    }
+
+    @Test fun actionSerializesToProtocolShape() {
+        val o = Protocol.action(Action.Key(listOf("LCTRL", "H"), KeyTrigger.TAP)).jsonObject
+        assertEquals("key", o["type"]!!.jsonPrimitive.content)
+        assertEquals("tap", o["trigger"]!!.jsonPrimitive.content)
+        assertEquals("none", Protocol.action(Action.None).jsonObject["type"]!!.jsonPrimitive.content)
+        val b = Protocol.binding(BuiltInProfiles.beamng().pages[0].controls.first { it.type == ControlType.SWITCH })
+        assertEquals("switch", b["kind"]!!.jsonPrimitive.content)
+        assertEquals(6, b["positions"]!!.jsonArray.size)
+    }
+
+    @Test fun parsesWelcomeStateAndIgnoresUnknown() {
+        val w = Protocol.parse("""{"v":1,"type":"welcome","serverName":"PC","token":"t","session":"abcd1234","udpPort":47801,"capabilities":{"vjoy":true,"beamng":true},"extra":1}""")
+        assertIs<Incoming.Welcome>(w); assertTrue(w.capabilities.beamng)
+        val s = Protocol.parse("""{"v":1,"type":"state","source":"beamng","values":{"lights.low":true,"gear":"D","speed":12.5}}""")
+        assertIs<Incoming.State>(s); assertEquals(true, s.values["lights.low"]); assertEquals("D", s.values["gear"]); assertEquals(12.5, s.values["speed"])
+        assertIs<Incoming.Unknown>(Protocol.parse("""{"v":1,"type":"future.thing"}"""))
+        assertIs<Incoming.VersionMismatch>(Protocol.parse("""{"v":2,"type":"welcome"}"""))
+        assertIs<Incoming.Malformed>(Protocol.parse("not json"))
+        // unknown action type decodes as part of an import without crashing? -> handled by coerceInputValues for enums only
+    }
+
+    @Test fun hidKeyboardReportHasModifiersAndKeys() {
+        val h = HidState()
+        h.keyDown("LCTRL"); h.keyDown("H")
+        val r = h.keyboardReport()
+        assertEquals(0x01, r[0].toInt())
+        assertEquals(0x0B, r[2].toInt())
+        h.keyDown("H"); h.keyUp("H")
+        assertEquals(0x0B, h.keyboardReport()[2].toInt(), "refcounted key stays down")
+    }
+
+    @Test fun hidGamepadReportLayout() {
+        val h = HidState()
+        h.buttonDown(1); h.buttonDown(64); h.setAxis("X", 1f); h.setAxis("SL1", -1f)
+        val r = h.gamepadReport()
+        assertEquals(24, r.size)
+        assertEquals(1, r[0].toInt() and 1)
+        assertEquals(0x80, r[7].toInt() and 0xFF)
+        assertEquals(32767, (r[8].toInt() and 0xFF) or (r[9].toInt() shl 8))
+        assertEquals(-32767, ((r[22].toInt() and 0xFF) or (r[23].toInt() shl 8)).toShort().toInt())
+        assertTrue(HidDescriptor.REPORT_MAP.size > 50)
+    }
+
+    @Test fun momentaryOverHidPressesAndReleasesButton() = runTest {
+        val links = FakeLinks(hidConnected = true)
+        val e = InputEngine(this, links) { testScheduler.currentTime }
+        e.profile = BuiltInProfiles.gamepad()
+        links.hid.clear()
+        val b1 = e.profile!!.pages[0].controls.first { it.id == "gp_b1" }
+        assertEquals(Route.HID, e.routeFor(b1))
+        e.onValue(b1, 1f)
+        assertEquals(1, links.hid.last().second[0].toInt() and 1)
+        e.onValue(b1, 0f)
+        assertEquals(0, links.hid.last().second[0].toInt() and 1)
+        advanceUntilIdle()
+    }
+
+    @Test fun latchingTapKeyOverHidTapsOncePerChange() = runTest {
+        val links = FakeLinks(hidConnected = true)
+        val e = InputEngine(this, links) { testScheduler.currentTime }
+        e.profile = BuiltInProfiles.mudrunner()
+        links.hid.clear()
+        val diff = e.profile!!.pages[0].controls.first { it.id == "mr_diff" }
+        e.onValue(diff, 1f)
+        e.onValue(diff, 1f) // repeated: ignored
+        advanceUntilIdle()
+        val keyReports = links.hid.filter { it.first == HidDescriptor.KEYBOARD_REPORT_ID }
+        assertEquals(2, keyReports.size, "one down + one up")
+        assertEquals(0x14, keyReports[0].second[2].toInt()) // Q
+        assertEquals(0, keyReports[1].second[2].toInt())
+    }
+
+    @Test fun companionRoutingUsesReliableChannelForDiscreteAndResendsHeld() = runTest {
+        val links = FakeLinks(companionConnected = true)
+        val e = InputEngine(this, links) { testScheduler.currentTime }
+        e.profile = BuiltInProfiles.beamng()
+        val c = e.profile!!.pages[0].controls
+        val hazard = c.first { it.id == "bng_hazard" }
+        val horn = c.first { it.id == "bng_horn" }
+        assertEquals(Route.COMPANION, e.routeFor(hazard))
+        e.onValue(hazard, 1f)
+        assertTrue(links.companion.last().reliable)
+        e.onValue(horn, 1f)
+        assertFalse(links.companion.last().reliable)
+        advanceTimeBy(600)
+        val hornEvents = links.companion.filter { it.id == "bng_horn" }
+        assertTrue(hornEvents.size >= 3, "held momentary resends, got ${hornEvents.size}")
+        e.onValue(horn, 0f)
+        advanceTimeBy(100)
+        assertEquals(3, links.companion.filter { it.id == "bng_horn" && it.value == 0f }.size, "release sent 3 times")
+        val seqs = links.companion.map { it.seq }
+        assertEquals(seqs.sorted(), seqs, "sequence increases")
+        e.releaseAll()
+        advanceUntilIdle()
+    }
+
+    @Test fun hidModeMarksRoutedIdsAndKeepsBeamngOnCompanion() = runTest {
+        val links = FakeLinks(hidConnected = true, companionConnected = true)
+        val e = InputEngine(this, links) { testScheduler.currentTime }
+        e.profile = BuiltInProfiles.beamng().copy(output = OutputRoute.AUTO)
+        assertTrue(e.hidRoutedIds().isEmpty(), "beamng commands can't go over HID")
+        e.profile = BuiltInProfiles.gamepad()
+        assertTrue("gp_b1" in e.hidRoutedIds())
+        val sync = Protocol.parse(Protocol.profileSync(e.profile!!, e.hidRoutedIds()))
+        assertIs<Incoming.Unknown>(sync) // phone->pc message type, not parsed by phone
+    }
+
+    @Test fun feedbackPendingThenGameConfirms() {
+        val p = BuiltInProfiles.beamng()
+        val values = mapOf("bng_low" to 1f)
+        var r = Feedback.resolve(p, values, mapOf("lights.low" to false), mapOf("bng_low" to 0L), now = 100)
+        assertEquals(FeedbackSource.PENDING, r.indicators["bng_low"]!!.source)
+        assertTrue(r.indicators["bng_low"]!!.lit)
+        r = Feedback.resolve(p, values, mapOf("lights.low" to true), emptyMap(), now = 200)
+        assertEquals(FeedbackSource.GAME, r.indicators["bng_low"]!!.source)
+        // timed out -> game wins, and syncValues pulls the latch back
+        val synced = Feedback.syncValues(p, values, mapOf("lights.low" to false), mapOf("bng_low" to 0L), now = 5000)
+        assertEquals(0f, synced["bng_low"])
+        r = Feedback.resolve(p, values, mapOf("has.fog" to false), emptyMap(), 0)
+        assertTrue("bng_fog" in r.unavailable)
+        val gear = Feedback.resolve(p, mapOf(), mapOf("gearbox.mode" to "D"), emptyMap(), 0).indicators["bng_gearbox"]!!
+        assertEquals("D", gear.text)
+    }
+
+    @Test fun layoutOpsClampAndPages() {
+        var p = LayoutOps.newProfile("Test", GameId.CUSTOM)
+        val (p2, id) = LayoutOps.addControl(p, 0, ControlType.SLIDER, 100, 100)
+        p = p2
+        val c = p.pages[0].controls.single()
+        assertEquals(id, c.id)
+        assertTrue(c.x + c.w <= p.pages[0].columns && c.y + c.h <= p.pages[0].rows)
+        p = LayoutOps.resize(p, 0, id, 50, 50)
+        assertTrue(p.pages[0].controls.single().let { it.x + it.w <= 8 && it.y + it.h <= 4 })
+        p = LayoutOps.addPage(p); assertEquals(2, p.pages.size)
+        p = LayoutOps.deletePage(p, 1); p = LayoutOps.deletePage(p, 0); assertEquals(1, p.pages.size)
+        assertNotNull(LayoutOps.findControl(p, id))
+    }
+}
