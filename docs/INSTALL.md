@@ -36,6 +36,10 @@ installing them, so it finds them.
 2. On the PC: **Settings > Bluetooth & devices > Add device > Bluetooth**, pick **GameCtl Pad**. If Windows shows a code,
    confirm it on the phone too. If **GameCtl Pad** never shows up, discoverable mode has ended (it lasts about 2 minutes):
    tap **MAKE DISCOVERABLE** again and search again.
+   **Game sound gone after pairing?** Windows also adds the phone's own audio (headset / hands-free) when it pairs and can
+   switch the PC's sound output to the phone. Open **Control Panel > Devices and Printers**, right-click the phone,
+   **Properties > Services**, untick the audio, headset and hands-free services, and set your speakers or headphones back as
+   the default output (sound icon in the taskbar). Restart the game if it still has no sound.
 3. Next time, open GameCtl and pick your PC under **Paired PCs**; it reconnects.
 4. Check it in Windows: press `Win+R`, run `joy.cpl`, select **GameCtl Pad**, and press buttons on the phone.
 

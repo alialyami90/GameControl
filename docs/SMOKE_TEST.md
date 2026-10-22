@@ -50,6 +50,10 @@ A1 On the phone tap the **PAIRED / OFF** badges at the top right of the profile 
 A2 On the PC: **Settings > Bluetooth & devices > Add device > Bluetooth**, pick **GameCtl Pad**. If Windows shows a code and asks
    you to confirm it on the phone, accept it on both. The phone's Bluetooth badge turns green and shows the PC's name.
    If **GameCtl Pad** never appears: discoverable mode ends after about 2 minutes, so tap **MAKE DISCOVERABLE** again and search again.
+   After pairing, check that the PC's sound still plays through your speakers. Windows may add the phone's audio (headset /
+   hands-free) and switch the default output to the phone: if so, in **Control Panel > Devices and Printers** right-click the
+   phone, **Properties > Services**, untick the audio, headset and hands-free services, and set your speakers back as the
+   default output. Note in your report whether this happened.
 
 A3 On the PC press `Win+R`, run `joy.cpl`, select **GameCtl Pad > Properties**. On the phone open **Generic gamepad**.
    - Tap **B1** to **B12**: the matching button lights in joy.cpl and goes out when you let go.
