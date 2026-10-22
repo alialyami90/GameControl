@@ -21,8 +21,9 @@ object BuiltInProfiles {
     const val KEYBOARD_ID = "builtin-keyboard"
     const val BEAMNG_ID = "builtin-beamng"
     const val MUDRUNNER_ID = "builtin-mudrunner"
+    const val BEAMNG_PAD_ID = "builtin-beamng-pad"
 
-    val all: List<Profile> by lazy { listOf(gamepad(), keyboard(), beamng(), mudrunner()) }
+    val all: List<Profile> by lazy { listOf(gamepad(), keyboard(), beamng(), beamngPad(), mudrunner()) }
 
     // ---- small builders --------------------------------------------------------------------
 
@@ -176,6 +177,61 @@ object BuiltInProfiles {
             id = BEAMNG_ID, name = "BeamNG.drive", game = GameId.BEAMNG, builtIn = true,
             pages = listOf(drive, drivetrain), output = OutputRoute.COMPANION,
             description = "Every vehicle function with live lights from the game. Needs the PC companion and the BeamNG mod.",
+        )
+    }
+
+    // ---- BeamNG over Bluetooth: gamepad buttons bound in-game by "Bind in game" -------------
+
+    /**
+     * Same functions as [beamng], but every control is a gamepad button that BeamNG reads directly
+     * (Bluetooth "GameCtl Pad" or vJoy). "Bind in game" asks the mod to map each button to its
+     * BeamNG action once. Lamps still light from game state when the companion and mod are running.
+     */
+    fun beamngPad(): Profile {
+        var n = 0
+        fun pad(id: String, label: String, icon: String, x: Int, y: Int, bind: String, accent: Accent = Accent.NEUTRAL, feedback: String? = null, visibleWhen: String? = null, w: Int = 1) =
+            Control("bpad_$id", ControlType.MOMENTARY, label, icon, x, y, w, 1, accent, btn(++n), feedbackKey = feedback, visibleWhen = visibleWhen, bindTo = bind)
+        val page = Page(
+            id = "bpad_main", name = "Vehicle", columns = 8, rows = 4,
+            controls = listOf(
+                pad("starter", "Start", "starter", 0, 0, "activateStarterMotor", Accent.RED, "engine.running"),
+                pad("horn", "Horn", "horn", 1, 0, "horn"),
+                pad("hazard", "Hazard", "hazard", 2, 0, "toggle_hazard_signal", Accent.RED, "hazard"),
+                pad("sig_l", "Left", "signal_left", 3, 0, "toggle_left_signal", Accent.GREEN, "signal.left"),
+                pad("sig_r", "Right", "signal_right", 4, 0, "toggle_right_signal", Accent.GREEN, "signal.right"),
+                pad("pbrake", "Park brake", "parking_brake", 5, 0, "parkingbrake_toggle", Accent.RED, "parkingbrake"),
+                pad("lights", "Headlights", "low_beam", 6, 0, "toggle_headlights", Accent.GREEN, "lights.low"),
+                pad("fog", "Fog", "fog_light", 7, 0, "toggle_foglights", Accent.GREEN, "lights.fog", "has.fog"),
+                pad("esc", "ESC / TC", "esc", 0, 1, "toggleESCMode", Accent.AMBER, "esc.active", "has.esc"),
+                pad("diff", "Diff mode", "diff_lock", 1, 1, "toggleDiffMode", Accent.AMBER, "diff.rear.locked"),
+                pad("awd", "4WD", "awd", 2, 1, "toggle4WDStatus", Accent.GREEN, "awd.active", "has.awd"),
+                pad("range", "Low range", "low_range", 3, 1, "toggleRangeStatus", Accent.CYAN, "range.low", "has.range"),
+                pad("shifter", "Shift mode", "gearbox", 4, 1, "toggleShifterMode", Accent.CYAN, "gearbox.mode"),
+                pad("gear_down", "Shift down", "gear_down", 5, 1, "shiftDown"),
+                pad("gear_up", "Shift up", "gear_up", 6, 1, "shiftUp", feedback = "gear"),
+                pad("lightbar", "Light bar", "light_bar", 7, 1, "toggle_lightbar_signal", Accent.AMBER, "lights.light_bar", "has.light_bar"),
+                pad("cam", "Camera", "camera_cycle", 0, 2, "switch_camera_next", feedback = "camera.mode"),
+                pad("look_back", "Look back", "look_back", 1, 2, "look_back"),
+                pad("center_cam", "Center cam", "visibility", 2, 2, "center_camera"),
+                pad("recover", "Recover", "recover", 3, 2, "recover_vehicle", Accent.AMBER),
+                pad("reset", "Reset", "reset", 4, 2, "reset_physics", Accent.RED),
+                pad("home", "Load home", "home", 5, 2, "loadHome"),
+                pad("save_home", "Save home", "place", 6, 2, "saveHome"),
+                pad("reload", "Reload", "build", 7, 2, "reload_vehicle"),
+                pad("slowmo", "Slow-mo", "slowmo", 0, 3, "toggle_slow_motion", Accent.CYAN, "game.slowmo"),
+                pad("slower", "Slower", "minus", 1, 3, "slower_motion"),
+                pad("faster", "Faster", "plus", 2, 3, "faster_motion"),
+                pad("pause", "Pause", "pause", 3, 3, "pause", Accent.AMBER, "game.paused"),
+                pad("full_reset", "Full reset", "reset", 4, 3, "reset_all_physics", Accent.RED),
+            ) + listOf(
+                Control("bpad_info_gear", ControlType.MOMENTARY, "Gear", "gearbox", 5, 3, 3, 1, Accent.CYAN,
+                    Action.None, feedbackKey = "gear"),
+            ),
+        )
+        return Profile(
+            id = BEAMNG_PAD_ID, name = "BeamNG.drive (Bluetooth pad)", game = GameId.BEAMNG, builtIn = true,
+            pages = listOf(page), output = OutputRoute.AUTO,
+            description = "Every control is a gamepad button. Tap \"Bind in game\" in the editor once (needs the mod) or bind them in BeamNG's Controls menu.",
         )
     }
 

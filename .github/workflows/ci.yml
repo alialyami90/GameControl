@@ -40,7 +40,6 @@ jobs:
   windows:
     name: Windows companion
     runs-on: windows-latest
-    if: ${{ hashFiles('windows/GameController.Companion.sln') != '' }}
     defaults:
       run:
         working-directory: windows
@@ -67,7 +66,6 @@ jobs:
   beamng:
     name: BeamNG mod
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('beamng-mod/build.sh') != '' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install LuaJIT
