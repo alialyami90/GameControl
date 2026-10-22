@@ -21,6 +21,7 @@ import com.gamecontroller.net.CompanionClient
 import com.gamecontroller.net.Settings
 import com.gamecontroller.profiles.LayoutOps
 import com.gamecontroller.profiles.ProfileJson
+import com.gamecontroller.protocol.Incoming
 import com.gamecontroller.protocol.Protocol
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay

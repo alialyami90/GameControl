@@ -22,16 +22,20 @@ public static class WindowsSystem
         return new WindowsPrincipal(id).IsInRole(WindowsBuiltInRole.Administrator);
     }
 
+    /// <summary>
+    /// True when our rule exists and allows this exe. A rule left behind by a copy in another folder
+    /// does not count. The path is matched as text, so it works whatever language netsh prints in.
+    /// </summary>
     public static bool FirewallRuleExists()
     {
         try
         {
-            var p = Process.Start(new ProcessStartInfo("netsh", $"advfirewall firewall show rule name=\"{FirewallRuleName}\"")
+            var p = Process.Start(new ProcessStartInfo("netsh", $"advfirewall firewall show rule name=\"{FirewallRuleName}\" verbose")
             { CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true });
             if (p == null) return false;
-            p.StandardOutput.ReadToEnd();
+            var output = p.StandardOutput.ReadToEnd();
             p.WaitForExit(5000);
-            return p.ExitCode == 0;
+            return p.ExitCode == 0 && output.Contains(ExePath, StringComparison.OrdinalIgnoreCase);
         }
         catch (Exception) { return false; }
     }
@@ -39,10 +43,12 @@ public static class WindowsSystem
     /// <summary>Adds an inbound allow rule for this exe on private networks. Shows a UAC prompt.</summary>
     public static bool AddFirewallRule()
     {
-        var args = $"advfirewall firewall add rule name=\"{FirewallRuleName}\" dir=in action=allow program=\"{ExePath}\" enable=yes profile=private,domain";
+        // Replace any rule of ours that points at an old location, then add one for this exe (one UAC prompt).
+        var args = $"/c netsh advfirewall firewall delete rule name=\"{FirewallRuleName}\" >nul 2>&1 & " +
+                   $"netsh advfirewall firewall add rule name=\"{FirewallRuleName}\" dir=in action=allow program=\"{ExePath}\" enable=yes profile=private,domain";
         try
         {
-            var p = Process.Start(new ProcessStartInfo("netsh", args) { Verb = "runas", UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden });
+            var p = Process.Start(new ProcessStartInfo("cmd.exe", args) { Verb = "runas", UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden });
             p?.WaitForExit(15000);
             return p?.ExitCode == 0;
         }

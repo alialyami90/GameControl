@@ -603,6 +603,13 @@ private fun PageAndProfile(
     )
 }
 
+/** "hid" / "vjoy1" from the companion, as a person would name the device. */
+private fun bindDeviceName(device: String): String = when {
+    device.equals("hid", ignoreCase = true) -> "the Bluetooth gamepad (GameCtl Pad)"
+    device.startsWith("vjoy", ignoreCase = true) -> "vJoy device " + device.drop(4).ifBlank { "1" }
+    else -> device
+}
+
 /**
  * Bind in game: shows what will be written before it happens, then keeps the last result on
  * screen (with its time) instead of a passing snackbar.
@@ -653,7 +660,7 @@ private fun BindInGame(
             Spacer(Modifier.width(10.dp))
             Column {
                 Text(headline, style = MaterialTheme.typography.bodyMedium, color = Race.Ink)
-                Text("on ${result.device}", style = MaterialTheme.typography.bodySmall, color = Race.InkMuted)
+                Text("on ${bindDeviceName(result.device)}", style = MaterialTheme.typography.bodySmall, color = Race.InkMuted)
                 if (result.message.isNotBlank() && !result.ok) Text(result.message, style = MaterialTheme.typography.bodySmall, color = Race.Red)
                 if (result.unknown.isNotEmpty()) {
                     Text("BeamNG didn't recognise: " + result.unknown.joinToString(), style = MaterialTheme.typography.bodySmall, color = Race.Amber)
@@ -669,7 +676,7 @@ private fun BindInGame(
             title = { Text("Bind ${pairs.size} controls in BeamNG?") },
             text = {
                 Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
-                    Text("Writes to BeamNG's bindings for $device. Existing bindings for these buttons are replaced.", style = MaterialTheme.typography.bodyMedium, color = Race.InkMuted)
+                    Text("Writes to BeamNG's bindings for ${bindDeviceName(device)}. Existing bindings for these buttons are replaced.", style = MaterialTheme.typography.bodyMedium, color = Race.InkMuted)
                     Gap(10)
                     pairs.forEach { (action, button) ->
                         Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {

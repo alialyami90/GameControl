@@ -56,6 +56,8 @@ public sealed class ViGEmOutput : IXInputOutput, IDisposable
         }
     }
 
+    public bool InUse { get { lock (_gate) return _connected; } }
+
     IXbox360Controller? Pad()
     {
         if (_client == null) return null;

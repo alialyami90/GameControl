@@ -66,8 +66,17 @@ public sealed class BindingEngine
             {
                 bool same = map.TryGetValue(id, out var now) && _bindings.TryGetValue(id, out var old) && SameShape(old, now);
                 if (same) continue;
-                ReleaseControl(id, st, "released (binding changed)", parkAxis: false);
+                // Park the axis too: a slider rebound to another axis must not leave the old one deflected.
+                ReleaseControl(id, st, "released (binding changed)", parkAxis: true);
                 st.LastApplied = null;
+            }
+            // New or changed axis bindings start at rest (unipolar 0, bipolar centre), so a throttle does
+            // not read 50 % until its slider first moves.
+            foreach (var (id, b) in map)
+            {
+                if (b.RoutedOverHid || b.Action.Type is not (ActionType.VJoyAxis or ActionType.XInputAxis)) continue;
+                if (_bindings.TryGetValue(id, out var old) && SameShape(old, b)) continue;
+                ParkAxis(b.Action);
             }
             _bindings = map;
             ProfileId = profileId;
@@ -76,9 +85,9 @@ public sealed class BindingEngine
 
     static bool SameShape(Binding a, Binding b) =>
         a.Kind == b.Kind && a.RoutedOverHid == b.RoutedOverHid &&
-        a.Action.ToString() == b.Action.ToString() &&
-        string.Join("|", a.Positions) == string.Join("|", b.Positions) &&
-        a.Cw.ToString() == b.Cw.ToString() && a.Ccw.ToString() == b.Ccw.ToString();
+        a.Action.Signature() == b.Action.Signature() &&
+        a.Positions.Count == b.Positions.Count && a.Positions.Zip(b.Positions).All(p => p.First.Signature() == p.Second.Signature()) &&
+        a.Cw.Signature() == b.Cw.Signature() && a.Ccw.Signature() == b.Ccw.Signature();
 
     public ApplyResult Apply(string id, long seq, double value, long nowMs)
     {
@@ -263,7 +272,9 @@ public sealed class BindingEngine
                 switch (BeamNgCommands.Classify(a.Command, _commands.KnownCommands))
                 {
                     case CommandStyle.Edge:
-                        if (rising) SendCommand(b, a.Command, 1);
+                        // A toggle follows the switch it is bound to: a latching control flips it on every
+                        // event (on and off), a momentary one only when pressed.
+                        if (b.Kind == ControlKind.Latching ? (rising || falling) : rising) SendCommand(b, a.Command, 1);
                         break;
                     default:
                         // A setter is idempotent, so the very first value is sent even when it is "off":
@@ -272,8 +283,9 @@ public sealed class BindingEngine
                         {
                             double value = b.Kind == ControlKind.Slider ? cur : (On(cur) ? 1 : 0);
                             SendCommand(b, a.Command, value);
-                            // Remember held commands (horn, action.*) so a lost release or a session end sends the 0.
-                            if (BeamNgCommands.IsHeld(a.Command))
+                            // Held: horn, starter, recover, action.*, and any setter a momentary control drives
+                            // (flash-to-pass). A latched setter is the user's intent and is never zeroed.
+                            if (BeamNgCommands.IsHeld(a.Command) || b.Kind == ControlKind.Momentary)
                             {
                                 if (value > 0) { if (!st.HeldCommands.Contains(a.Command)) st.HeldCommands.Add(a.Command); }
                                 else st.HeldCommands.Remove(a.Command);
@@ -333,9 +345,15 @@ public sealed class BindingEngine
                 if (style == CommandStyle.Indexed && index is { } i) SendCommand(b, a.Command, i);
                 else if (BeamNgCommands.IsHeld(a.Command))
                 {
-                    // A held command (horn, action.*) fired from a switch or rotary is a short press.
-                    SendCommand(b, a.Command, 1);
-                    _ = Task.Delay(InputRouter.PulseMs).ContinueWith(_ => SendCommand(b, a.Command, 0), TaskScheduler.Default);
+                    // A held command (horn, action.*) fired from a switch or rotary is a short press. It counts as
+                    // held until the release goes out, so a session end inside those 80 ms still sends the 0.
+                    var cmd = a.Command;
+                    SendCommand(b, cmd, 1);
+                    if (!st.HeldCommands.Contains(cmd)) st.HeldCommands.Add(cmd);
+                    _ = Task.Delay(InputRouter.PulseMs).ContinueWith(_ =>
+                    {
+                        lock (_gate) if (st.HeldCommands.Remove(cmd)) SendCommand(b, cmd, 0);
+                    }, TaskScheduler.Default);
                 }
                 else SendCommand(b, a.Command, 1);
                 break;

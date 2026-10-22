@@ -1,73 +1,79 @@
-<!-- Recovery Rig tokens and control styles, shared with the phone app's theme (android ui/theme). -->
+<!-- Race Front-End tokens and control styles (DESIGN.md at the project root), shared with the phone app's theme. -->
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="using:GameController.Companion.App.Controls">
 
   <Styles.Resources>
     <ResourceDictionary>
-      <!-- Grounds: graphite hard case, faint olive tint. -->
-      <Color x:Key="ChassisColor">#101312</Color>
-      <Color x:Key="CaseColor">#171B19</Color>
-      <Color x:Key="CaseRaisedColor">#1F2421</Color>
-      <Color x:Key="CapColor">#272D2A</Color>
-      <Color x:Key="CapHighColor">#323935</Color>
-      <Color x:Key="CapPressedColor">#1B1F1D</Color>
-      <Color x:Key="StitchColor">#39423E</Color>
-      <Color x:Key="StitchStrongColor">#55605A</Color>
-      <!-- Ink. -->
-      <Color x:Key="BoneColor">#ECE9DF</Color>
-      <Color x:Key="BoneMutedColor">#A9B0A9</Color>
-      <Color x:Key="BoneFaintColor">#7E8780</Color>
-      <!-- Signals: only when something is on, needs the user, is confirmed, or failed. -->
-      <Color x:Key="HiVisColor">#FF6A13</Color>
-      <Color x:Key="OnHiVisColor">#1C0B00</Color>
-      <Color x:Key="YellowColor">#F2C200</Color>
-      <Color x:Key="OnYellowColor">#1E1800</Color>
-      <Color x:Key="GreenColor">#4CD27A</Color>
-      <Color x:Key="RedColor">#FF4D3F</Color>
-      <Color x:Key="HiVisDimColor">#4A2410</Color>
-      <Color x:Key="YellowDimColor">#3A3420</Color>
-      <Color x:Key="GreenDimColor">#173A24</Color>
-      <Color x:Key="RedDimColor">#4A1410</Color>
+      <!-- Night garage: four blue-black steps. Depth is tonal, never a shadow. -->
+      <Color x:Key="GroundColor">#0A0D14</Color>
+      <Color x:Key="PanelColor">#111622</Color>
+      <Color x:Key="PanelRaisedColor">#171D2B</Color>
+      <Color x:Key="CapColor">#1C2333</Color>
+      <Color x:Key="CapHighColor">#262F44</Color>
+      <Color x:Key="CapPressedColor">#141A27</Color>
+      <Color x:Key="LineColor">#2B3448</Color>
+      <Color x:Key="LineStrongColor">#465170</Color>
+      <!-- Ink. Faint is the floor for any text. -->
+      <Color x:Key="InkColor">#F2F4F8</Color>
+      <Color x:Key="InkMutedColor">#A0A9BC</Color>
+      <Color x:Key="InkFaintColor">#7C869C</Color>
+      <!-- One house accent: selected, on, live. -->
+      <Color x:Key="ElectricColor">#FF2E7E</Color>
+      <Color x:Key="ElectricHoverColor">#FF4F93</Color>
+      <Color x:Key="ElectricPressedColor">#E01F69</Color>
+      <Color x:Key="OnElectricColor">#1F0010</Color>
+      <!-- Signals carry meaning only: green confirmed, amber waiting, red failed. -->
+      <Color x:Key="AmberColor">#FFB020</Color>
+      <Color x:Key="OnAmberColor">#241600</Color>
+      <Color x:Key="GreenColor">#34E07F</Color>
+      <Color x:Key="RedColor">#FF4B3A</Color>
+      <Color x:Key="ElectricDimColor">#3A1326</Color>
+      <Color x:Key="AmberDimColor">#2E2410</Color>
+      <Color x:Key="GreenDimColor">#0F2E20</Color>
+      <Color x:Key="RedDimColor">#341414</Color>
 
-      <SolidColorBrush x:Key="Chassis" Color="{StaticResource ChassisColor}" />
-      <SolidColorBrush x:Key="Case" Color="{StaticResource CaseColor}" />
-      <SolidColorBrush x:Key="CaseRaised" Color="{StaticResource CaseRaisedColor}" />
+      <SolidColorBrush x:Key="Ground" Color="{StaticResource GroundColor}" />
+      <SolidColorBrush x:Key="Panel" Color="{StaticResource PanelColor}" />
+      <SolidColorBrush x:Key="PanelRaised" Color="{StaticResource PanelRaisedColor}" />
       <SolidColorBrush x:Key="Cap" Color="{StaticResource CapColor}" />
       <SolidColorBrush x:Key="CapHigh" Color="{StaticResource CapHighColor}" />
       <SolidColorBrush x:Key="CapPressed" Color="{StaticResource CapPressedColor}" />
-      <SolidColorBrush x:Key="Stitch" Color="{StaticResource StitchColor}" />
-      <SolidColorBrush x:Key="StitchStrong" Color="{StaticResource StitchStrongColor}" />
-      <SolidColorBrush x:Key="Bone" Color="{StaticResource BoneColor}" />
-      <SolidColorBrush x:Key="BoneMuted" Color="{StaticResource BoneMutedColor}" />
-      <SolidColorBrush x:Key="BoneFaint" Color="{StaticResource BoneFaintColor}" />
-      <SolidColorBrush x:Key="HiVis" Color="{StaticResource HiVisColor}" />
-      <SolidColorBrush x:Key="OnHiVis" Color="{StaticResource OnHiVisColor}" />
-      <SolidColorBrush x:Key="Yellow" Color="{StaticResource YellowColor}" />
-      <SolidColorBrush x:Key="OnYellow" Color="{StaticResource OnYellowColor}" />
+      <SolidColorBrush x:Key="Line" Color="{StaticResource LineColor}" />
+      <SolidColorBrush x:Key="LineStrong" Color="{StaticResource LineStrongColor}" />
+      <SolidColorBrush x:Key="Ink" Color="{StaticResource InkColor}" />
+      <SolidColorBrush x:Key="InkMuted" Color="{StaticResource InkMutedColor}" />
+      <SolidColorBrush x:Key="InkFaint" Color="{StaticResource InkFaintColor}" />
+      <SolidColorBrush x:Key="Electric" Color="{StaticResource ElectricColor}" />
+      <SolidColorBrush x:Key="ElectricHover" Color="{StaticResource ElectricHoverColor}" />
+      <SolidColorBrush x:Key="ElectricPressed" Color="{StaticResource ElectricPressedColor}" />
+      <SolidColorBrush x:Key="OnElectric" Color="{StaticResource OnElectricColor}" />
+      <SolidColorBrush x:Key="Amber" Color="{StaticResource AmberColor}" />
+      <SolidColorBrush x:Key="OnAmber" Color="{StaticResource OnAmberColor}" />
       <SolidColorBrush x:Key="Green" Color="{StaticResource GreenColor}" />
       <SolidColorBrush x:Key="Red" Color="{StaticResource RedColor}" />
-      <SolidColorBrush x:Key="HiVisDim" Color="{StaticResource HiVisDimColor}" />
-      <SolidColorBrush x:Key="YellowDim" Color="{StaticResource YellowDimColor}" />
+      <SolidColorBrush x:Key="ElectricDim" Color="{StaticResource ElectricDimColor}" />
+      <SolidColorBrush x:Key="AmberDim" Color="{StaticResource AmberDimColor}" />
       <SolidColorBrush x:Key="GreenDim" Color="{StaticResource GreenDimColor}" />
       <SolidColorBrush x:Key="RedDim" Color="{StaticResource RedDimColor}" />
+      <LinearGradientBrush x:Key="CapGradient" StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Offset="0" Color="{StaticResource CapHighColor}" />
+        <GradientStop Offset="1" Color="{StaticResource CapColor}" />
+      </LinearGradientBrush>
 
-      <!-- Barlow Condensed carries headings, labels and numerals; Barlow carries body copy. -->
+      <!-- Italic condensed for names and numbers; upright Barlow for sentences. -->
       <FontFamily x:Key="CondBold">avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed</FontFamily>
+      <FontFamily x:Key="CondXBold">avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed ExtraBold</FontFamily>
       <FontFamily x:Key="CondSemi">avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed SemiBold</FontFamily>
       <FontFamily x:Key="CondMedium">avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed Medium</FontFamily>
       <FontFamily x:Key="Body">avares://GameControllerCompanion/Assets/Fonts#Barlow</FontFamily>
       <FontFamily x:Key="BodyMedium">avares://GameControllerCompanion/Assets/Fonts#Barlow Medium</FontFamily>
       <FontFamily x:Key="BodySemi">avares://GameControllerCompanion/Assets/Fonts#Barlow SemiBold</FontFamily>
 
-      <!-- Raised rubber cap: soft offset shadow, never a hard block. -->
-      <BoxShadows x:Key="CapShadow">0 3 10 0 #66000000</BoxShadows>
-      <BoxShadows x:Key="CapShadowLow">0 1 3 0 #55000000</BoxShadows>
-      <CornerRadius x:Key="CapRadius">10</CornerRadius>
-
       <!-- Fluent overrides so stock parts of controls carry the palette. -->
-      <SolidColorBrush x:Key="TextControlSelectionHighlightColor" Color="#80FF6A13" />
-      <SolidColorBrush x:Key="SystemControlFocusVisualPrimaryBrush" Color="{StaticResource HiVisColor}" />
-      <SolidColorBrush x:Key="SystemControlFocusVisualSecondaryBrush" Color="{StaticResource ChassisColor}" />
+      <SolidColorBrush x:Key="TextControlSelectionHighlightColor" Color="#80FF2E7E" />
+      <SolidColorBrush x:Key="SystemControlFocusVisualPrimaryBrush" Color="{StaticResource ElectricColor}" />
+      <SolidColorBrush x:Key="SystemControlFocusVisualSecondaryBrush" Color="{StaticResource GroundColor}" />
     </ResourceDictionary>
   </Styles.Resources>
 
@@ -75,236 +81,257 @@
   <Style Selector="TextBlock">
     <Setter Property="FontFamily" Value="{StaticResource Body}" />
     <Setter Property="FontSize" Value="14" />
-    <Setter Property="Foreground" Value="{StaticResource Bone}" />
+    <Setter Property="Foreground" Value="{StaticResource Ink}" />
   </Style>
   <Style Selector="TextBlock.h1">
-    <Setter Property="FontFamily" Value="{StaticResource CondBold}" />
-    <Setter Property="FontWeight" Value="Bold" />
-    <Setter Property="FontSize" Value="34" />
-    <Setter Property="LetterSpacing" Value="0.3" />
+    <Setter Property="FontFamily" Value="{StaticResource CondXBold}" />
+    <Setter Property="FontStyle" Value="Italic" />
+    <Setter Property="FontSize" Value="36" />
   </Style>
   <Style Selector="TextBlock.h2">
     <Setter Property="FontFamily" Value="{StaticResource CondBold}" />
     <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="FontStyle" Value="Italic" />
     <Setter Property="FontSize" Value="22" />
   </Style>
   <Style Selector="TextBlock.h3">
     <Setter Property="FontFamily" Value="{StaticResource CondSemi}" />
-    <Setter Property="FontSize" Value="17" />
-    <Setter Property="LetterSpacing" Value="0.4" />
+    <Setter Property="FontStyle" Value="Italic" />
+    <Setter Property="FontSize" Value="18" />
   </Style>
   <Style Selector="TextBlock.label">
     <Setter Property="FontFamily" Value="{StaticResource CondSemi}" />
     <Setter Property="FontSize" Value="13" />
-    <Setter Property="LetterSpacing" Value="1.2" />
-    <Setter Property="Foreground" Value="{StaticResource BoneMuted}" />
+    <Setter Property="LetterSpacing" Value="0.9" />
+    <Setter Property="Foreground" Value="{StaticResource InkMuted}" />
   </Style>
   <Style Selector="TextBlock.muted">
-    <Setter Property="Foreground" Value="{StaticResource BoneMuted}" />
+    <Setter Property="Foreground" Value="{StaticResource InkMuted}" />
   </Style>
   <Style Selector="TextBlock.faint">
-    <Setter Property="Foreground" Value="{StaticResource BoneFaint}" />
+    <Setter Property="Foreground" Value="{StaticResource InkFaint}" />
   </Style>
   <Style Selector="TextBlock.small">
     <Setter Property="FontSize" Value="12.5" />
   </Style>
+  <!-- Live numbers: italic condensed with tabular figures so they never jitter. -->
   <Style Selector="TextBlock.num">
-    <Setter Property="FontFamily" Value="{StaticResource CondMedium}" />
+    <Setter Property="FontFamily" Value="{StaticResource BodyMedium}" />
+    <Setter Property="FontFeatures" Value="+tnum" />
+  </Style>
+  <Style Selector="TextBlock.readout">
+    <Setter Property="FontFamily" Value="{StaticResource CondXBold}" />
+    <Setter Property="FontStyle" Value="Italic" />
     <Setter Property="FontFeatures" Value="+tnum" />
   </Style>
   <Style Selector="TextBlock.wrap">
     <Setter Property="TextWrapping" Value="Wrap" />
   </Style>
 
-  <!-- Panels: a raised cap on the case. -->
-  <Style Selector="Border.panel">
-    <Setter Property="Background" Value="{StaticResource CaseRaised}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Stitch}" />
-    <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="{StaticResource CapRadius}" />
-    <Setter Property="BoxShadow" Value="{StaticResource CapShadow}" />
+  <!-- Panels: garage panel with the top-right corner cut, a 1px seam, no shadow. -->
+  <Style Selector="c|Plate.panel">
+    <Setter Property="Shape" Value="Cut" />
+    <Setter Property="Fill" Value="{StaticResource Panel}" />
+    <Setter Property="Stroke" Value="{StaticResource Line}" />
     <Setter Property="Padding" Value="20" />
   </Style>
   <Style Selector="Border.inset">
-    <Setter Property="Background" Value="{StaticResource Case}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Stitch}" />
+    <Setter Property="Background" Value="{StaticResource Ground}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Line}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="CornerRadius" Value="6" />
   </Style>
-  <!-- Banners: yellow means the user has something to do; red means something failed. -->
-  <Style Selector="Border.banner">
-    <Setter Property="CornerRadius" Value="{StaticResource CapRadius}" />
+  <!-- Banners: amber means waiting on the user; red means something failed. -->
+  <Style Selector="c|Plate.banner">
+    <Setter Property="Shape" Value="Cut" />
     <Setter Property="Padding" Value="16,12" />
-    <Setter Property="BorderThickness" Value="2" />
+    <Setter Property="StrokeThickness" Value="1.5" />
   </Style>
-  <Style Selector="Border.banner.attention">
-    <Setter Property="Background" Value="{StaticResource YellowDim}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Yellow}" />
+  <Style Selector="c|Plate.banner.attention">
+    <Setter Property="Fill" Value="{StaticResource AmberDim}" />
+    <Setter Property="Stroke" Value="{StaticResource Amber}" />
   </Style>
-  <Style Selector="Border.banner.critical">
-    <Setter Property="Background" Value="{StaticResource RedDim}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Red}" />
+  <Style Selector="c|Plate.banner.critical">
+    <Setter Property="Fill" Value="{StaticResource RedDim}" />
+    <Setter Property="Stroke" Value="{StaticResource Red}" />
   </Style>
 
-  <!-- Buttons: rubber caps that travel down when pressed. -->
+  <!-- Buttons: slanted plates. Quiet by default, electric for the one primary action. -->
   <Style Selector="Button">
     <Setter Property="FontFamily" Value="{StaticResource CondSemi}" />
     <Setter Property="FontSize" Value="15" />
-    <Setter Property="Foreground" Value="{StaticResource Bone}" />
-    <Setter Property="Background" Value="{StaticResource Cap}" />
-    <Setter Property="BorderBrush" Value="{StaticResource StitchStrong}" />
-    <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="8" />
-    <Setter Property="Padding" Value="16,8" />
-    <Setter Property="MinHeight" Value="38" />
+    <Setter Property="Foreground" Value="{StaticResource Ink}" />
+    <Setter Property="Background" Value="{StaticResource CapGradient}" />
+    <Setter Property="BorderBrush" Value="{StaticResource LineStrong}" />
+    <Setter Property="Padding" Value="22,8" />
+    <Setter Property="MinHeight" Value="40" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Cursor" Value="Hand" />
-    <Setter Property="RenderTransform" Value="translateY(0px)" />
+    <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+    <Setter Property="RenderTransform" Value="scale(1)" />
     <Setter Property="Transitions">
       <Transitions>
         <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.07" />
       </Transitions>
     </Setter>
+    <Setter Property="Template">
+      <ControlTemplate>
+        <c:Plate x:Name="PART_Plate" Shape="Slant" Fill="{TemplateBinding Background}" Stroke="{TemplateBinding BorderBrush}"
+                 StrokeThickness="1" Padding="{TemplateBinding Padding}">
+          <ContentPresenter x:Name="PART_Content"
+                            Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                            Foreground="{TemplateBinding Foreground}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            RecognizesAccessKey="True" />
+        </c:Plate>
+      </ControlTemplate>
+    </Setter>
   </Style>
-  <Style Selector="Button /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="BoxShadow" Value="{StaticResource CapShadowLow}" />
+  <Style Selector="Button TextBlock">
+    <Setter Property="LetterSpacing" Value="1" />
   </Style>
-  <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+  <Style Selector="Button:pointerover">
     <Setter Property="Background" Value="{StaticResource CapHigh}" />
-    <Setter Property="BorderBrush" Value="{StaticResource StitchStrong}" />
-    <Setter Property="Foreground" Value="{StaticResource Bone}" />
+    <Setter Property="BorderBrush" Value="{StaticResource InkFaint}" />
   </Style>
   <Style Selector="Button:pressed">
-    <Setter Property="RenderTransform" Value="translateY(1px)" />
-  </Style>
-  <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{StaticResource CapPressed}" />
-    <Setter Property="BoxShadow" Value="none" />
+    <Setter Property="RenderTransform" Value="scale(0.97)" />
   </Style>
-  <Style Selector="Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Case}" />
-    <Setter Property="Foreground" Value="{StaticResource BoneFaint}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Stitch}" />
+  <Style Selector="Button:focus-visible /template/ c|Plate#PART_Plate">
+    <Setter Property="Stroke" Value="{StaticResource Electric}" />
+    <Setter Property="StrokeThickness" Value="2" />
   </Style>
-  <Style Selector="Button.primary /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource HiVis}" />
-    <Setter Property="Foreground" Value="{StaticResource OnHiVis}" />
-    <Setter Property="BorderBrush" Value="{StaticResource HiVis}" />
+  <Style Selector="Button:disabled">
+    <Setter Property="Background" Value="{StaticResource Panel}" />
+    <Setter Property="Foreground" Value="{StaticResource InkFaint}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Line}" />
   </Style>
-  <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#FF7E33" />
-    <Setter Property="Foreground" Value="{StaticResource OnHiVis}" />
-    <Setter Property="BorderBrush" Value="#FF7E33" />
+  <Style Selector="Button.primary">
+    <Setter Property="Background" Value="{StaticResource Electric}" />
+    <Setter Property="Foreground" Value="{StaticResource OnElectric}" />
+    <Setter Property="BorderBrush" Value="{x:Null}" />
   </Style>
-  <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#E25A0B" />
+  <Style Selector="Button.primary:pointerover">
+    <Setter Property="Background" Value="{StaticResource ElectricHover}" />
   </Style>
-  <Style Selector="Button.attention /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Yellow}" />
-    <Setter Property="Foreground" Value="{StaticResource OnYellow}" />
-    <Setter Property="BorderBrush" Value="{StaticResource Yellow}" />
+  <Style Selector="Button.primary:pressed">
+    <Setter Property="Background" Value="{StaticResource ElectricPressed}" />
   </Style>
-  <Style Selector="Button.attention:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#FFD21F" />
-    <Setter Property="Foreground" Value="{StaticResource OnYellow}" />
+  <Style Selector="Button.attention">
+    <Setter Property="Background" Value="{StaticResource Amber}" />
+    <Setter Property="Foreground" Value="{StaticResource OnAmber}" />
+    <Setter Property="BorderBrush" Value="{x:Null}" />
+  </Style>
+  <Style Selector="Button.attention:pointerover">
+    <Setter Property="Background" Value="#FFC24D" />
   </Style>
   <Style Selector="Button.quiet">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="BorderBrush" Value="Transparent" />
-    <Setter Property="Foreground" Value="{StaticResource BoneMuted}" />
-    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="BorderBrush" Value="{x:Null}" />
+    <Setter Property="Foreground" Value="{StaticResource InkMuted}" />
+    <Setter Property="Padding" Value="14,6" />
     <Setter Property="MinHeight" Value="32" />
   </Style>
-  <Style Selector="Button.quiet /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="BoxShadow" Value="none" />
+  <Style Selector="Button.quiet:pointerover">
+    <Setter Property="Background" Value="{StaticResource PanelRaised}" />
+    <Setter Property="Foreground" Value="{StaticResource Ink}" />
   </Style>
-  <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+  <Style Selector="Button.danger:pointerover">
     <Setter Property="BorderBrush" Value="{StaticResource Red}" />
     <Setter Property="Foreground" Value="{StaticResource Red}" />
   </Style>
 
-  <!-- Text input -->
+  <!-- Text input: outlined field, strong seam, electric on focus. -->
   <Style Selector="TextBox">
-    <Setter Property="FontFamily" Value="{StaticResource Body}" />
-    <Setter Property="Foreground" Value="{StaticResource Bone}" />
-    <Setter Property="Background" Value="{StaticResource Case}" />
-    <Setter Property="BorderBrush" Value="{StaticResource StitchStrong}" />
-    <Setter Property="CaretBrush" Value="{StaticResource HiVis}" />
-    <Setter Property="SelectionBrush" Value="#80FF6A13" />
-    <Setter Property="CornerRadius" Value="8" />
-    <Setter Property="MinHeight" Value="38" />
+    <Setter Property="FontFamily" Value="{StaticResource BodyMedium}" />
+    <Setter Property="Foreground" Value="{StaticResource Ink}" />
+    <Setter Property="Background" Value="{StaticResource Ground}" />
+    <Setter Property="BorderBrush" Value="{StaticResource LineStrong}" />
+    <Setter Property="CaretBrush" Value="{StaticResource Electric}" />
+    <Setter Property="SelectionBrush" Value="#80FF2E7E" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="MinHeight" Value="40" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
   <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
-    <Setter Property="Background" Value="{StaticResource Case}" />
-    <Setter Property="BorderBrush" Value="{StaticResource BoneFaint}" />
+    <Setter Property="Background" Value="{StaticResource Ground}" />
+    <Setter Property="BorderBrush" Value="{StaticResource InkFaint}" />
   </Style>
   <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
-    <Setter Property="Background" Value="{StaticResource Case}" />
-    <Setter Property="BorderBrush" Value="{StaticResource HiVis}" />
+    <Setter Property="Background" Value="{StaticResource Ground}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Electric}" />
     <Setter Property="BorderThickness" Value="2" />
   </Style>
   <Style Selector="TextBox:focus">
-    <Setter Property="Foreground" Value="{StaticResource Bone}" />
+    <Setter Property="Foreground" Value="{StaticResource Ink}" />
   </Style>
 
-  <!-- Toggle switch: the thumb track lights hi-vis when on. -->
+  <!-- Toggle switch: the track lights electric when on. -->
   <Style Selector="ToggleSwitch">
     <Setter Property="FontFamily" Value="{StaticResource Body}" />
-    <Setter Property="Foreground" Value="{StaticResource Bone}" />
+    <Setter Property="Foreground" Value="{StaticResource Ink}" />
     <Setter Property="OnContent" Value="" />
     <Setter Property="OffContent" Value="" />
   </Style>
   <Style Selector="ToggleSwitch:checked /template/ Border#SwitchKnobBounds">
-    <Setter Property="Background" Value="{StaticResource HiVis}" />
-    <Setter Property="BorderBrush" Value="{StaticResource HiVis}" />
+    <Setter Property="Background" Value="{StaticResource Electric}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Electric}" />
   </Style>
   <Style Selector="ToggleSwitch:checked:pointerover /template/ Border#SwitchKnobBounds">
-    <Setter Property="Background" Value="#FF7E33" />
+    <Setter Property="Background" Value="{StaticResource ElectricHover}" />
   </Style>
   <Style Selector="ToggleSwitch:checked /template/ Ellipse#SwitchKnobOn">
-    <Setter Property="Fill" Value="{StaticResource OnHiVis}" />
+    <Setter Property="Fill" Value="{StaticResource OnElectric}" />
   </Style>
   <Style Selector="ToggleSwitch /template/ Border#OuterBorder">
-    <Setter Property="BorderBrush" Value="{StaticResource StitchStrong}" />
+    <Setter Property="BorderBrush" Value="{StaticResource LineStrong}" />
   </Style>
   <Style Selector="ToggleSwitch /template/ Ellipse#SwitchKnobOff">
-    <Setter Property="Fill" Value="{StaticResource BoneMuted}" />
+    <Setter Property="Fill" Value="{StaticResource InkMuted}" />
   </Style>
 
-  <!-- Scrollbars carry the palette, not the platform default. -->
   <Style Selector="ScrollBar /template/ Thumb">
-    <Setter Property="Background" Value="{StaticResource StitchStrong}" />
+    <Setter Property="Background" Value="{StaticResource LineStrong}" />
   </Style>
 
-  <!-- Side rail navigation -->
+  <!-- The plate templates name their presenter PART_Content so Fluent's rectangular state fills never paint over the shape. -->
+
+  <!-- Side rail: a stack of slanted tabs. The active one is the rail's single electric element. -->
   <Style Selector="ListBox.rail">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Padding" Value="0" />
   </Style>
   <Style Selector="ListBox.rail ListBoxItem">
-    <Setter Property="Padding" Value="14,0" />
-    <Setter Property="Margin" Value="0,2" />
+    <Setter Property="Padding" Value="18,0,22,0" />
+    <Setter Property="Margin" Value="0,3" />
     <Setter Property="MinHeight" Value="44" />
-    <Setter Property="CornerRadius" Value="8" />
-    <Setter Property="Foreground" Value="{StaticResource BoneMuted}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource InkMuted}" />
     <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <c:Plate x:Name="PART_Plate" Shape="Slant" Fill="{TemplateBinding Background}" StrokeThickness="0"
+                 Padding="{TemplateBinding Padding}">
+          <ContentPresenter x:Name="PART_Content" Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}" Foreground="{TemplateBinding Foreground}"
+                            HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center" />
+        </c:Plate>
+      </ControlTemplate>
+    </Setter>
   </Style>
-  <Style Selector="ListBox.rail ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="CornerRadius" Value="8" />
-  </Style>
-  <Style Selector="ListBox.rail ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource CaseRaised}" />
-  </Style>
-  <Style Selector="ListBox.rail ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Cap}" />
-    <Setter Property="BoxShadow" Value="{StaticResource CapShadowLow}" />
-  </Style>
-  <Style Selector="ListBox.rail ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource CapHigh}" />
+  <Style Selector="ListBox.rail ListBoxItem:pointerover">
+    <Setter Property="Background" Value="{StaticResource PanelRaised}" />
+    <Setter Property="Foreground" Value="{StaticResource Ink}" />
   </Style>
   <Style Selector="ListBox.rail ListBoxItem:selected">
-    <Setter Property="Foreground" Value="{StaticResource Bone}" />
+    <Setter Property="Background" Value="{StaticResource Electric}" />
+    <Setter Property="Foreground" Value="{StaticResource OnElectric}" />
+  </Style>
+  <Style Selector="ListBox.rail ListBoxItem:selected:pointerover">
+    <Setter Property="Background" Value="{StaticResource ElectricHover}" />
   </Style>
 
   <!-- Plain lists (log, activity) -->
@@ -316,24 +343,25 @@
     <Setter Property="MinHeight" Value="0" />
   </Style>
   <Style Selector="ListBox.plain ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource CaseRaised}" />
+    <Setter Property="Background" Value="{StaticResource PanelRaised}" />
   </Style>
   <Style Selector="ListBox.plain ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{StaticResource Cap}" />
   </Style>
 
   <Style Selector="ComboBox">
-    <Setter Property="Background" Value="{StaticResource Case}" />
-    <Setter Property="BorderBrush" Value="{StaticResource StitchStrong}" />
-    <Setter Property="Foreground" Value="{StaticResource Bone}" />
-    <Setter Property="CornerRadius" Value="8" />
-    <Setter Property="MinHeight" Value="38" />
+    <Setter Property="Background" Value="{StaticResource Ground}" />
+    <Setter Property="BorderBrush" Value="{StaticResource LineStrong}" />
+    <Setter Property="Foreground" Value="{StaticResource Ink}" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="MinHeight" Value="40" />
   </Style>
 
   <Style Selector="ToolTip">
     <Setter Property="Background" Value="{StaticResource CapHigh}" />
-    <Setter Property="Foreground" Value="{StaticResource Bone}" />
-    <Setter Property="BorderBrush" Value="{StaticResource StitchStrong}" />
+    <Setter Property="Foreground" Value="{StaticResource Ink}" />
+    <Setter Property="BorderBrush" Value="{StaticResource LineStrong}" />
+    <Setter Property="CornerRadius" Value="4" />
     <Setter Property="FontFamily" Value="{StaticResource Body}" />
   </Style>
 </Styles>

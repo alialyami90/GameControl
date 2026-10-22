@@ -7,38 +7,38 @@
         x:DataType="vm:MainViewModel"
         Title="Game Controller Companion"
         Icon="avares://GameControllerCompanion/Assets/companion.ico"
-        Width="1120" Height="760" MinWidth="940" MinHeight="620"
-        Background="{StaticResource Chassis}"
+        Width="1120" Height="760" MinWidth="820" MinHeight="560"
+        Background="{StaticResource Ground}"
         WindowStartupLocation="CenterScreen">
 
   <Grid ColumnDefinitions="236,*">
 
     <!-- Side rail -->
-    <Border Grid.Column="0" Background="{StaticResource Case}" BorderBrush="{StaticResource Stitch}" BorderThickness="0,0,1,0">
+    <Border Grid.Column="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0">
       <DockPanel Margin="14,20,14,16">
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="8,0,0,26">
-          <c:RigIcon Kind="wheel" Size="30" Foreground="{StaticResource HiVis}" VerticalAlignment="Center" />
+          <c:RigIcon Kind="wheel" Size="30" Foreground="{StaticResource Ink}" VerticalAlignment="Center" />
           <StackPanel VerticalAlignment="Center">
-            <TextBlock Text="GAME CONTROLLER" FontFamily="{StaticResource CondBold}" FontWeight="Bold" FontSize="17" LetterSpacing="0.5" />
+            <TextBlock Text="GAME CONTROLLER" FontFamily="{StaticResource CondXBold}" FontStyle="Italic" FontSize="19" />
             <TextBlock Text="Companion for Windows" Classes="small muted" />
           </StackPanel>
         </StackPanel>
 
         <!-- PC identity and link health -->
-        <Border DockPanel.Dock="Bottom" Classes="inset" Padding="14,12">
+        <c:Plate DockPanel.Dock="Bottom" Shape="Cut" Fill="{StaticResource Ground}" Stroke="{StaticResource Line}" Padding="14,12">
           <StackPanel Spacing="4">
             <TextBlock Text="{Binding ServerName}" Classes="h3" TextTrimming="CharacterEllipsis" />
             <TextBlock Text="{Binding HubDetail}" Classes="small muted num" />
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
               <Panel Width="10" Height="10" VerticalAlignment="Center">
-                <Ellipse Width="9" Height="9" Fill="{StaticResource HiVis}" IsVisible="{Binding HasConnected}" />
-                <Ellipse Width="9" Height="9" Stroke="{StaticResource BoneFaint}" StrokeThickness="1.5"
+                <Ellipse Width="9" Height="9" Fill="{StaticResource Green}" IsVisible="{Binding HasConnected}" />
+                <Ellipse Width="9" Height="9" Stroke="{StaticResource InkFaint}" StrokeThickness="1.5"
                          IsVisible="{Binding !HasConnected}" />
               </Panel>
-              <TextBlock Text="{Binding RailHealth}" Classes="small" Foreground="{StaticResource BoneMuted}" />
+              <TextBlock Text="{Binding RailHealth}" Classes="small" Foreground="{StaticResource InkMuted}" />
             </StackPanel>
           </StackPanel>
-        </Border>
+        </c:Plate>
 
         <ListBox Classes="rail" ItemsSource="{Binding Nav}" SelectedItem="{Binding SelectedNav}">
           <ListBox.ItemTemplate>
@@ -47,22 +47,29 @@
                 <c:RigIcon Kind="{Binding Icon}" Size="20" VerticalAlignment="Center"
                            Foreground="{Binding $parent[ListBoxItem].Foreground}" />
                 <TextBlock Grid.Column="1" Text="{Binding Title}" Margin="12,0,0,0" VerticalAlignment="Center"
-                           FontFamily="{StaticResource CondSemi}" FontSize="17" LetterSpacing="0.5"
+                           FontFamily="{StaticResource CondSemi}" FontSize="16" LetterSpacing="1.1"
                            Foreground="{Binding $parent[ListBoxItem].Foreground}" />
-                <Border Grid.Column="2" IsVisible="{Binding Badge, Converter={x:Static c:Converters.NotEmpty}}"
-                        CornerRadius="9" MinWidth="20" Height="20" Padding="6,0"
-                        VerticalAlignment="Center" Classes.attn="{Binding BadgeIsAttention}">
-                  <Border.Styles>
-                    <Style Selector="Border">
-                      <Setter Property="Background" Value="{StaticResource HiVis}" />
+                <!-- State tag: a small slanted plate. Cap for counts, amber when something waits on the user. -->
+                <c:Plate Grid.Column="2" Shape="Slant" IsVisible="{Binding Badge, Converter={x:Static c:Converters.NotEmpty}}"
+                         MinWidth="26" Height="20" Padding="8,0" StrokeThickness="0"
+                         VerticalAlignment="Center" Classes.attn="{Binding BadgeIsAttention}">
+                  <c:Plate.Styles>
+                    <Style Selector="c|Plate">
+                      <Setter Property="Fill" Value="{StaticResource CapHigh}" />
                     </Style>
-                    <Style Selector="Border.attn">
-                      <Setter Property="Background" Value="{StaticResource Yellow}" />
+                    <Style Selector="c|Plate.attn">
+                      <Setter Property="Fill" Value="{StaticResource Amber}" />
                     </Style>
-                  </Border.Styles>
-                  <TextBlock Text="{Binding Badge}" FontFamily="{StaticResource CondBold}" FontWeight="Bold" FontSize="13"
-                             Foreground="{StaticResource OnHiVis}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Border>
+                    <Style Selector="c|Plate TextBlock">
+                      <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                    </Style>
+                    <Style Selector="c|Plate.attn TextBlock">
+                      <Setter Property="Foreground" Value="{StaticResource OnAmber}" />
+                    </Style>
+                  </c:Plate.Styles>
+                  <TextBlock Text="{Binding Badge}" FontFamily="{StaticResource CondXBold}" FontStyle="Italic" FontSize="14"
+                             FontFeatures="+tnum" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </c:Plate>
               </Grid>
             </DataTemplate>
           </ListBox.ItemTemplate>

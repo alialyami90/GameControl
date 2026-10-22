@@ -118,9 +118,10 @@ vm.GoCommand.Execute("log"); Snap(win, "09-log");
 
 // Smallest supported window
 vm.GoCommand.Execute("status");
-win.Width = 940; win.Height = 620;
+win.Width = 820; win.Height = 560;
 Pump(300);
 Snap(win, "10-status-min-size");
+vm.GoCommand.Execute("phones"); Pump(200); Snap(win, "11-phones-min-size");
 
 host.Dispose();
 return 0;

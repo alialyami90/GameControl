@@ -113,17 +113,50 @@ public class EngineTests
             """{"id":"uni","kind":"slider","action":{"type":"vjoy_axis","device":1,"axis":"SL0","range":"unipolar"}}""",
             """{"id":"lt","kind":"slider","action":{"type":"xinput_axis","axis":"LT"}}""",
             """{"id":"lx","kind":"slider","action":{"type":"xinput_axis","axis":"LX"}}""");
+        int start = r.Out.Log.Count;
         r.Send("bi", -1); r.Send("bi", 0); r.Send("uni", 0.25); r.Send("lt", 0.5); r.Send("lx", -0.5);
-        Assert.Equal(new[] { "vjoy 1 axis X 0", "vjoy 1 axis X 0.5", "vjoy 1 axis SL0 0.25", "xbox LT 0.5", "xbox LX -0.5" }, r.Out.Log);
+        Assert.Equal(new[] { "vjoy 1 axis X 0", "vjoy 1 axis X 0.5", "vjoy 1 axis SL0 0.25", "xbox LT 0.5", "xbox LX -0.5" }, r.Out.Log.Skip(start));
+    }
+
+    [Fact]
+    public void Profile_load_parks_new_axes_at_rest()
+    {
+        var r = new Rig(
+            """{"id":"bi","kind":"slider","action":{"type":"vjoy_axis","device":1,"axis":"X"}}""",
+            """{"id":"thr","kind":"slider","action":{"type":"vjoy_axis","device":1,"axis":"Z","range":"unipolar"}}""");
+        Assert.Equal(new[] { "vjoy 1 axis X 0.5", "vjoy 1 axis Z 0" }, r.Out.Log.Order());
+    }
+
+    [Fact]
+    public void Rebinding_a_slider_parks_the_old_axis()
+    {
+        var r = new Rig("""{"id":"s","kind":"slider","action":{"type":"vjoy_axis","device":1,"axis":"X","range":"unipolar"}}""");
+        r.Send("s", 1);
+        int start = r.Out.Log.Count;
+        r.Load("""{"id":"s","kind":"slider","action":{"type":"vjoy_axis","device":1,"axis":"Z","range":"unipolar"}}""");
+        Assert.Contains("vjoy 1 axis X 0", r.Out.Log.Skip(start));
+    }
+
+    [Fact]
+    public void Range_change_counts_as_a_changed_binding()
+    {
+        var r = new Rig("""{"id":"s","kind":"slider","action":{"type":"vjoy_axis","device":1,"axis":"X","range":"unipolar"}}""");
+        r.Send("s", 1);
+        int start = r.Out.Log.Count;
+        r.Load("""{"id":"s","kind":"slider","action":{"type":"vjoy_axis","device":1,"axis":"X","range":"bipolar"}}""");
+        r.Engine.ReleaseAll();
+        Assert.Equal("vjoy 1 axis X 0.5", r.Out.Log.Last());
+        Assert.NotEqual(start, r.Out.Log.Count);
     }
 
     [Fact]
     public void Slider_holds_its_value_without_updates()
     {
         var r = new Rig("""{"id":"t","kind":"slider","action":{"type":"vjoy_axis","device":1,"axis":"Z"}}""");
+        int start = r.Out.Log.Count;
         r.Send("t", 0.5);
         r.Now = 10_000; r.Engine.Tick(r.Now);
-        Assert.Single(r.Out.Log);
+        Assert.Single(r.Out.Log.Skip(start));
     }
 
     [Fact]

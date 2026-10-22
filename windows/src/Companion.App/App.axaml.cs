@@ -14,6 +14,11 @@ namespace GameController.Companion.App;
 public partial class App : Application
 {
     public static bool StartMinimized { get; set; }
+    /// <summary>Set by a second launch to bring this window forward (Windows only).</summary>
+    public static EventWaitHandle? ShowSignal { get; set; }
+    static App? _current;
+    int _shutDown;
+    WindowIcon? _iconLive, _iconIdle;
 
     CompanionHost? _host;
     IPlatform? _platform;
@@ -29,6 +34,14 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            _current = this;
+            // A bug in a view must not take the companion (and the input it holds) down with it.
+            Avalonia.Threading.Dispatcher.UIThread.UnhandledException += (_, e) =>
+            {
+                _host?.Log("error", $"Unexpected error in the window: {e.Exception.Message}");
+                e.Handled = true;
+            };
+
             var store = new ConfigStore();
             _platform = PlatformFactory.Create(store.Config);
             _host = new CompanionHost(store, _platform.Router, _platform.Options);
@@ -38,8 +51,10 @@ public partial class App : Application
             _window = new MainWindow { DataContext = _vm };
             _window.Closing += (_, e) =>
             {
-                // Closing the window keeps the companion running in the tray; Quit really exits.
+                // Closing the window keeps the companion running in the tray; Quit (or Windows
+                // shutting down or signing out) really exits.
                 if (_quitting) return;
+                if (e.CloseReason == WindowCloseReason.OSShutdown) { Shutdown(); return; }
                 e.Cancel = true;
                 _window.Hide();
             };
@@ -52,10 +67,36 @@ public partial class App : Application
             UpdateTray();
 
             if (!(StartMinimized || store.Config.StartMinimized)) ShowWindow();
-            _ = Task.Run(() => Avalonia.Threading.Dispatcher.UIThread.Post(_vm.CheckFirewall));
+            _ = _vm.CheckFirewallAsync();
             desktop.Exit += (_, _) => Shutdown();
+            desktop.ShutdownRequested += (_, _) => Shutdown();
+            ListenForShowSignal();
         }
         base.OnFrameworkInitializationCompleted();
+    }
+
+    void ListenForShowSignal()
+    {
+        var signal = ShowSignal;
+        if (signal == null) return;
+        var t = new Thread(() =>
+        {
+            while (Volatile.Read(ref _shutDown) == 0)
+            {
+                try { if (signal.WaitOne(1000)) Avalonia.Threading.Dispatcher.UIThread.Post(ShowWindow); }
+                catch (ObjectDisposedException) { return; }
+            }
+        }) { IsBackground = true, Name = "show-signal" };
+        t.Start();
+    }
+
+    /// <summary>Last-chance release from a crash handler or the end of Main. Safe to call twice.</summary>
+    public static void EmergencyRelease()
+    {
+        var app = _current;
+        if (app == null) return;
+        try { app._host?.ReleaseEverything(); } catch { }
+        app.Shutdown();
     }
 
     void ShowWindow()
@@ -94,9 +135,16 @@ public partial class App : Application
         var pin = _host.Pairing.Pin;
         _tray.ToolTipText = n == 0 ? $"Game Controller: waiting for a phone (PIN {pin})" : $"Game Controller: {n} phone{(n == 1 ? "" : "s")} connected";
         if (_pinItem != null) _pinItem.Header = $"Pairing PIN  {pin[..3]} {pin[3..]}";
-        var asset = n > 0 ? "tray.png" : "tray-idle.png";
+        _iconLive ??= LoadIcon("tray.png");
+        _iconIdle ??= LoadIcon("tray-idle.png");
+        var icon = n > 0 ? _iconLive : _iconIdle;
+        if (!ReferenceEquals(_tray.Icon, icon)) _tray.Icon = icon;
+    }
+
+    static WindowIcon LoadIcon(string asset)
+    {
         using var s = AssetLoader.Open(new Uri($"avares://GameControllerCompanion/Assets/{asset}"));
-        _tray.Icon = new WindowIcon(new Bitmap(s));
+        return new WindowIcon(new Bitmap(s));
     }
 
     void Quit(IClassicDesktopStyleApplicationLifetime desktop)
@@ -108,9 +156,13 @@ public partial class App : Application
 
     void Shutdown()
     {
-        if (_tray != null) _tray.IsVisible = false;
-        _vm?.Dispose();
-        _host?.Dispose(); // releases every held key and button
-        _platform?.Dispose();
+        if (Interlocked.Exchange(ref _shutDown, 1) == 1) return;
+        // Each step on its own: a failure in one must never skip releasing input.
+        try { if (_tray != null) _tray.IsVisible = false; } catch { }
+        try { _vm?.Dispose(); } catch { }
+        try { _host?.Dispose(); } // releases every held key and button
+        catch { try { _platform?.Router.ReleaseAll(); } catch { } }
+        try { _platform?.Dispose(); } catch { }
+        try { ShowSignal?.Dispose(); } catch { }
     }
 }

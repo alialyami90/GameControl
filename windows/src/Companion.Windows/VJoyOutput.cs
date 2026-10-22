@@ -111,9 +111,11 @@ public sealed class VJoyOutput : IVJoyOutput, IDisposable
     bool Owned(int id)
     {
         if (_owned.Contains(id)) return true;
-        if (!_devices.Contains(id)) return false;
+        if (!Available || id is < 1 or > 16) return false;
+        // Asked directly rather than from the last refresh, so a device another feeder just freed works at once.
         var st = GetVJDStatus((uint)id);
         if (st != VjdStat.Own && !(st == VjdStat.Free && AcquireVJD((uint)id))) return false;
+        if (!_devices.Contains(id)) { _devices.Add(id); _devices.Sort(); }
         ResetVJD((uint)id);
         _buttonCount[id] = GetVJDButtonNumber((uint)id);
         CenterAxes(id);
@@ -122,6 +124,7 @@ public sealed class VJoyOutput : IVJoyOutput, IDisposable
         return true;
     }
 
+    /// <summary>A neutral start; the binding engine then parks each bound axis at its own rest (unipolar 0).</summary>
     void CenterAxes(int id)
     {
         foreach (var usage in AxisUsage.Values)

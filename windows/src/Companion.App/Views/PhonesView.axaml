@@ -4,6 +4,15 @@
              xmlns:c="using:GameController.Companion.App.Controls"
              x:Class="GameController.Companion.App.Views.PhonesView"
              x:DataType="vm:MainViewModel">
+  <UserControl.Styles>
+    <!-- Narrow window: keep name, status, inputs and Forget; drop the columns you can live without. -->
+    <Style Selector=":is(UserControl).compact TextBlock.wide">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector=":is(UserControl).medium TextBlock.extra">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+  </UserControl.Styles>
   <ScrollViewer HorizontalScrollBarVisibility="Disabled">
     <StackPanel Margin="32,26,32,32" Spacing="18">
       <StackPanel Spacing="2">
@@ -11,56 +20,66 @@
         <TextBlock Text="Phones paired with this PC. A paired phone reconnects by itself whenever the app is open." Classes="muted wrap" />
       </StackPanel>
 
-      <Border Classes="panel" IsVisible="{Binding !HasPhones}" Padding="28,24">
+      <c:Plate Classes="panel" IsVisible="{Binding !HasPhones}" Padding="28,24">
         <Grid ColumnDefinitions="Auto,*,Auto">
-          <c:RigIcon Kind="phone" Size="34" Foreground="{StaticResource BoneFaint}" VerticalAlignment="Center" />
+          <c:RigIcon Kind="phone" Size="34" Foreground="{StaticResource InkFaint}" VerticalAlignment="Center" />
           <StackPanel Grid.Column="1" Margin="18,0" VerticalAlignment="Center" Spacing="4">
             <TextBlock Text="No phones paired yet" Classes="h3" />
             <TextBlock Classes="muted wrap">
               <Run Text="Open the phone app, tap Connect, pick" />
               <Run Text="{Binding ServerName}" />
               <Run Text="and type PIN" />
-              <Run Text="{Binding Pin}" FontFamily="{StaticResource CondBold}" FontWeight="Bold" Foreground="{StaticResource Yellow}" />
+              <Run Text="{Binding Pin}" FontFamily="{StaticResource CondXBold}" FontStyle="Italic" Foreground="{StaticResource Amber}" />
             </TextBlock>
           </StackPanel>
-          <Button Grid.Column="2" Content="Show the PIN" Command="{Binding GoCommand}" CommandParameter="status" />
+          <Button Grid.Column="2" Content="SHOW THE PIN" Command="{Binding GoCommand}" CommandParameter="status" />
         </Grid>
-      </Border>
+      </c:Plate>
 
-      <Border Classes="panel" IsVisible="{Binding HasPhones}" Padding="0">
+      <c:Plate Classes="panel" IsVisible="{Binding HasPhones}" Padding="0" Grid.IsSharedSizeScope="True">
         <StackPanel>
-          <Grid ColumnDefinitions="*,130,1.3*,70,110,110,96" Margin="22,14,22,10">
+          <Grid Margin="22,14,22,10">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" MinWidth="150" /><ColumnDefinition Width="Auto" SharedSizeGroup="st" /><ColumnDefinition Width="Auto" SharedSizeGroup="pr" />
+              <ColumnDefinition Width="Auto" SharedSizeGroup="in" /><ColumnDefinition Width="Auto" SharedSizeGroup="ls" />
+              <ColumnDefinition Width="Auto" SharedSizeGroup="pa" /><ColumnDefinition Width="Auto" SharedSizeGroup="bt" />
+            </Grid.ColumnDefinitions>
             <TextBlock Text="PHONE" Classes="label" />
-            <TextBlock Grid.Column="1" Text="STATUS" Classes="label" />
-            <TextBlock Grid.Column="2" Text="PROFILE" Classes="label" />
-            <TextBlock Grid.Column="3" Text="INPUTS" Classes="label" HorizontalAlignment="Right" />
-            <TextBlock Grid.Column="4" Text="LAST SEEN" Classes="label" Margin="24,0,0,0" />
-            <TextBlock Grid.Column="5" Text="PAIRED" Classes="label" />
+            <TextBlock Grid.Column="1" Text="STATUS" Classes="label" MinWidth="120" Margin="16,0,0,0" />
+            <TextBlock Grid.Column="2" Text="PROFILE" Classes="label wide" MinWidth="150" Margin="16,0,0,0" />
+            <TextBlock Grid.Column="3" Text="INPUTS" Classes="label" MinWidth="56" TextAlignment="Right" Margin="16,0,0,0" />
+            <TextBlock Grid.Column="4" Text="LAST SEEN" Classes="label wide" MinWidth="96" Margin="24,0,0,0" />
+            <TextBlock Grid.Column="5" Text="PAIRED" Classes="label wide extra" MinWidth="96" Margin="16,0,0,0" />
           </Grid>
           <ItemsControl ItemsSource="{Binding Phones}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:PhoneRow">
-                <Border BorderBrush="{StaticResource Stitch}" BorderThickness="0,1,0,0" Padding="22,12">
-                  <Grid ColumnDefinitions="*,130,1.3*,70,110,110,96">
-                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                      <c:RigIcon Kind="phone" Size="22" Foreground="{StaticResource BoneMuted}" />
+                <Border BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="22,12">
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" MinWidth="150" /><ColumnDefinition Width="Auto" SharedSizeGroup="st" /><ColumnDefinition Width="Auto" SharedSizeGroup="pr" />
+                      <ColumnDefinition Width="Auto" SharedSizeGroup="in" /><ColumnDefinition Width="Auto" SharedSizeGroup="ls" />
+                      <ColumnDefinition Width="Auto" SharedSizeGroup="pa" /><ColumnDefinition Width="Auto" SharedSizeGroup="bt" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" MinWidth="140" ClipToBounds="True">
+                      <c:RigIcon Kind="phone" Size="22" Foreground="{StaticResource InkMuted}" />
                       <StackPanel>
                         <TextBlock Text="{Binding Name}" Classes="h3" TextTrimming="CharacterEllipsis" />
                         <TextBlock Text="{Binding Address}" Classes="small faint num" IsVisible="{Binding Connected}" />
                       </StackPanel>
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" MinWidth="120" Margin="16,0,0,0">
                       <Panel Width="10" Height="10" VerticalAlignment="Center">
-                        <Ellipse Width="9" Height="9" Fill="{StaticResource HiVis}" IsVisible="{Binding Connected}" />
-                        <Ellipse Width="9" Height="9" Stroke="{StaticResource BoneFaint}" StrokeThickness="1.5" IsVisible="{Binding !Connected}" />
+                        <Ellipse Width="9" Height="9" Fill="{StaticResource Green}" IsVisible="{Binding Connected}" />
+                        <Ellipse Width="9" Height="9" Stroke="{StaticResource InkFaint}" StrokeThickness="1.5" IsVisible="{Binding !Connected}" />
                       </Panel>
                       <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" />
                     </StackPanel>
-                    <TextBlock Grid.Column="2" Text="{Binding Profile}" Classes="muted" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="3" Text="{Binding Events}" Classes="num" FontSize="16" HorizontalAlignment="Right" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="4" Text="{Binding LastSeenText}" Classes="muted" Margin="24,0,0,0" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="5" Text="{Binding PairedText}" Classes="muted" VerticalAlignment="Center" />
-                    <Button Grid.Column="6" Classes="danger" HorizontalAlignment="Right" Content="Forget"
+                    <TextBlock Grid.Column="2" Text="{Binding Profile}" Classes="muted wide" MinWidth="150" MaxWidth="220" Margin="16,0,0,0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="3" Text="{Binding Events}" Classes="readout" FontSize="18" MinWidth="56" Margin="16,0,0,0" TextAlignment="Right" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="4" Text="{Binding LastSeenText}" Classes="muted wide" MinWidth="96" Margin="24,0,0,0" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="5" Text="{Binding PairedText}" Classes="muted wide extra" MinWidth="96" Margin="16,0,0,0" VerticalAlignment="Center" />
+                    <Button Grid.Column="6" Classes="danger" HorizontalAlignment="Right" Margin="16,0,0,0" Content="FORGET"
                             Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).ForgetCommand}" CommandParameter="{Binding}"
                             ToolTip.Tip="Removes this phone. It needs the PIN to connect again." />
                   </Grid>
@@ -69,7 +88,7 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
         </StackPanel>
-      </Border>
+      </c:Plate>
     </StackPanel>
   </ScrollViewer>
 </UserControl>

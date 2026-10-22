@@ -1,17 +1,18 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:GameController.Companion.App.ViewModels"
+             xmlns:c="using:GameController.Companion.App.Controls"
              x:Class="GameController.Companion.App.Views.LogView"
              x:DataType="vm:MainViewModel">
   <DockPanel Margin="32,26,32,32">
     <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,18">
       <StackPanel Spacing="2">
         <TextBlock Text="Log" Classes="h1" />
-        <TextBlock Text="Connections, profile loads, warnings and errors since the companion started." Classes="muted" />
+        <TextBlock Text="Connections, profile loads, warnings and errors since the companion started." Classes="muted wrap" />
       </StackPanel>
-      <Button Grid.Column="1" VerticalAlignment="Center" Content="Clear" Command="{Binding ClearLogCommand}" />
+      <Button Grid.Column="1" VerticalAlignment="Center" Content="CLEAR" Command="{Binding ClearLogCommand}" />
     </Grid>
-    <Border Classes="panel" Padding="0">
+    <c:Plate Classes="panel" Padding="0">
       <ListBox Classes="plain" ItemsSource="{Binding Log}">
         <ListBox.ItemTemplate>
           <DataTemplate x:DataType="vm:LogRow">
@@ -24,6 +25,6 @@
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
-    </Border>
+    </c:Plate>
   </DockPanel>
 </UserControl>

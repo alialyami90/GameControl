@@ -34,7 +34,7 @@ The publish step makes one self-contained `GameControllerCompanion.exe` (no .NET
 |---|---|
 | `src/Companion.Core` | Everything platform-neutral: protocol parsing, key table, binding engine, pairing, WebSocket/UDP/discovery/mDNS servers, BeamNG link, OutGauge parser, `CompanionHost` |
 | `src/Companion.Windows` | Windows outputs and helpers: `SendInputKeyboard`, `VJoyOutput`, `ViGEmOutput`, HID VID/PID lookup for BeamNG input maps, firewall rule, start with Windows, elevation check, `DnsServiceRegister` fallback |
-| `src/Companion.App` | The tray app (Avalonia 11). Same visual world as the phone app (Recovery Rig tokens, Barlow fonts) |
+| `src/Companion.App` | The tray app (Avalonia 11). Same visual world as the phone app (Race Front-End tokens from DESIGN.md, Barlow and italic Barlow Condensed) |
 | `src/Companion.Cli` | Console host. Same engine, no UI. Prints every injection with `--dry-run` (always on outside Windows) |
 | `tools/PhoneSim` | Phone and mod simulator: `discover`, `demo --pin`, `token`, `mod` |
 | `tools/UiSnap` | Renders every page headlessly with a simulated phone and mod, and saves PNGs (`docs/screenshots`) |

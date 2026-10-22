@@ -27,6 +27,8 @@ public interface IXInputOutput
     void SetButton(string button, bool down);
     /// <summary>Sticks take -1..1, triggers 0..1.</summary>
     void SetAxis(string axis, double value);
+    /// <summary>True once the virtual pad is plugged in (it is created on first use).</summary>
+    bool InUse => false;
 }
 
 public sealed class NullKeyboard : IKeyboardOutput

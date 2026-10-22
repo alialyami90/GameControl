@@ -30,6 +30,11 @@ public sealed class ActionSpec
     public string Command { get; init; } = "";
     public string XButton { get; init; } = "";
 
+    /// <summary>Every field that changes what the action does, for "did this binding change?" checks.</summary>
+    public string Signature() =>
+        $"{Type}|{string.Join("+", Keys.Select(k => k.Name))}|{Trigger}|{Device}|{Button}|{Axis}|{Range}|{Command}|{XButton}|" +
+        string.Join(";", Steps.Select(s => $"{string.Join("+", s.Keys.Select(k => k.Name))}/{s.HoldMs}/{s.DelayMs}"));
+
     public override string ToString() => Type switch
     {
         ActionType.Key => $"key {string.Join("+", Keys.Select(k => k.Name))} ({Trigger.ToString().ToLowerInvariant()})",

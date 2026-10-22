@@ -17,7 +17,9 @@ public sealed class PhoneSession
     public IPAddress RemoteAddress { get; }
     public BindingEngine Engine { get; }
     public DateTimeOffset ConnectedAt { get; } = DateTimeOffset.Now;
-    public DateTimeOffset LastMessageAt { get; set; } = DateTimeOffset.Now;
+    /// <summary>Environment.TickCount64 of the last message (monotonic, so a clock change never drops a phone).</summary>
+    public long LastMessageTick;
+    public void Touch() => Interlocked.Exchange(ref LastMessageTick, Environment.TickCount64);
     public long EventCount;
     public string? ProfileId { get; set; }
     public string? Game { get; set; }
@@ -25,6 +27,7 @@ public sealed class PhoneSession
     public PhoneSession(WebSocket ws, string key, string deviceId, string deviceName, IPAddress remote, BindingEngine engine)
     {
         _ws = ws; SessionKey = key; DeviceId = deviceId; DeviceName = deviceName; RemoteAddress = remote; Engine = engine;
+        LastMessageTick = Environment.TickCount64;
     }
 
     public async Task SendAsync(JsonObject msg)

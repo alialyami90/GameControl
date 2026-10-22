@@ -91,6 +91,37 @@ public class BeamNgRuleTests
     }
 
     [Fact]
+    public void Momentary_setter_is_held_and_zeroed()
+    {
+        var r = new Rig(B("momentary", "lights.high"));
+        r.Send("c", 1);
+        r.Now = 1500; r.Engine.Tick(r.Now);
+        Assert.Equal(new[] { ("lights.high", 1.0), ("lights.high", 0.0) }, r.Commands.Sent);
+        r.Send("c", 1);
+        r.Engine.ReleaseAll();
+        Assert.Equal(("lights.high", 0.0), r.Commands.Sent.Last());
+    }
+
+    [Fact]
+    public void Toggle_on_latching_fires_on_every_event()
+    {
+        var r = new Rig(B("latching", "hazard.toggle"));
+        r.Send("c", 1); r.Send("c", 0); r.Send("c", 1);
+        Assert.Equal(3, r.Commands.Sent.Count);
+        Assert.All(r.Commands.Sent, x => Assert.Equal(("hazard.toggle", 1.0), x));
+    }
+
+    [Fact]
+    public void Pulsed_held_command_is_released_by_a_session_end_inside_the_pulse()
+    {
+        var r = new Rig("""{"id":"z","kind":"rotary","cw":{"type":"beamng","command":"horn"},"ccw":{"type":"beamng","command":"horn"}}""");
+        r.Send("z", 1);
+        r.Engine.ReleaseAll();
+        Rig.Settle();
+        Assert.Equal(new[] { ("horn", 1.0), ("horn", 0.0) }, r.Commands.Sent);
+    }
+
+    [Fact]
     public void Setters_are_not_zeroed_on_session_end()
     {
         var r = new Rig(B("latching", "lights.low"));

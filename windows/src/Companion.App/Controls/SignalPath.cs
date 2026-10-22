@@ -12,12 +12,13 @@ public sealed record SignalNode(string Key, string Title, string Detail, string 
 
 /// <summary>
 /// The companion's signature: wires from each phone, through this PC, to each output. When an
-/// input passes, a hi-vis spark runs down the wires it took; when the game reports state back,
-/// a green spark runs the other way. With animations off, the wires flash instead of travelling.
+/// input passes, an electric spark runs down the wires it took; when the game reports state back,
+/// a green (confirmed) spark runs the other way. With animations off, the wires flash instead of
+/// travelling. Nodes are cut-corner caps and the PC is a slanted plate, as in DESIGN.md.
 /// </summary>
 public sealed class SignalPath : Control
 {
-    const double NodeW = 214, NodeH = 58, HubW = 168, HubH = 92, Gap = 12;
+    const double NodeW = 214, NodeH = 58, HubW = 200, HubH = 92, Gap = 12;
     const double TravelMs = 420, HeatMs = 900;
 
     public static readonly StyledProperty<IReadOnlyList<SignalNode>> PhonesProperty =
@@ -43,14 +44,16 @@ public sealed class SignalPath : Control
     readonly DispatcherTimer _timer;
 
     // Palette (kept in code because the control draws itself).
-    static readonly Color Case = Color.Parse("#171B19"), CaseRaised = Color.Parse("#1F2421"), Cap = Color.Parse("#272D2A"),
-        Stitch = Color.Parse("#39423E"), StitchStrong = Color.Parse("#55605A"), Bone = Color.Parse("#ECE9DF"),
-        BoneMuted = Color.Parse("#A9B0A9"), BoneFaint = Color.Parse("#7E8780"), HiVis = Color.Parse("#FF6A13"),
-        Yellow = Color.Parse("#F2C200"), Green = Color.Parse("#4CD27A"), Red = Color.Parse("#FF4D3F");
+    static readonly Color Ground = Color.Parse("#0A0D14"), Panel = Color.Parse("#111622"), PanelRaised = Color.Parse("#171D2B"),
+        Cap = Color.Parse("#1C2333"), CapHigh = Color.Parse("#262F44"), Line = Color.Parse("#2B3448"), LineStrong = Color.Parse("#465170"),
+        Ink = Color.Parse("#F2F4F8"), InkMuted = Color.Parse("#A0A9BC"), InkFaint = Color.Parse("#7C869C"),
+        Electric = Color.Parse("#FF2E7E"), OnElectric = Color.Parse("#1F0010"),
+        Amber = Color.Parse("#FFB020"), Green = Color.Parse("#34E07F"), Red = Color.Parse("#FF4B3A");
 
-    static readonly Typeface TitleFace = new(new FontFamily("avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed SemiBold"));
+    // Names and numbers in italic condensed; detail lines upright.
+    static readonly Typeface TitleFace = new(new FontFamily("avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed SemiBold"), FontStyle.Italic);
     static readonly Typeface DetailFace = new(new FontFamily("avares://GameControllerCompanion/Assets/Fonts#Barlow"));
-    static readonly Typeface HubFace = new(new FontFamily("avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed"), FontStyle.Normal, FontWeight.Bold);
+    static readonly Typeface HubFace = new(new FontFamily("avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed ExtraBold"), FontStyle.Italic);
 
     public SignalPath()
     {
@@ -97,8 +100,9 @@ public sealed class SignalPath : Control
 
     Rect HubRect()
     {
-        double x = Bounds.Width * 0.5 - HubW / 2 - 10;
-        return new Rect(x, (Bounds.Height - HubH) / 2, HubW, HubH);
+        double w = Math.Min(HubW, Bounds.Width * 0.3);
+        double x = Bounds.Width * 0.5 - w / 2 - 10;
+        return new Rect(x, (Bounds.Height - HubH) / 2, w, HubH);
     }
 
     Rect Column(int i, int count, bool right)
@@ -156,14 +160,14 @@ public sealed class SignalPath : Control
         for (int i = 0; i < phones.Count; i++)
         {
             bool linked = phones[i].State is NodeState.Live or NodeState.Ready;
-            DrawWire(ctx, phoneCurves[i], linked, Heat("ph:" + phones[i].Key, now), HiVis);
+            DrawWire(ctx, phoneCurves[i], linked, Heat("ph:" + phones[i].Key, now), Electric);
         }
         for (int i = 0; i < Outputs.Count; i++)
         {
             var o = Outputs[i];
             bool linked = o.State is NodeState.Live or NodeState.Ready;
             bool inbound = o.Key is "beamng" or "telemetry";
-            DrawWire(ctx, outCurves[i], linked, Heat("out:" + o.Key, now), inbound && o.State == NodeState.Live ? Green : HiVis);
+            DrawWire(ctx, outCurves[i], linked, Heat("out:" + o.Key, now), inbound && o.State == NodeState.Live ? Green : Electric);
         }
 
         if (!ReduceMotion)
@@ -173,7 +177,7 @@ public sealed class SignalPath : Control
                 if (t > 1) continue;
                 int oi = Outputs.ToList().FindIndex(o => o.Key == s.Output);
                 if (oi < 0) continue;
-                var color = s.Inbound ? Green : HiVis;
+                var color = s.Inbound ? Green : Electric;
                 if (!s.Inbound)
                 {
                     int pi = phones.ToList().FindIndex(p => p.Key == s.Phone);
@@ -195,13 +199,13 @@ public sealed class SignalPath : Control
     static void DrawWire(DrawingContext ctx, (Point, Point, Point, Point) c, bool linked, double heat, Color hot)
     {
         var g = CurveGeometry(c);
-        var baseColor = linked ? StitchStrong : Stitch;
+        var baseColor = linked ? LineStrong : Line;
         if (!linked)
         {
             ctx.DrawGeometry(null, new Pen(new SolidColorBrush(baseColor), 2, new DashStyle(new double[] { 2, 3 }, 0), PenLineCap.Round), g);
             return;
         }
-        ctx.DrawGeometry(null, new Pen(new SolidColorBrush(Case), 6, lineCap: PenLineCap.Round), g);
+        ctx.DrawGeometry(null, new Pen(new SolidColorBrush(Ground), 6, lineCap: PenLineCap.Round), g);
         ctx.DrawGeometry(null, new Pen(new SolidColorBrush(Mix(baseColor, hot, heat * 0.85)), 2.5, lineCap: PenLineCap.Round), g);
         if (heat > 0.01)
             ctx.DrawGeometry(null, new Pen(new SolidColorBrush(Color.FromArgb((byte)(70 * heat), hot.R, hot.G, hot.B)), 8, lineCap: PenLineCap.Round), g);
@@ -228,43 +232,55 @@ public sealed class SignalPath : Control
 
     static (Color lamp, string word) Lamp(NodeState s) => s switch
     {
-        NodeState.Live => (HiVis, "In use"),
+        NodeState.Live => (Electric, "In use"),
         NodeState.Ready => (Green, "Ready"),
-        NodeState.Attention => (Yellow, "Needs setup"),
+        NodeState.Attention => (Amber, "Needs setup"),
         NodeState.Failed => (Red, "Failed"),
-        _ => (BoneFaint, "Off"),
+        _ => (InkFaint, "Off"),
     };
 
     void DrawNode(DrawingContext ctx, Rect r, SignalNode n, double heat, bool dashed)
     {
         var (lamp, _) = Lamp(n.State);
-        var bg = Mix(CaseRaised, Cap, n.State is NodeState.Off ? 0 : 1);
-        var border = n.State switch
-        {
-            NodeState.Live => Mix(StitchStrong, HiVis, 0.35 + 0.65 * heat),
-            NodeState.Attention => Mix(Stitch, Yellow, 0.6),
-            NodeState.Failed => Red,
-            _ => n.State == NodeState.Ready ? StitchStrong : Stitch,
-        };
-        var rr = new RoundedRect(r, 10);
-        if (!dashed)
-            ctx.DrawRectangle(new SolidColorBrush(bg), new Pen(new SolidColorBrush(border), n.State == NodeState.Live ? 1.5 : 1), rr,
-                boxShadows: new BoxShadows(new BoxShadow { OffsetY = 3, Blur = 10, Color = Color.FromArgb(0x66, 0, 0, 0) }));
+        // A cap: cut top-right corner, tonal fill, 1px seam. Lit is a wash and a stripe, never a lift.
+        var shape = Shapes.Cut(r.Deflate(0.5));
+        if (dashed)
+            ctx.DrawGeometry(new SolidColorBrush(Panel), new Pen(new SolidColorBrush(LineStrong), 1.5, new DashStyle(new double[] { 3, 3 }, 0)), shape);
         else
-            ctx.DrawRectangle(new SolidColorBrush(Case), new Pen(new SolidColorBrush(StitchStrong), 1.5, new DashStyle(new double[] { 3, 3 }, 0)), rr);
+        {
+            var fill = n.State is NodeState.Off
+                ? (IBrush)new SolidColorBrush(PanelRaised)
+                : new LinearGradientBrush
+                {
+                    StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
+                    GradientStops = { new GradientStop(n.State == NodeState.Live ? Mix(CapHigh, Electric, 0.10 + 0.18 * heat) : CapHigh, 0), new GradientStop(Cap, 1) },
+                };
+            var border = n.State switch
+            {
+                NodeState.Live => Mix(LineStrong, Electric, 0.45 + 0.55 * heat),
+                NodeState.Attention => Mix(Line, Amber, 0.65),
+                NodeState.Failed => Red,
+                NodeState.Ready => LineStrong,
+                _ => Line,
+            };
+            ctx.DrawGeometry(fill, new Pen(new SolidColorBrush(border), 1), shape);
+            // Racing stripe along the bottom of a node that is carrying input or confirmed by the game.
+            if (n.State == NodeState.Live)
+                ctx.DrawRectangle(new SolidColorBrush(lamp), null, new Rect(r.X + 6, r.Bottom - 3, r.Width - 12, 2));
+        }
 
         // Icon well
         var well = new Rect(r.X + 10, r.Y + (r.Height - 38) / 2, 38, 38);
-        ctx.DrawRectangle(new SolidColorBrush(Case), null, new RoundedRect(well, 8));
-        var iconColor = n.State switch { NodeState.Live => HiVis, NodeState.Off => BoneFaint, NodeState.Attention => Yellow, NodeState.Failed => Red, _ => Bone };
+        ctx.DrawRectangle(new SolidColorBrush(Ground), null, new RoundedRect(well, 4));
+        var iconColor = n.State switch { NodeState.Live => Electric, NodeState.Off => InkFaint, NodeState.Attention => Amber, NodeState.Failed => Red, _ => Ink };
         DrawIcon(ctx, n.Icon, new Rect(well.X + 8, well.Y + 8, 22, 22), iconColor);
 
         double tx = well.Right + 10, tw = r.Right - tx - 26;
-        DrawText(ctx, n.Title, TitleFace, 15.5, n.State == NodeState.Off ? BoneMuted : Bone, new Point(tx, r.Y + 9), tw);
-        DrawText(ctx, n.Detail, DetailFace, 12.5, BoneMuted, new Point(tx, r.Y + 31), tw);
+        DrawText(ctx, n.Title, TitleFace, 16, n.State == NodeState.Off ? InkMuted : Ink, new Point(tx, r.Y + 8), tw);
+        DrawText(ctx, n.Detail, DetailFace, 12.5, InkMuted, new Point(tx, r.Y + 31), tw);
 
         // Status lamp: shape changes with state so colour is never the only signal.
-        var lc = new Point(r.Right - 15, r.Y + 15);
+        var lc = new Point(r.Right - 22, r.Y + 17);
         var lampBrush = new SolidColorBrush(lamp);
         switch (n.State)
         {
@@ -293,14 +309,15 @@ public sealed class SignalPath : Control
         }
     }
 
+    /// <summary>This PC: a slanted title plate, the centre of the path.</summary>
     void DrawHub(DrawingContext ctx, Rect r, double heat)
     {
-        var rr = new RoundedRect(r, 12);
-        ctx.DrawRectangle(new SolidColorBrush(Cap), new Pen(new SolidColorBrush(Mix(StitchStrong, HiVis, heat)), 2), rr,
-            boxShadows: new BoxShadows(new BoxShadow { OffsetY = 4, Blur = 14, Color = Color.FromArgb(0x80, 0, 0, 0) }));
-        DrawIcon(ctx, "pc", new Rect(r.Center.X - 13, r.Y + 12, 26, 26), Mix(Bone, HiVis, heat));
-        DrawText(ctx, HubTitle.ToUpperInvariant(), HubFace, 17, Bone, new Point(r.X + 10, r.Y + 44), r.Width - 20, center: true);
-        DrawText(ctx, HubDetail, DetailFace, 12, BoneMuted, new Point(r.X + 10, r.Y + 66), r.Width - 20, center: true);
+        // Lit, not lifted: input passing washes the plate and lights its edge; the type stays readable.
+        var plate = Shapes.Slant(r.Deflate(1));
+        ctx.DrawGeometry(new SolidColorBrush(Mix(CapHigh, Electric, heat * 0.22)), new Pen(new SolidColorBrush(Mix(LineStrong, Electric, heat)), 2), plate);
+        DrawIcon(ctx, "pc", new Rect(r.Center.X - 13, r.Y + 12, 26, 26), Mix(Ink, Electric, heat));
+        DrawText(ctx, HubTitle.ToUpperInvariant(), HubFace, 19, Ink, new Point(r.X + 22, r.Y + 42), r.Width - 44, center: true);
+        DrawText(ctx, HubDetail, DetailFace, 12, InkMuted, new Point(r.X + 22, r.Y + 66), r.Width - 44, center: true);
     }
 
     static void DrawIcon(DrawingContext ctx, string name, Rect r, Color color)

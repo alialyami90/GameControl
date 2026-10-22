@@ -96,8 +96,21 @@ public sealed class ConfigStore
             var dir = System.IO.Path.GetDirectoryName(Path);
             if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
             var tmp = Path + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(Config, Options));
-            File.Move(tmp, Path, overwrite: true);
+            var json = JsonSerializer.Serialize(Config, Options);
+            // Antivirus and sync clients lock the file for a moment; retry briefly before giving up.
+            for (int attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    File.WriteAllText(tmp, json);
+                    File.Move(tmp, Path, overwrite: true);
+                    return;
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException && attempt < 3)
+                {
+                    Thread.Sleep(100 * attempt);
+                }
+            }
         }
     }
 }

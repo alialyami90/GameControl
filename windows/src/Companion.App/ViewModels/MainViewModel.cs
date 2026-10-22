@@ -18,6 +18,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     readonly DispatcherTimer _slow;
     DateTime _lastBeamNgEcho, _lastTelemetryEcho;
     readonly Dictionary<string, DateTime> _lastOutputUse = new();
+    readonly List<Action> _unsubscribe = new();
+
+    // Axis updates arrive at up to 60 Hz per slider: they are merged per control and shown at most 10 times a second.
+    readonly object _axisGate = new();
+    readonly Dictionary<(string, string), InputActivity> _pendingAxis = new();
+    bool _axisFlushQueued;
+    (string Source, string Control)? _topAxisRow;
 
     public CompanionHost Host { get; }
 
@@ -94,13 +101,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Outputs.Add(new OutputRow { Key = "beamng", Title = "BeamNG mod", Icon = "car", Purpose = "Game commands and live vehicle state, both ways, through the Game Controller mod." });
         Outputs.Add(new OutputRow { Key = "telemetry", Title = "Telemetry", Icon = "telemetry", Purpose = "OutGauge dashboard data (speed, gear, lamps) when the mod is not installed." });
 
-        Host.Pairing.PinChanged += () => Ui(RefreshPin);
-        Host.SessionsChanged += () => Ui(RefreshPhones);
-        Host.Pairing.DevicesChanged += () => Ui(RefreshPhones);
-        Host.StatusChanged += () => Ui(RefreshOutputs);
-        Host.Logged += e => Ui(() => AddLog(e));
-        Host.GameState += (_, source) => Ui(() => Echo(source));
-        Host.Router.Activity += a => Ui(() => AddActivity(a));
+        Action pin = () => Ui(RefreshPin), phones = () => Ui(RefreshPhones), outputs = () => Ui(RefreshOutputs);
+        Action<LogEntry> logged = e => Ui(() => AddLog(e));
+        Action<IReadOnlyDictionary<string, System.Text.Json.Nodes.JsonNode?>, string> game = (_, source) => Ui(() => Echo(source));
+        Action<InputActivity> activity = OnActivity;
+        Host.Pairing.PinChanged += pin; _unsubscribe.Add(() => Host.Pairing.PinChanged -= pin);
+        Host.SessionsChanged += phones; _unsubscribe.Add(() => Host.SessionsChanged -= phones);
+        Host.Pairing.DevicesChanged += phones; _unsubscribe.Add(() => Host.Pairing.DevicesChanged -= phones);
+        Host.StatusChanged += outputs; _unsubscribe.Add(() => Host.StatusChanged -= outputs);
+        Host.Logged += logged; _unsubscribe.Add(() => Host.Logged -= logged);
+        Host.GameState += game; _unsubscribe.Add(() => Host.GameState -= game);
+        Host.Router.Activity += activity; _unsubscribe.Add(() => Host.Router.Activity -= activity);
 
         LoadSettings();
         RefreshPin();
@@ -125,11 +136,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var p = Host.Pairing.Pin;
         Pin = p.Length == 6 ? $"{p[..3]} {p[3..]}" : p;
         ServerName = Host.Config.ServerName;
-        var addrs = MdnsAdvertiser.LocalAddresses();
-        Addresses = addrs.Count == 0 ? "No network connection" : string.Join("  ·  ", addrs.Select(a => a.ToString()));
+        RefreshAddresses();
         PortsText = $"Phone link TCP {Host.Config.WsPort}  ·  input UDP {Host.Config.UdpPort}";
-        HubDetail = addrs.FirstOrDefault()?.ToString() ?? "offline";
         OnPropertyChanged(nameof(PinHint));
+    }
+
+    /// <summary>Also run every 2 s: the PC may join Wi-Fi after the companion starts.</summary>
+    void RefreshAddresses()
+    {
+        var addrs = MdnsAdvertiser.AdvertisedAddresses();
+        Addresses = addrs.Count == 0 ? "No network connection" : string.Join("  ·  ", addrs.Select(a => a.ToString()));
+        HubDetail = addrs.FirstOrDefault()?.ToString() ?? "offline";
     }
 
     void RefreshPhones()
@@ -199,7 +216,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var xb = Outputs[2];
         bool vigemOk = caps["vigem"]?.GetValue<bool>() == true;
         xb.State = !Host.Config.EnableVigem ? NodeState.Off : ready(vigemOk, "xbox");
-        xb.Status = !Host.Config.EnableVigem ? "Turned off" : vigemOk ? "Plugs in on first use" : "ViGEmBus missing";
+        xb.Status = !Host.Config.EnableVigem ? "Turned off" : !vigemOk ? "ViGEmBus missing" : Host.Router.XInput.InUse ? "Pad plugged in" : "Plugs in on first use";
         xb.Detail = !Host.Config.EnableVigem ? "Turn it on in Settings" : vigemOk ? "Virtual Xbox 360 controller" : _platform.VigemStatus;
         xb.Setup = Host.Config.EnableVigem && !vigemOk ? "Only needed for games that ignore joysticks and read Xbox controllers only. Install the last ViGEmBus release (1.22), then restart the companion." : "";
         xb.SetupLink = Host.Config.EnableVigem && !vigemOk ? "https://github.com/nefarius/ViGEmBus/releases" : null;
@@ -243,10 +260,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     void SlowTick()
     {
         RefreshOutputs();
+        RefreshAddresses();
+        var devices = Host.Config.Devices.ToList();
         foreach (var row in Phones)
         {
             var s = Host.Sessions.FirstOrDefault(x => x.DeviceId == row.DeviceId);
             if (s != null) row.Events = Interlocked.Read(ref s.EventCount);
+            else if (devices.FirstOrDefault(d => d.DeviceId == row.DeviceId) is { } d) row.LastSeenText = Ago(d.LastSeen);
         }
 
         var blocked = _platform.BlockedForegroundApp();
@@ -254,9 +274,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             $"{blocked} is running as administrator, so Windows blocks the key presses the companion sends it. Close the companion and start it with Run as administrator.";
     }
 
-    public void CheckFirewall()
+    /// <summary>netsh can take seconds, so it runs off the UI thread.</summary>
+    public async Task CheckFirewallAsync()
     {
-        var exists = _platform.FirewallRuleExists();
+        bool? exists;
+        try { exists = await Task.Run(_platform.FirewallRuleExists); }
+        catch (Exception) { exists = null; }
         FirewallBanner = exists == false
             ? "Windows Firewall may block phones from reaching this PC. Allow the companion on private networks once and you will not be asked again."
             : null;
@@ -273,6 +296,30 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _ => "",
     };
 
+    void OnActivity(InputActivity a)
+    {
+        if (a.Target is not (ActionType.VJoyAxis or ActionType.XInputAxis)) { Ui(() => AddActivity(a)); return; }
+        lock (_axisGate)
+        {
+            _pendingAxis[(a.SourceId, a.ControlId)] = a;
+            if (_axisFlushQueued) return;
+            _axisFlushQueued = true;
+        }
+        _ = Task.Delay(100).ContinueWith(_ => Ui(FlushAxes), TaskScheduler.Default);
+    }
+
+    void FlushAxes()
+    {
+        List<InputActivity> batch;
+        lock (_axisGate)
+        {
+            batch = _pendingAxis.Values.OrderBy(a => a.At).ToList();
+            _pendingAxis.Clear();
+            _axisFlushQueued = false;
+        }
+        foreach (var a in batch) AddActivity(a);
+    }
+
     void AddActivity(InputActivity a)
     {
         var key = OutputKey(a.Target);
@@ -284,7 +331,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (!wasLive) RefreshOutputs();
         }
         var icon = key switch { "keyboard" => "keyboard", "vjoy" => "joystick", "xbox" => "gamepad", "beamng" => "car", _ => "link" };
-        Activity.Insert(0, new ActivityRow(a.At.ToString("HH:mm:ss.f"), a.Source, a.ControlId, a.What, icon));
+        var row = new ActivityRow(a.At.ToString("HH:mm:ss.f"), a.Source, a.ControlId, a.What, icon);
+        bool axis = a.Target is ActionType.VJoyAxis or ActionType.XInputAxis;
+        // A moving slider updates its own row at the top instead of filling the list.
+        if (axis && Activity.Count > 0 && _topAxisRow == (a.SourceId, a.ControlId)) { Activity[0] = row; return; }
+        Activity.Insert(0, row);
+        _topAxisRow = axis ? (a.SourceId, a.ControlId) : null;
         while (Activity.Count > MaxActivity) Activity.RemoveAt(Activity.Count - 1);
         if (Activity.Count == 1) OnPropertyChanged(nameof(HasActivity));
     }
@@ -325,8 +377,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     void Forget(PhoneRow? row)
     {
         if (row == null) return;
-        Host.ForgetDevice(row.DeviceId);
-        Host.Log("info", $"Forgot {row.Name}. It needs the PIN to connect again.");
+        try
+        {
+            Host.ForgetDevice(row.DeviceId);
+            Host.Log("info", $"Forgot {row.Name}. It needs the PIN to connect again.");
+        }
+        catch (Exception e)
+        {
+            Host.Log("error", $"Could not forget {row.Name}: the settings file could not be saved ({e.Message}).");
+        }
     }
 
     [RelayCommand]
@@ -334,7 +393,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         bool ok = await Task.Run(_platform.AddFirewallRule);
         Host.Log(ok ? "info" : "warn", ok ? "Firewall rule added for private networks" : "The firewall rule was not added (the Windows prompt was declined or failed)");
-        CheckFirewall();
+        await CheckFirewallAsync();
     }
 
     [RelayCommand]
@@ -377,16 +436,26 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var c = Host.Config;
         bool restart = c.EnableVigem != EnableVigem || c.EnableOutGauge != EnableOutGauge || c.EnableMdns != EnableMdns
                        || c.OutGaugePort != port || c.ServerName != name;
-        Host.Store.Update(x =>
+        try
         {
-            x.ServerName = name;
-            x.StartMinimized = StartMinimized;
-            x.EnableVigem = EnableVigem;
-            x.EnableOutGauge = EnableOutGauge;
-            x.EnableMdns = EnableMdns;
-            x.OutGaugePort = port;
-            x.StartWithWindows = StartWithWindows;
-        });
+            Host.Store.Update(x =>
+            {
+                x.ServerName = name;
+                x.StartMinimized = StartMinimized;
+                x.EnableVigem = EnableVigem;
+                x.EnableOutGauge = EnableOutGauge;
+                x.EnableMdns = EnableMdns;
+                x.OutGaugePort = port;
+                x.StartWithWindows = StartWithWindows;
+            });
+        }
+        catch (Exception e)
+        {
+            // Usually the file is locked for a moment by antivirus or a sync client.
+            SettingsNote = $"Not saved: {Host.Store.Path} could not be written ({e.Message}). Try again in a moment.";
+            Host.Log("error", SettingsNote);
+            return;
+        }
         try { _platform.StartsWithWindows = StartWithWindows; }
         catch (Exception e) { Host.Log("warn", $"Could not change start with Windows: {e.Message}"); }
         SettingsNote = restart ? "Saved. Restart the companion to apply the name, discovery and output changes." : "Saved.";
@@ -396,5 +465,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _slow.Stop();
+        foreach (var off in _unsubscribe) off();
+        _unsubscribe.Clear();
     }
 }

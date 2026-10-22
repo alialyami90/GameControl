@@ -83,7 +83,9 @@ public sealed class Pairing
             else
             {
                 issuedToken = token;
-                _store.Update(c => { dev.LastSeen = _now(); if (!string.IsNullOrWhiteSpace(deviceName)) dev.DeviceName = deviceName; });
+                // "Last seen" is cosmetic: a settings file that cannot be written must not refuse the phone.
+                try { _store.Update(c => { dev.LastSeen = _now(); if (!string.IsNullOrWhiteSpace(deviceName)) dev.DeviceName = deviceName; }); }
+                catch (Exception) { }
                 DevicesChanged?.Invoke();
                 return PairOutcome.Ok;
             }

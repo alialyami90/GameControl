@@ -68,7 +68,7 @@ public sealed class BeamNgLink : ICommandSink, IDisposable
     {
         c.NoDelay = true;
         var stream = c.GetStream();
-        var writer = Channel.CreateBounded<string>(new BoundedChannelOptions(1024) { SingleReader = true, FullMode = BoundedChannelFullMode.DropWrite });
+        var writer = Channel.CreateBounded<string>(new BoundedChannelOptions(4096) { SingleReader = true, FullMode = BoundedChannelFullMode.DropOldest });
         var pump = Pump(stream, writer.Reader);
         TcpClient? old;
         lock (_gate)
@@ -93,6 +93,7 @@ public sealed class BeamNgLink : ICommandSink, IDisposable
                 if (line.Length == 0 || line.Length > MaxLine) continue;
                 try { HandleLine(line); }
                 catch (JsonException) { Log?.Invoke("BeamNG mod sent malformed JSON"); }
+                catch (Exception e) { Log?.Invoke($"BeamNG message could not be handled: {e.Message}"); } // a failing subscriber must not drop the mod
             }
         }
         catch (Exception) { /* socket closed */ }
@@ -175,9 +176,8 @@ public sealed class BeamNgLink : ICommandSink, IDisposable
         Channel<string>? w;
         lock (_gate) w = _writer;
         if (w == null) return false;
-        if (w.Writer.TryWrite(msg.ToJsonString())) return true;
-        Log?.Invoke("BeamNG mod is not reading; a message was dropped");
-        return false;
+        // When the mod stops reading, the oldest lines go first, so the latest state (a release) still arrives.
+        return w.Writer.TryWrite(msg.ToJsonString());
     }
 
     public void SendCommand(string command, double value)

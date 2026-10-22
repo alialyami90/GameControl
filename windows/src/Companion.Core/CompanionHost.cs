@@ -210,8 +210,8 @@ public sealed class CompanionHost : IDisposable
     void DropIdleSessions()
     {
         var idle = _options.IdleTimeout;
-        var cutoff = DateTimeOffset.Now - idle;
-        foreach (var s in _sessions.Values.Where(x => x.LastMessageAt < cutoff).ToList())
+        long cutoff = Environment.TickCount64 - (long)idle.TotalMilliseconds;
+        foreach (var s in _sessions.Values.Where(x => Interlocked.Read(ref x.LastMessageTick) < cutoff).ToList())
         {
             if (!_sessions.TryRemove(s.SessionKey, out PhoneSession? _)) continue;
             s.Engine.ReleaseAll();
@@ -302,13 +302,13 @@ public sealed class CompanionHost : IDisposable
             {
                 var text = await Receive(ws, buffer, ct).ConfigureAwait(false);
                 if (text == null) break;
-                session.LastMessageAt = DateTimeOffset.Now;
+                session.Touch();
                 try { HandleMessage(session, text); }
                 catch (Exception e)
                 {
                     // One bad message (or a failing output driver) must not end the phone's session.
+                    // Logged only: bad_message is reserved for malformed input from the phone.
                     Log("warn", $"Message from {session.DeviceName} failed: {e.Message}");
-                    session.Send(JsonExt.Error("bad_message", "the companion could not handle that message"));
                 }
             }
         }
@@ -426,7 +426,7 @@ public sealed class CompanionHost : IDisposable
         welcome["capabilities"] = Capabilities();
         await session.SendAsync(welcome).ConfigureAwait(false);
         // Registered only now, so no broadcast (state, capabilities) can reach the phone before its welcome.
-        session.LastMessageAt = DateTimeOffset.Now;
+        session.Touch();
         _sessions[key] = session;
 
         Log("info", $"{deviceName} connected from {addr}");
@@ -564,7 +564,7 @@ public sealed class CompanionHost : IDisposable
         if (key == null || !_sessions.TryGetValue(key, out var s)) return;
         var addr = from.Address.IsIPv4MappedToIPv6 ? from.Address.MapToIPv4() : from.Address;
         if (!addr.Equals(s.RemoteAddress)) return;
-        s.LastMessageAt = DateTimeOffset.Now;
+        s.Touch();
         var id = m.Str("id");
         var seq = m.Long("s");
         var val = m.Num("val");
