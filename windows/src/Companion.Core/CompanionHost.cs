@@ -132,7 +132,13 @@ public sealed class CompanionHost : IDisposable
             link.ConnectionChanged += _ => { if (!link.Connected) OnBeamNgDisconnected(); PushCapabilities(); StatusChanged?.Invoke(); };
             link.StateReceived += OnBeamNgState;
             link.CommandsReceived += OnBeamNgCommands;
-            link.BindingsResult += r => { Log(r["ok"]?.GetValue<bool>() == true ? "info" : "warn", $"BeamNG bindings: {r["message"]}"); Broadcast(r); };
+            // Relayed unchanged (ok, written, message, ...); a malformed "ok" only affects the log level.
+            link.BindingsResult += r =>
+            {
+                bool ok = r["ok"] is JsonValue v && v.TryGetValue<bool>(out var b) && b;
+                Log(ok ? "info" : "warn", $"BeamNG bindings: {r["message"]}");
+                Broadcast(r);
+            };
             link.Start();
             BeamNg = link;
             return link;

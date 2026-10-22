@@ -266,6 +266,64 @@ class CoreTest {
         advanceUntilIdle()
     }
 
+    @Test fun a21_syncValueReleasesHidHoldSoRefcountDoesNotDrift() = runTest {
+        val links = FakeLinks(hidConnected = true)
+        val e = InputEngine(this, links) { testScheduler.currentTime }
+        e.profile = BuiltInProfiles.gamepad()
+        val t = e.profile!!.pages[0].controls.first { it.id == "gp_t13" } // latching HID button 13
+        fun bit13() = links.hid.last { it.first == HidDescriptor.GAMEPAD_REPORT_ID }.second[1].toInt() and 0x10
+        e.onValue(t, 1f); assertTrue(bit13() != 0)
+        e.syncValue(t.id, 0f); assertEquals(0, bit13(), "game said off: button released")
+        e.onValue(t, 1f); assertTrue(bit13() != 0)
+        e.onValue(t, 0f); assertEquals(0, bit13(), "unlatch releases the button")
+        advanceUntilIdle()
+    }
+
+    @Test fun a22_profileSetClearsStaleValues() = runTest {
+        val links = FakeLinks(hidConnected = true)
+        val e = InputEngine(this, links) { testScheduler.currentTime }
+        e.profile = BuiltInProfiles.gamepad()
+        val t = e.profile!!.pages[0].controls.first { it.id == "gp_t13" }
+        e.onValue(t, 1f)
+        e.profile = BuiltInProfiles.gamepad()
+        assertEquals(null, e.currentValue(t.id))
+        links.hid.clear()
+        e.onValue(t, 1f)
+        val bit = links.hid.last { it.first == HidDescriptor.GAMEPAD_REPORT_ID }.second[1].toInt() and 0x10
+        assertTrue(bit != 0, "first tap after re-opening the profile must press")
+        advanceUntilIdle()
+    }
+
+    @Test fun a23_isHeldTracksLiveHoldsOnly() = runTest {
+        val links = FakeLinks(hidConnected = true, companionConnected = true)
+        val e = InputEngine(this, links) { testScheduler.currentTime }
+        e.profile = BuiltInProfiles.mudrunner()
+        val gas = e.profile!!.pages[0].controls.first { it.id == "mr_up" }
+        e.onValue(gas, 1f)
+        assertTrue(e.isHeld(gas.id))
+        links.hidConnected = false
+        e.onLinkChanged()
+        assertFalse(e.isHeld(gas.id), "forgotten after its link dropped, so a replay is allowed")
+        advanceUntilIdle()
+    }
+
+    @Test fun a24_routeFlipReleasesOnOldRouteFirst() = runTest {
+        val links = FakeLinks(hidConnected = false, companionConnected = true)
+        val e = InputEngine(this, links) { testScheduler.currentTime }
+        e.profile = BuiltInProfiles.gamepad()
+        val s = e.profile!!.pages[0].controls.first { it.id == "gp_throttle" }
+        e.onValue(s, 0.6f)
+        assertEquals(Route.COMPANION, e.routeFor(s))
+        links.hidConnected = true
+        e.onLinkChanged()
+        e.onValue(s, 0.8f)
+        assertEquals(0f, links.companion.last { it.id == s.id }.value, "companion axis parked before HID takes over")
+        val r = links.hid.last { it.first == HidDescriptor.GAMEPAD_REPORT_ID }.second
+        val sl0 = ((r[20].toInt() and 0xFF) or (r[21].toInt() shl 8)).toShort().toInt()
+        assertTrue(sl0 > 15000, "HID axis follows the new value, got $sl0")
+        advanceUntilIdle()
+    }
+
     @Test fun layoutOpsClampAndPages() {
         var p = LayoutOps.newProfile("Test", GameId.CUSTOM)
         val (p2, id) = LayoutOps.addControl(p, 0, ControlType.SLIDER, 100, 100)

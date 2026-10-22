@@ -226,6 +226,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val c = LayoutOps.findControl(p, id)?.second ?: continue
             val rest = InputEngine.restValue(c)
             if (v == rest) continue
+            if (engine.isHeld(id)) continue // still driven on a live link: replaying would double-press it (A23)
             val replay = when (c.type) {
                 ControlType.MOMENTARY, ControlType.SLIDER -> true
                 ControlType.LATCHING -> when (val a = c.action) {

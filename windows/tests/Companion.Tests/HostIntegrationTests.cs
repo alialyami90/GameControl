@@ -216,8 +216,10 @@ public sealed class HostIntegrationTests : IDisposable
         for (int i = 0; i < 5 && fwd?["type"]?.GetValue<string>() != "bindings.apply"; i++) fwd = JsonNode.Parse((await r.ReadLineAsync())!);
         Assert.Equal("bead1234", (string?)fwd!["vidpid"]);
 
-        await w.WriteLineAsync("""{"v":1,"type":"bindings.result","ok":true,"message":"done"}""");
-        Assert.Equal("done", (string?)(await p.Expect("bindings.result"))["message"]);
+        await w.WriteLineAsync("""{"v":1,"type":"bindings.result","ok":true,"written":true,"message":"done"}""");
+        var result = await p.Expect("bindings.result");
+        Assert.Equal("done", (string?)result["message"]);
+        Assert.True((bool)result["written"]!);
 
         mod.Close();
         Assert.False((bool)(await p.Expect("capabilities"))["capabilities"]!["beamng"]!);

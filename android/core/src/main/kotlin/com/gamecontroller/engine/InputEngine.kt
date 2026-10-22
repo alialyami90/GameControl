@@ -48,6 +48,9 @@ class InputEngine(
     var profile: Profile? = null
         set(value) {
             releaseAll()
+            lastValue.clear()
+            lastMoved.clear()
+            routeOf.clear()
             field = value
             resetAxes()
         }
@@ -105,7 +108,26 @@ class InputEngine(
      * Nothing is sent.
      */
     fun syncValue(id: String, value: Float) {
+        val previous = lastValue[id]
         lastValue[id] = value
+        if (previous == null || previous == value) return
+        // A hold the phone drives over HID must follow the game's word, or the refcount drifts (A21).
+        val c = findControl(id) ?: return
+        if (routeOf[id] != Route.HID) return
+        when (val a = c.action) {
+            is Action.VJoyButton, is Action.VJoyAxis -> applyLevel(c, a, previous, value)
+            is Action.Key -> if (a.trigger == KeyTrigger.HOLD) applyLevel(c, a, previous, value)
+            else -> Unit
+        }
+        if (isRelease(c, value)) routeOf.remove(id)
+    }
+
+    /** True while the engine still drives [id] on a live link (a held button, a moved slider, a latch). */
+    fun isHeld(id: String): Boolean {
+        val route = routeOf[id] ?: return false
+        if (route == Route.NONE) return false
+        val c = findControl(id) ?: return false
+        return (lastValue[id] ?: restValue(c)) != restValue(c)
     }
 
     /** Applies a new value for [control]. [value] follows the protocol's per-kind value table. */
@@ -118,9 +140,21 @@ class InputEngine(
         // A release always goes out on the route its press used (A3); a press picks the current route.
         // A release with nothing held (the link that carried the press already dropped) goes nowhere.
         val route = if (release) routeOf[control.id] ?: Route.NONE else routeFor(control)
+        val oldRoute = routeOf[control.id]
+        var prev = previous
+        if (!release && oldRoute != null && oldRoute != route && prev != restValue(control)) {
+            // The route changed under a held control: let go on the old route first (A24).
+            val rest = restValue(control)
+            when (oldRoute) {
+                Route.HID -> applyHid(control, prev, rest)
+                Route.COMPANION -> if (links.companionConnected) links.sendCompanion(control.id, rest, nextSeq(), reliable = true)
+                Route.NONE -> Unit
+            }
+            prev = rest
+        }
         routeOf[control.id] = route
         when (route) {
-            Route.HID -> applyHid(control, previous, value)
+            Route.HID -> applyHid(control, prev, value)
             Route.COMPANION -> sendCompanion(control, value)
             Route.NONE -> Unit
         }
