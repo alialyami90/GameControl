@@ -1,5 +1,12 @@
 package com.gamecontroller.ui.components
 
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -37,7 +44,11 @@ import com.gamecontroller.ui.theme.SlantShape
 
 enum class SlantStyle { PRIMARY, OUTLINE, QUIET }
 
-/** The racing-menu button: a slanted plate with italic caps label. 48dp tall target. */
+/**
+ * The racing-menu button: a slanted plate with italic caps label. The whole 48dp box is the
+ * touch target; the 40dp plate is only the visual. Disabled reads as a faint outline, never as
+ * a dimmed (pressed-looking) fill.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SlantButton(
@@ -52,7 +63,10 @@ fun SlantButton(
     longClickLabel: String? = null,
 ) {
     val shape = SlantShape()
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
     val fg = when {
+        !enabled -> Race.InkFaint
         style == SlantStyle.PRIMARY -> OnAccent
         style == SlantStyle.OUTLINE -> accent
         else -> Race.Ink
@@ -60,22 +74,30 @@ fun SlantButton(
     Box(
         modifier
             .heightIn(min = 48.dp)
-            .alpha(if (enabled) 1f else 0.4f)
-            .semantics { role = Role.Button },
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = null,
+                enabled = enabled,
+                role = Role.Button,
+                onLongClick = onLongClick,
+                onLongClickLabel = longClickLabel,
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Row(
             Modifier
                 .height(40.dp)
+                .graphicsLayer { if (pressed) { scaleX = 0.97f; scaleY = 0.97f } }
                 .clip(shape)
                 .then(
-                    when (style) {
-                        SlantStyle.PRIMARY -> Modifier.background(accent)
-                        SlantStyle.OUTLINE -> Modifier.background(Race.Panel).border(1.5.dp, accent, shape)
-                        SlantStyle.QUIET -> Modifier.background(Race.Cap)
+                    when {
+                        !enabled -> Modifier.background(Race.Panel).border(1.dp, Race.Line, shape)
+                        style == SlantStyle.PRIMARY -> Modifier.background(if (pressed) accent.copy(alpha = 0.85f) else accent)
+                        style == SlantStyle.OUTLINE -> Modifier.background(if (pressed) Race.Cap else Race.Panel).border(1.5.dp, accent, shape)
+                        else -> Modifier.background(if (pressed) Race.CapHigh else Race.Cap)
                     }
                 )
-                .combinedClickable(enabled = enabled, onLongClick = onLongClick, onLongClickLabel = longClickLabel, onClick = onClick)
                 .padding(horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -88,7 +110,10 @@ fun SlantButton(
     }
 }
 
-/** A row of slanted plates, one selected, used for tabs and small choices. */
+/**
+ * A row of slanted plates, one selected, used for tabs and small choices. Each plate is [height]
+ * dp to the eye but sits in a 48dp-tall touch target, because tabs are how pages change mid-drive.
+ */
 @Composable
 fun SlantTabs(
     labels: List<String>,
@@ -97,25 +122,33 @@ fun SlantTabs(
     modifier: Modifier = Modifier,
     height: Int = 36,
 ) {
-    Row(modifier.height(height.dp), horizontalArrangement = Arrangement.spacedBy((-4).dp)) {
+    Row(modifier.heightIn(min = 48.dp), horizontalArrangement = Arrangement.spacedBy((-4).dp), verticalAlignment = Alignment.CenterVertically) {
         labels.forEachIndexed { i, name ->
             val on = i == selected
             Box(
                 Modifier
-                    .fillMaxHeight()
-                    .clip(SlantShape())
-                    .background(if (on) Race.Electric else Race.Panel)
+                    .heightIn(min = 48.dp)
                     .semantics { role = Role.Tab; this.selected = on }
-                    .clickable { onSelect(i) }
-                    .padding(horizontal = 18.dp),
+                    .clickable { onSelect(i) },
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    name.uppercase(),
-                    style = RaceType.capLabel.copy(fontStyle = FontStyle.Italic),
-                    color = if (on) OnAccent else Race.InkMuted,
-                    maxLines = 1,
-                )
+                Box(
+                    Modifier
+                        .heightIn(min = height.dp)
+                        .clip(SlantShape())
+                        .background(if (on) Race.Electric else Race.Panel)
+                        .padding(horizontal = 18.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        name.uppercase(),
+                        style = RaceType.capLabel.copy(fontStyle = FontStyle.Italic),
+                        color = if (on) OnAccent else Race.InkMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 160.dp),
+                    )
+                }
             }
         }
     }
@@ -126,7 +159,7 @@ fun SlantTabs(
 fun StateTag(text: String, modifier: Modifier = Modifier, quiet: Boolean = false) {
     Box(
         modifier
-            .height(22.dp)
+            .heightIn(min = 22.dp)
             .clip(SlantShape())
             .background(if (quiet) Race.CapHigh else Race.Electric)
             .padding(horizontal = 10.dp),

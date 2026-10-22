@@ -113,12 +113,14 @@ private fun DrawScope.drawLatchBand(accent: Color, progress: Float, pending: Boo
     val step = 10.dp.toPx()
     clipRect(0f, 0f, w, h) {
         if (pending) {
-            // Marching slashes: sent, waiting for the game.
-            drawRect(accent.copy(alpha = 0.22f))
-            var x = -lean - step + phase * step
+            // Hollow band with sparse marching slashes: sent, waiting for the game. Unlike the solid
+            // confirmed stripe it still reads as "not yet" in a still frame (animations off).
+            val sw = 1.5.dp.toPx()
+            drawRect(accent, topLeft = Offset(sw / 2, sw / 2), size = Size(w - sw, h - sw), style = Stroke(sw))
+            var x = -lean - step * 2 + phase * step * 2
             while (x < w + lean) {
-                drawPath(slash(x, h, lean, step * 0.5f), accent)
-                x += step
+                drawPath(slash(x, h, lean, step * 0.35f), accent)
+                x += step * 2
             }
         } else {
             drawRect(accent)

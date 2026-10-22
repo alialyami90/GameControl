@@ -167,6 +167,7 @@ private fun AppRoot(vm: AppViewModel) {
                     onEdit = { vm.edit(s.profileId) },
                     onBack = vm::back,
                     imperialUnits = vm.settings.imperialUnits,
+                    onOpenConnection = vm::openConnect,
                 )
             }
             is Screen.Editor -> editor?.let { state ->

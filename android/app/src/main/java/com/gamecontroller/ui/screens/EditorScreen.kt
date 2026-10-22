@@ -1,5 +1,20 @@
 package com.gamecontroller.ui.screens
 
+import kotlinx.coroutines.launch
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.Snackbar
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -122,14 +137,17 @@ private fun ControlType.paletteIcon(): ImageVector? = IconLibrary[
     }
 ]
 
-/** First cell not covered by any control, scanning rows top to bottom. */
-private fun firstFreeCell(page: Page): Pair<Int, Int> {
+/** First cell not covered by any control, scanning rows top to bottom; null when the page is full. */
+private fun firstFreeCell(page: Page): Pair<Int, Int>? {
     for (y in 0 until page.rows) for (x in 0 until page.columns) {
         val taken = page.controls.any { x >= it.x && x < it.x + it.w && y >= it.y && y < it.y + it.h }
         if (!taken) return x to y
     }
-    return 0 to 0
+    return null
 }
+
+/** Below this width the inspector slides over the canvas and the palette becomes an icon rail. */
+private val WideEditor = 840.dp
 
 /**
  * Layout editor: the workshop. Palette of control types on the left, the page grid in the
@@ -160,62 +178,160 @@ fun EditorScreen(
     val page = profile.pages.getOrNull(pageIndex) ?: Page("p1", "Main")
     val selected = page.controls.firstOrNull { it.id == state.selectedControlId }
     var confirmDiscard by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    val freeCell = firstFreeCell(page)
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val currentProfile by rememberUpdatedState(profile)
 
-    Column(
+    // Deletes take effect at once and offer Undo, which puts the whole profile back as it was.
+    fun undoable(message: String, act: () -> Unit) {
+        val before = currentProfile
+        act()
+        scope.launch {
+            snackbar.currentSnackbarData?.dismiss()
+            if (snackbar.showSnackbar(message, actionLabel = "Undo", duration = SnackbarDuration.Long) == SnackbarResult.ActionPerformed) {
+                onProfileChange { before }
+            }
+        }
+    }
+    val deleteControl: (String) -> Unit = { id ->
+        val label = page.controls.firstOrNull { it.id == id }?.label.orEmpty().ifBlank { "Control" }
+        undoable("$label deleted") { onDelete(id) }
+    }
+    val deletePage: (Int) -> Unit = { i ->
+        undoable("Page ${profile.pages.getOrNull(i)?.name.orEmpty()} deleted") { onDeletePage(i) }
+    }
+
+    BoxWithConstraints(
         Modifier
             .fillMaxSize()
             .background(Race.Ground)
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        // Top bar.
-        Row(
-            Modifier.fillMaxWidth().height(60.dp).padding(start = 4.dp, end = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = { if (state.dirty) confirmDiscard = true else onDiscard() }) {
-                Icon(Icons.Rounded.Close, contentDescription = "Close without saving", tint = Race.InkMuted)
-            }
-            Row(Modifier.widthIn(max = 300.dp).padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(profile.name, style = RaceType.title, color = Race.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                Spacer(Modifier.width(10.dp))
-                StateTag("Editing", quiet = true)
-            }
-            Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
-                SlantTabs(profile.pages.map { it.name }, pageIndex, onPageChange)
-                IconButton(onClick = onAddPage) { Icon(Icons.Rounded.Add, contentDescription = "Add page", tint = Race.InkMuted) }
-            }
-            if (state.dirty) {
-                Text("UNSAVED", style = RaceType.unit, color = Race.Amber, modifier = Modifier.padding(end = 12.dp))
-            }
-            SlantButton("Done", onDone, style = SlantStyle.PRIMARY)
-        }
-        Row(Modifier.fillMaxSize()) {
-            Palette(onAdd = { type -> val (x, y) = firstFreeCell(page); onAddControl(type, x, y) })
-            Box(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(start = 4.dp, end = 12.dp, bottom = 12.dp, top = 4.dp),
+        val wide = maxWidth >= WideEditor
+        val panelOpen = selected != null || (!wide && showSettings)
+        Column(Modifier.fillMaxSize()) {
+            // Top bar.
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(start = 4.dp, end = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                EditCanvas(page, state.selectedControlId, onSelect, onMove, onResize)
+                IconButton(onClick = { if (state.dirty) confirmDiscard = true else onDiscard() }) {
+                    Icon(Icons.Rounded.Close, contentDescription = "Close without saving", tint = Race.InkMuted)
+                }
+                Row(Modifier.widthIn(max = if (wide) 300.dp else 150.dp).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(profile.name, style = RaceType.title, color = Race.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (wide) {
+                        Spacer(Modifier.width(10.dp))
+                        StateTag("Editing", quiet = true)
+                    }
+                }
+                Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+                    SlantTabs(profile.pages.map { it.name }, pageIndex, onPageChange)
+                    IconButton(onClick = onAddPage) { Icon(Icons.Rounded.Add, contentDescription = "Add page", tint = Race.InkMuted) }
+                }
+                if (!wide) {
+                    IconButton(onClick = { onSelect(null); showSettings = !showSettings }) {
+                        Icon(Icons.Rounded.Settings, contentDescription = "Page and profile settings", tint = if (showSettings) Race.Electric else Race.InkMuted)
+                    }
+                }
+                if (state.dirty) {
+                    Text("UNSAVED", style = RaceType.unit, color = Race.Amber, modifier = Modifier.padding(end = 12.dp))
+                }
+                SlantButton("Done", onDone, style = SlantStyle.PRIMARY)
             }
-            Column(
-                Modifier
-                    .width(340.dp)
-                    .fillMaxHeight()
-                    .background(Race.Panel)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
-            ) {
-                if (selected != null) {
-                    Inspector(selected, page, profile.game, beamngCommands, onUpdate, onResize, onDelete, onClose = { onSelect(null) })
-                } else {
-                    PageAndProfile(
-                        profile, page, pageIndex,
-                        onRenamePage, onDeletePage, onGridChange, onProfileChange, onApplyGameBindings,
-                    )
+            Row(Modifier.fillMaxSize()) {
+                Palette(
+                    rail = !wide,
+                    full = freeCell == null,
+                    onAdd = { type -> freeCell?.let { (x, y) -> onAddControl(type, x, y) } },
+                )
+                Column(Modifier.weight(1f).fillMaxHeight()) {
+                    if (freeCell == null) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 4.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "Page is full: add a page or add rows.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Race.InkMuted,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (page.rows < 8) {
+                                SlantButton("Add a row", { onGridChange(page.columns, page.rows + 1) }, style = SlantStyle.QUIET)
+                            }
+                        }
+                    }
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(start = 4.dp, end = 12.dp, bottom = 12.dp, top = 4.dp),
+                    ) {
+                        EditCanvas(page, state.selectedControlId, { onSelect(it); if (it != null) showSettings = false }, onMove, onResize)
+                    }
+                }
+                if (wide) {
+                    Column(
+                        Modifier
+                            .width(340.dp)
+                            .fillMaxHeight()
+                            .background(Race.Panel)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 20.dp, vertical = 8.dp),
+                    ) {
+                        SidePanel(selected, page, pageIndex, state, beamngCommands, onUpdate, onResize, deleteControl, onSelect, onRenamePage, deletePage, onGridChange, onProfileChange, onApplyGameBindings)
+                    }
                 }
             }
+        }
+
+        // Narrow: the panel slides over the canvas from the right, with a scrim that closes it.
+        if (!wide) {
+            AnimatedVisibility(panelOpen, enter = fadeIn(), exit = fadeOut()) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(Race.Ground.copy(alpha = 0.6f))
+                        .clickable(onClickLabel = "Close panel") { onSelect(null); showSettings = false },
+                )
+            }
+            AnimatedVisibility(
+                panelOpen,
+                modifier = Modifier.align(Alignment.CenterEnd),
+                enter = slideInHorizontally { it },
+                exit = slideOutHorizontally { it },
+            ) {
+                Column(
+                    Modifier
+                        .width(minOf(340.dp, maxWidth * 0.8f))
+                        .fillMaxHeight()
+                        .background(Race.Panel)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                ) {
+                    if (selected == null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Settings", style = RaceType.title, color = Race.Ink, modifier = Modifier.weight(1f))
+                            IconButton(onClick = { showSettings = false }) {
+                                Icon(Icons.Rounded.Close, contentDescription = "Close settings", tint = Race.InkMuted)
+                            }
+                        }
+                    }
+                    SidePanel(selected, page, pageIndex, state, beamngCommands, onUpdate, onResize, deleteControl, onSelect, onRenamePage, deletePage, onGridChange, onProfileChange, onApplyGameBindings)
+                }
+            }
+        }
+
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp)) { data ->
+            Snackbar(
+                data,
+                containerColor = Race.PanelRaised,
+                contentColor = Race.Ink,
+                actionColor = Race.Electric,
+            )
         }
     }
 
@@ -231,31 +347,70 @@ fun EditorScreen(
     }
 }
 
+/** The inspector for a selected control, otherwise page and profile settings. */
 @Composable
-private fun Palette(onAdd: (ControlType) -> Unit) {
+private fun SidePanel(
+    selected: Control?,
+    page: Page,
+    pageIndex: Int,
+    state: EditorState,
+    beamngCommands: List<String>,
+    onUpdate: (Control) -> Unit,
+    onResize: (String, Int, Int) -> Unit,
+    onDelete: (String) -> Unit,
+    onSelect: (String?) -> Unit,
+    onRenamePage: (Int, String) -> Unit,
+    onDeletePage: (Int) -> Unit,
+    onGridChange: (Int, Int) -> Unit,
+    onProfileChange: ((Profile) -> Profile) -> Unit,
+    onApplyGameBindings: () -> Unit,
+) {
+    if (selected != null) {
+        Inspector(selected, page, state.profile.game, beamngCommands, onUpdate, onResize, onDelete, onClose = { onSelect(null) })
+    } else {
+        PageAndProfile(state.profile, page, pageIndex, onRenamePage, onDeletePage, onGridChange, onProfileChange, onApplyGameBindings)
+    }
+}
+
+/**
+ * Control types to add. Wide: labelled caps in a 104dp column. Narrow: a 56dp icon rail (names
+ * stay in the accessibility label). [full] disables every item; the canvas says why.
+ */
+@Composable
+private fun Palette(rail: Boolean, full: Boolean, onAdd: (ControlType) -> Unit) {
     Column(
         Modifier
-            .width(104.dp)
+            .width(if (rail) 56.dp else 104.dp)
             .fillMaxHeight()
             .verticalScroll(rememberScrollState())
-            .padding(start = 12.dp, end = 8.dp, top = 4.dp, bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(start = if (rail) 4.dp else 12.dp, end = if (rail) 4.dp else 8.dp, top = 4.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(if (rail) 6.dp else 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("ADD", style = RaceType.unit, color = Race.InkFaint, modifier = Modifier.padding(start = 4.dp))
+        Text("ADD", style = RaceType.unit, color = Race.InkFaint, modifier = if (rail) Modifier else Modifier.align(Alignment.Start).padding(start = 4.dp))
         ControlType.entries.forEach { t ->
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .clip(CapShape(cut = 10.dp, radius = 4.dp))
-                    .background(Race.Cap)
-                    .clickable { onAdd(t) }
-                    .semantics(mergeDescendants = true) { role = Role.Button; contentDescription = "Add ${t.displayName()}: ${t.blurb()}" }
-                    .padding(vertical = 10.dp, horizontal = 6.dp),
+                    .heightIn(min = 48.dp)
+                    .clip(CapShape(cut = if (rail) 8.dp else 10.dp, radius = 4.dp))
+                    .background(if (full) Race.Panel else Race.Cap)
+                    .clickable(enabled = !full) { onAdd(t) }
+                    .semantics(mergeDescendants = true) {
+                        role = Role.Button
+                        contentDescription = "Add ${t.displayName()}: ${t.blurb()}"
+                        if (full) stateDescription = "Page is full"
+                    }
+                    .padding(vertical = if (rail) 12.dp else 10.dp, horizontal = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
             ) {
-                t.paletteIcon()?.let { Icon(it, contentDescription = null, tint = Race.Ink, modifier = Modifier.size(24.dp)) }
-                Spacer(Modifier.height(6.dp))
-                Text(t.displayName().uppercase(), style = RaceType.unit, color = Race.InkMuted, textAlign = TextAlign.Center, maxLines = 2)
+                val ink = if (full) Race.InkFaint else Race.Ink
+                t.paletteIcon()?.let { Icon(it, contentDescription = null, tint = ink, modifier = Modifier.size(24.dp)) }
+                if (!rail) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(t.displayName().uppercase(), style = RaceType.unit, color = if (full) Race.InkFaint else Race.InkMuted, textAlign = TextAlign.Center, maxLines = 2)
+                }
             }
         }
     }
@@ -369,14 +524,11 @@ private fun EditableControl(
                         drawOutline(o, Race.Electric, style = Stroke(5.dp.toPx()))
                     },
             )
-            // Resize tab.
+            // Resize tab: a 48dp touch target around a small slanted plate, kept small so it doesn't cover the cap.
             Box(
                 Modifier
                     .align(Alignment.BottomEnd)
-                    .size(36.dp)
-                    .padding(4.dp)
-                    .clip(SlantShape())
-                    .background(Race.Electric)
+                    .size(48.dp)
                     .pointerInput(c.id, pitchX, pitchY) {
                         detectDragGestures(
                             onDragEnd = {
@@ -389,7 +541,10 @@ private fun EditableControl(
                         ) { change, amount -> change.consume(); grow += amount }
                     }
                     .semantics { contentDescription = "Resize ${c.label}" },
-            )
+                contentAlignment = Alignment.BottomEnd,
+            ) {
+                Box(Modifier.padding(5.dp).size(width = 22.dp, height = 18.dp).clip(SlantShape()).background(Race.Electric))
+            }
         }
     }
 }

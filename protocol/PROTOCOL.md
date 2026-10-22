@@ -107,8 +107,8 @@ Companion replies `{"v":1,"type":"profile.ack","profileId":"beamng-default","cou
 - `vjoy_axis`: `X`,`Y`,`Z`,`RX`,`RY`,`RZ`,`SL0`,`SL1`. Value -1..1 maps to the full axis range (bipolar). A unipolar slider sends 0..1 and the phone sets `"range":"unipolar"` on the action; then 0..1 maps to the full range.
 - `macro`: runs once on the rising edge. Steps run in order.
 - `beamng`: forwarded to the BeamNG mod as a `command` (see below). If no mod is connected the companion ignores it. Edge rules, applied by the companion:
-  - A `latching` control should be bound to a setter (`lights.low` with 1/0), never to a `*.toggle`: with a toggle only the rising edge fires, so the control would turn the feature on but never off.
-  - `*.toggle` commands and one-shots (`reset`, `gear.up`, `camera.next`, ...) are sent to the mod only on the rising edge (value goes from < 0.5 to >= 0.5).
+  - `*.toggle` commands and one-shots (`reset`, `gear.up`, `camera.next`, ...) are sent to the mod on the rising edge only (value goes from < 0.5 to >= 0.5) when driven by a `momentary` control, and on **every** event (each value change, 1 and 0) when driven by a `latching` control, so a latch and a toggle stay in step. Prefer setters for latching controls anyway; the editor steers towards them.
+  - **Held commands**: `starter`, `horn`, `recover`, every `action.<name>` command, and any setter driven by a `momentary` control (flash-to-pass = momentary `lights.high`). They pass the value through on every change, and the companion sends them with value 0 on the 1000 ms auto-release and at session end. A setter driven by a `latching` control is not zeroed (the latch is the user's intent).
   - Level commands pass the value through on every change: `starter`, `horn`, `recover`, every `action.<name>` command, and the idempotent setters `<feature>` with value 1/0 (for example `lights.low` with 1 = on, 0 = off). Built-in latching controls use the setters, so a resend never flips state.
   - On a `switch`/`radio`, the command at the selected position is sent with `value` = 1 (a setter) or once (a toggle/one-shot). `gearbox.mode` gets `value` = index.
   - On a `slider`, the command is sent with the raw value on every change (no built-in command uses this yet).
@@ -128,6 +128,8 @@ Companion replies `{"v":1,"type":"profile.ack","profileId":"beamng-default","cou
 A `switch`/`radio` position bound to `vjoy_axis` sets that axis to index/(n-1) of its full range (n = number of positions).
 
 Duplicates: an event is a duplicate only when its sequence number `s` is not greater than the last one applied for that control id (see Control events). The companion must **not** compare values: after the game changes state on its own (a signal self-cancels, the gearbox goes back to P) the phone legitimately sends the same value again. Repeated `latching`/`switch`/`radio` events with new sequence numbers are applied again; the built-in profiles use idempotent setters so that is harmless.
+
+Route change on the phone: when a held control (momentary or slider) changes route (Bluetooth HID came up or went down) the phone first sends the rest value on the old route, then continues on the new one, so no axis or button is left set behind.
 
 ### Which channel carries which event
 
@@ -182,7 +184,7 @@ Mod to companion:
 {"v":1,"type":"hello","role":"beamng","modVersion":"1.0.0","gameVersion":"0.3x"}
 {"v":1,"type":"state","values":{...},"full":false}
 {"v":1,"type":"commands","list":["lights.low.toggle","signal.left.toggle", "..."]}
-{"v":1,"type":"bindings.result","ok":true,"message":"Bound 18 actions to vJoy device 1"}
+{"v":1,"type":"bindings.result","ok":true,"message":"Bound 18 actions","written":true,"count":18,"unknown":[],"device":"vjoy1","busy":false,"alreadyBound":false}
 ```
 
 Companion to mod:
@@ -192,6 +194,8 @@ Companion to mod:
 {"v":1,"type":"bindings.apply","device":"vjoy1","bindings":[{"beamngAction":"toggle_headlights","button":5}]}
 {"v":1,"type":"state.request"}
 ```
+
+`bindings.result` fields: `ok` (true only once BeamNG's input system shows the bindings loaded), `message` (always shown to the user when `ok` is false), `written` (the inputmap file was saved), `count` (bindings written), `unknown` (action names this game version does not have), `device`, `busy` (a previous apply is still being confirmed; retry in a second), `alreadyBound` (the same pairs were already live from the user's own `.diff`).
 
 `bindings.apply`: BeamNG keys joystick input maps by `vidpid` (lowercase PID+VID hex, e.g. vJoy = `bead1234`). GE Lua has no device-list API, so the **companion adds `"vidpid"`** to every `bindings.apply` it forwards: it reads the VID/PID of the vJoy device (`device:"vjoy1"`) or of the paired "GameCtl Pad" Bluetooth HID device (`device:"hid"`) from Windows. Without it the mod falls back to `bead1234` for `vjoy1` and answers `ok:false` for `hid`. Protocol button N maps to BeamNG `button{N-1}`. The mod writes `settings/inputmaps/<vidpid>_gamecontroller.json` in the user folder and reloads input; users can still rebind in Options > Controls.
 

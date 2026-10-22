@@ -10,6 +10,7 @@ import com.gamecontroller.engine.InputEngine
 import com.gamecontroller.engine.OutputLinks
 import com.gamecontroller.hid.BluetoothHidLink
 import com.gamecontroller.model.Action
+import com.gamecontroller.model.BindResult
 import com.gamecontroller.model.Control
 import com.gamecontroller.model.ControlType
 import com.gamecontroller.model.EditorState
@@ -83,18 +84,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val game = MutableStateFlow<Map<String, Any>>(emptyMap())
     private val pending = MutableStateFlow<Map<String, Long>>(emptyMap())
     private val clock = MutableStateFlow(0L) // ticks so pending indicators time out on screen
+    private val linkDrops = MutableStateFlow(0)
+    private val knownStateKeys = MutableStateFlow<Set<String>>(emptySet())
+    private var lastBindRequest: Pair<String, Int>? = null // device, requested count
 
     val playState: StateFlow<PlayState?> = combine(
         combine(activeProfile, pageIndex, values) { p, i, v -> Triple(p, i, v) },
         combine(game, pending, clock) { g, pe, t -> Triple(g, pe, t) },
-        combine(companion.state, hid.state) { c, h -> c to h },
-    ) { (p, i, v), (g, pe, _), (c, h) ->
+        combine(companion.state, hid.state, linkDrops) { c, h, d -> Triple(c, h, d) },
+    ) { (p, i, v), (g, pe, _), (c, h, d) ->
         p ?: return@combine null
         val now = System.currentTimeMillis()
         val r = Feedback.resolve(p, v, g, pe, now)
         PlayState(
             profile = p, pageIndex = i.coerceIn(0, p.pages.lastIndex), values = v,
             indicators = r.indicators, unavailable = r.unavailable, game = g, connection = c, hid = h,
+            linkDrops = d,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -117,8 +122,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
 
             override fun onState(values: Map<String, Any>, full: Boolean) = applyGameState(values, full)
-            override fun onBeamNGCommands(list: List<String>) { _beamngCommands.value = list }
-            override fun onBindingsResult(ok: Boolean, message: String) = notify(message.ifEmpty { if (ok) "Bindings applied" else "Bindings failed" })
+            override fun onBeamNGCommands(list: List<String>) {
+                _beamngCommands.value = list
+                _editor.update { it?.copy(beamngCommands = list) }
+            }
+            override fun onBindingsResult(r: Incoming.BindingsResult) {
+                val (device, requested) = lastBindRequest ?: (r.device to r.count)
+                val result = BindResult(
+                    ok = r.ok, message = r.message, device = device, requested = requested, count = r.count,
+                    unknown = r.unknown, written = r.written, busy = r.busy, alreadyBound = r.alreadyBound,
+                    atMillis = System.currentTimeMillis(),
+                )
+                _editor.update { it?.copy(bindResult = result) }
+                if (_editor.value == null || !r.ok) notify(r.message.ifEmpty { if (r.ok) "Bound ${r.count} of $requested in BeamNG" else "Binding failed" })
+            }
             override fun onDisconnected() {
                 engine.onLinkChanged()
                 game.value = emptyMap()
@@ -135,6 +152,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         settings.lastHost?.let { host -> if (settings.token(host.substringBefore(":")) != null) companion.connect(host) }
         if (hid.hasPermission() && hid.isBluetoothOn()) hid.enable()
 
+        viewModelScope.launch {
+            companion.state.collect { c ->
+                _editor.update { it?.copy(canBindInGame = c.status == com.gamecontroller.model.ConnectionStatus.CONNECTED && c.capabilities.beamng) }
+            }
+        }
         viewModelScope.launch {
             while (isActive) {
                 delay(250)
@@ -265,6 +287,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private var noLinkNotified = 0L
     private fun notifyOnceNoLink() {
+        linkDrops.value++
         val now = System.currentTimeMillis()
         if (now - noLinkNotified > 10_000) {
             noLinkNotified = now
@@ -278,6 +301,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun applyGameState(update: Map<String, Any>, full: Boolean) {
         game.value = if (full) update else game.value + update
+        if (update.keys.any { it !in knownStateKeys.value }) {
+            knownStateKeys.value = knownStateKeys.value + update.keys
+            _editor.update { it?.copy(stateKeys = knownStateKeys.value.sorted()) }
+        }
         val p = activeProfile.value ?: return
         val now = System.currentTimeMillis()
         pending.value = Feedback.prunePending(p, values.value, game.value, pending.value, now)
@@ -315,8 +342,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             notify("No controls in this profile have a BeamNG action to bind.")
             return
         }
-        companion.send(Protocol.beamngBindingsApply(if (hid.isConnected) "hid" else "vjoy1", bindings))
+        val device = if (hid.isConnected) "hid" else "vjoy1"
+        lastBindRequest = device to bindings.size
+        companion.send(Protocol.beamngBindingsApply(device, bindings))
         notify("Sent ${bindings.size} bindings to BeamNG…")
+    }
+
+    /** What "Bind in game" would send for [profileId]: (BeamNG action, button) pairs and the device. */
+    fun previewGameBindings(profileId: String): Pair<String, List<Pair<String, Int>>> {
+        val p = repo.get(profileId) ?: _editor.value?.profile?.takeIf { it.id == profileId }
+        return (if (hid.isConnected) "hid" else "vjoy1") to (p?.let { gameBindings(it) } ?: emptyList())
     }
 
     // ---- connection ------------------------------------------------------------------------
@@ -372,7 +407,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val p = repo.get(id) ?: return
         val page = if ((_screen.value as? Screen.Play)?.profileId == id) pageIndex.value else 0
         stopPlaying()
-        _editor.value = EditorState(profile = p, pageIndex = page.coerceIn(0, p.pages.lastIndex))
+        _editor.value = EditorState(
+            profile = p, pageIndex = page.coerceIn(0, p.pages.lastIndex),
+            stateKeys = knownStateKeys.value.sorted(), beamngCommands = _beamngCommands.value,
+            canBindInGame = companion.isConnected && companion.state.value.capabilities.beamng,
+        )
         _screen.value = Screen.Editor(id)
     }
 

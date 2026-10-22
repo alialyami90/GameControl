@@ -1,5 +1,6 @@
 package com.gamecontroller.ui.screens
 
+import androidx.compose.foundation.layout.heightIn
 import com.gamecontroller.model.HidStatus
 import com.gamecontroller.model.ConnectionStatus
 import kotlinx.coroutines.delay
@@ -97,6 +98,7 @@ fun PlayScreen(
     onEdit: () -> Unit,
     onBack: () -> Unit,
     imperialUnits: Boolean = false,
+    onOpenConnection: (() -> Unit)? = null,
 ) {
     val pages = state.profile.pages
     val pageIndex = state.pageIndex.coerceIn(0, (pages.size - 1).coerceAtLeast(0))
@@ -107,7 +109,7 @@ fun PlayScreen(
             .background(Race.Ground)
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
-        PlayHud(state, pageIndex, imperialUnits, onPageChange, onEdit, onBack)
+        PlayHud(state, pageIndex, imperialUnits, onPageChange, onEdit, onBack, onOpenConnection)
         Box(Modifier.weight(1f).fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp, top = 4.dp)) {
             if (page == null || page.controls.isEmpty()) {
                 EmptyPage(onEdit)
@@ -152,6 +154,7 @@ private fun PlayHud(
     onPageChange: (Int) -> Unit,
     onEdit: () -> Unit,
     onBack: () -> Unit,
+    onOpenConnection: (() -> Unit)?,
 ) {
     // While anything is linked the player is probably mid-game: Edit then needs a hold, and a
     // stray tap only says so, instead of dropping them into the editor.
@@ -159,7 +162,7 @@ private fun PlayHud(
         state.hid.status == HidStatus.CONNECTED
     var holdHint by remember { mutableStateOf(false) }
     LaunchedEffect(holdHint) { if (holdHint) { delay(1600); holdHint = false } }
-    BoxWithConstraints(Modifier.fillMaxWidth().height(56.dp)) {
+    BoxWithConstraints(Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
         // Link badges drop their "BT"/"PC" names only when the strip would otherwise overflow;
         // their status words, lamps, Edit and Back always stay.
         val pages = state.profile.pages.size
@@ -169,7 +172,7 @@ private fun PlayHud(
         // Narrowest phones (640dp class): lamp-only badges, no rpm, shorter name, so Edit stays on screen.
         val tight = maxWidth < 720.dp
         Row(
-            Modifier.fillMaxSize().padding(start = 4.dp, end = 12.dp),
+            Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 4.dp, end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack) {
@@ -183,12 +186,11 @@ private fun PlayHud(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    state.profile.game.tag().uppercase(),
-                    style = RaceType.unit,
-                    color = Race.InkFaint,
-                    maxLines = 1,
-                )
+                // The game tag only adds information when the name doesn't already say it.
+                val tag = state.profile.game.tag()
+                if (!state.profile.name.contains(tag, ignoreCase = true) && !tag.contains(state.profile.name, ignoreCase = true)) {
+                    Text(tag.uppercase(), style = RaceType.unit, color = Race.InkFaint, maxLines = 1)
+                }
             }
             Box(Modifier.weight(1f)) {
                 if (state.profile.pages.size > 1) {
@@ -198,7 +200,13 @@ private fun PlayHud(
                 }
             }
             GameReadouts(state.game, Modifier.padding(start = 12.dp, end = 14.dp), imperial = imperial, showRpm = !tight)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier
+                    .heightIn(min = 48.dp)
+                    .then(if (onOpenConnection != null) Modifier.clip(SlantShape()).clickable(onClickLabel = "Open connections", onClick = onOpenConnection) else Modifier),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 BluetoothLinkBadge(state.hid, compact = compact, lampOnly = tight)
                 PcLinkBadge(state.connection, compact = compact, lampOnly = tight)
             }

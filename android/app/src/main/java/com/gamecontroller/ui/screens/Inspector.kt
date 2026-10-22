@@ -107,7 +107,7 @@ fun Inspector(
         ) {
             val v = IconLibrary[c.icon]
             if (v != null) Icon(v, contentDescription = null, tint = c.accent.lit(), modifier = Modifier.size(32.dp))
-            else Text("NONE", style = RaceType.unit, color = Race.InkFaint)
+            else Text("NONE", style = RaceType.unit, color = Race.InkMuted)
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {

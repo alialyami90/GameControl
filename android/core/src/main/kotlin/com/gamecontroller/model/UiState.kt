@@ -72,6 +72,22 @@ data class PlayState(
     val game: Map<String, Any> = emptyMap(),
     val connection: ConnectionUi = ConnectionUi(),
     val hid: HidUi = HidUi(),
+    /** Incremented every time a press is dropped because no link is up; the HUD flashes "NO LINK" on change. */
+    val linkDrops: Int = 0,
+)
+
+/** Outcome of the last "Bind in game" request. */
+data class BindResult(
+    val ok: Boolean,
+    val message: String,
+    val device: String,
+    val requested: Int,
+    val count: Int,
+    val unknown: List<String> = emptyList(),
+    val written: Boolean = false,
+    val busy: Boolean = false,
+    val alreadyBound: Boolean = false,
+    val atMillis: Long = 0L,
 )
 
 data class EditorState(
@@ -79,4 +95,12 @@ data class EditorState(
     val pageIndex: Int = 0,
     val selectedControlId: String? = null,
     val dirty: Boolean = false,
+    /** Game state keys seen from the companion so far (for the feedback/visibleWhen/position pickers). */
+    val stateKeys: List<String> = emptyList(),
+    /** BeamNG commands reported by the mod, for the command picker. */
+    val beamngCommands: List<String> = emptyList(),
+    /** Result of the last "Bind in game", null until one was requested. */
+    val bindResult: BindResult? = null,
+    /** Whether "Bind in game" can be sent right now (companion connected and the mod is up). */
+    val canBindInGame: Boolean = false,
 )

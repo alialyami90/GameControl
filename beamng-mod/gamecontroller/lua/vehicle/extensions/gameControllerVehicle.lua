@@ -11,7 +11,7 @@ local M = {}
 local SEND_INTERVAL = 0.1     -- seconds between state checks
 local SEND_FRAMES = 6         -- or this many frames, so state still flows while paused (dt is 0)
 local HEARTBEAT_INTERVAL = 1  -- seconds between keep-alive messages when nothing changed
-local HEARTBEAT_FRAMES = 60
+local HEARTBEAT_FRAMES = 30   -- 1.5 s at 20 fps, well inside the game engine side's 5 s timeout
 local CRUISE_STEP = 5 / 3.6   -- cruise up/down step, m/s (5 km/h)
 
 local active = false
@@ -122,10 +122,6 @@ local function findEscController()
     local ok, c = pcall(controller.getController, "esc")
     if ok then table.insert(candidates, c) end
   end
-  if type(controller.getControllerSafe) == "function" then
-    local ok, c = pcall(controller.getControllerSafe, "esc")
-    if ok then table.insert(candidates, c) end
-  end
   if type(controller.getAllControllers) == "function" then
     local ok, all = pcall(controller.getAllControllers)
     if ok and type(all) == "table" then
@@ -133,8 +129,8 @@ local function findEscController()
     end
   end
   for _, c in ipairs(candidates) do
-    -- getControllerSafe returns a dummy for a missing controller, so check the real exports
-    if type(c) == "table" and type(c.toggleESCMode) == "function" then return c end
+    -- rawget: a stand-in object that answers every key (like getControllerSafe's dummy) doesn't count
+    if type(c) == "table" and type(rawget(c, "toggleESCMode")) == "function" then return c end
   end
   return nil
 end
@@ -539,8 +535,12 @@ end
 
 local function starter(down)
   local mc = controller and controller.mainController
-  if mc and type(mc.setStarter) == "function" and try(mc.setStarter, down) then return end
+  if mc and type(mc.setStarter) == "function" and try(mc.setStarter, down) then
+    if down then log('I', 'gameController', 'starter: mainController.setStarter') end
+    return
+  end
   -- fallback: ignition key to the start position while held
+  if down then log('I', 'gameController', 'starter: ignition level fallback') end
   local level = tonumber(electrics.values.ignitionLevel) or 0
   if down then
     if level < 3 then electrics.setIgnitionLevel(3) end

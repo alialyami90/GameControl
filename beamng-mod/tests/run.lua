@@ -59,6 +59,7 @@ local function record(name) return function(...) table.insert(calls, { name, ...
 
 local escConfigs = { { name = "Regular", escEnabled = true }, { name = "Off", escEnabled = false }, { name = "Sport", escEnabled = true } }
 local escKey = 1
+local carHasEsc = true
 local escCtrl = {
   typeName = "esc", name = "esc",
   getCurrentConfigData = function() return escConfigs[escKey] end,
@@ -94,7 +95,10 @@ ve.powertrain = { getDevices = function()
     mainEngine = { type = "combustionEngine" } }
 end }
 ve.controller = {
-  getAllControllers = function() return { esc = escCtrl, other = { typeName = "shiftLogic" } } end,
+  getAllControllers = function() return carHasEsc and { esc = escCtrl, other = { typeName = "shiftLogic" } } or { other = { typeName = "shiftLogic" } } end,
+  getController = function(name) if name == "esc" and carHasEsc then return escCtrl end return nil end,
+  -- like BeamNG's safe getter: a stand-in that answers every key with a no-op function
+  getControllerSafe = function(name) return setmetatable({}, { __index = function() return function() end end }) end,
   mainController = {
     shiftToGearIndex = function(i) table.insert(calls, { "shiftToGearIndex", i }) end,
     shiftUpOnDown = record("shiftUpOnDown"),
@@ -114,6 +118,8 @@ ve.extensions = {
   end,
 }
 ve._G = ve
+-- in the game, code loaded in vehicle Lua runs in that VM's globals; here that is the ve table
+ve.loadstring = function(code) local fn, err = loadstring(code); if fn then setfenv(fn, ve) end; return fn, err end
 -- vehicle data the mod searches for fog lights and light bars
 ve.v = { data = { props = { { func = "lowbeam" }, { func = "fog" } }, glowMap = { lightbar_mat = { simpleFunction = { lightbar = 1 } } } } }
 local deviceModeCalls = {}
@@ -146,15 +152,21 @@ ge = newEnv()
 local files = {}
 local paused, simSpeed = false, 1
 local playerId = 7
+local veh2Queue = {}
+local veh2 = {
+  getID = function() return 8 end,
+  getJBeamFilename = function() return "van" end,
+  queueLuaCommand = function(_, code) table.insert(veh2Queue, code) end,
+}
 local veh = {
   getID = function() return 7 end,
   getJBeamFilename = function() return "pickup" end,
   queueLuaCommand = function(_, code) table.insert(veQueue, code) end,
 }
 ge.be = {
-  getPlayerVehicle = function(_, i) return playerId >= 0 and veh or nil end,
+  getPlayerVehicle = function(_, i) if playerId == 8 then return veh2 end return playerId >= 0 and veh or nil end,
   getPlayerVehicleID = function(_, i) return playerId end,
-  getObjectByID = function(_, id) return id == 7 and veh or nil end,
+  getObjectByID = function(_, id) if id == 8 then return veh2 end return id == 7 and veh or nil end,
   queueAllObjectLua = function(_, code) table.insert(veQueue, code) end,
 }
 ge.simTimeAuthority = {
@@ -217,11 +229,12 @@ local client
 local clientPartial = ""
 local inbox = {}
 
+local vehicleDt = 0.05 -- dt the vehicle VM sees (0 while the game is paused)
 local function pump(frames)
   for _ = 1, frames or 1 do
     link.onUpdate(0.05)
     runQueued(veQueue, ve)
-    if ve.gameControllerVehicle then ve.gameControllerVehicle.updateGFX(0.05) end
+    if ve.gameControllerVehicle then ve.gameControllerVehicle.updateGFX(vehicleDt) end
     runQueued(geQueue, ge)
     if not client then
       client = server:accept()
@@ -493,6 +506,58 @@ playerId = 7
 link.onVehicleSwitched(-1, 7)
 pump(10)
 check(merged()["gear"] ~= nil, "vehicle back: vehicle keys reported again")
+
+-- ESC: a car without ESC leaves has.esc out, even though the safe getter answers every key
+carHasEsc = false
+ve.gameControllerVehicle.onReset()
+pump(8)
+check(merged()["has.esc"] == nil and merged()["esc.active"] == nil, "no ESC controller: has.esc left out")
+carHasEsc = true
+ve.gameControllerVehicle.onReset()
+pump(8)
+check(merged()["has.esc"] == true, "ESC controller found again")
+
+-- a vehicle Lua action that fails falls back to the native route
+actionFiles["/lua/ge/extensions/core/input/actions/vehicle.json"].shiftUp.onDown = "error('renamed in this version')"
+link.onVehicleSpawned(7) -- clears the action cache
+pump(8)
+calls = {}
+command("gear.up", 1)
+local nativeShift = false
+for _, c in ipairs(calls) do if c[1] == "shiftUpOnDown" then nativeShift = true end end
+check(nativeShift, "failed vehicle action falls back to mainController.shiftUpOnDown")
+
+-- a second bindings.apply while one is being checked is rejected, not lost
+inbox = {}
+sendToMod({ type = "bindings.apply", device = "vjoy1", bindings = { { beamngAction = "horn", button = 3 } } })
+sendToMod({ type = "bindings.apply", device = "vjoy1", bindings = { { beamngAction = "horn", button = 4 } } })
+pump(34)
+local results, busy = 0, false
+for _, m in ipairs(inbox) do if m.type == "bindings.result" then results = results + 1; busy = busy or m.busy == true end end
+check(results == 2 and busy, "overlapping bindings.apply: both answered, second one busy")
+
+-- vehicle Lua paused (dt 0): heartbeats keep coming, so the extension isn't reloaded
+inbox = {}
+vehicleDt = 0
+pump(140)
+vehicleDt = 0.05
+local reloads = 0
+for _, m in ipairs(inbox) do if m.type == "state" and m.full then reloads = reloads + 1 end end
+check(reloads == 0, "no vehicle reload while vehicle Lua runs with dt 0")
+
+-- holds are released in the old car on a vehicle switch
+command("horn", 1)
+check(e.horn == 1, "horn held before switch")
+playerId = 8
+link.onVehicleSwitched(7, 8)
+pump(4)
+check(e.horn == 0, "horn released in the old car on switch")
+local releasedInNew = false
+for _, code in ipairs(veh2Queue) do if code:find('"horn"') then releasedInNew = true end end
+check(not releasedInNew, "release not sent to the new car")
+playerId = 7
+link.onVehicleSwitched(8, 7)
+pump(10)
 
 -- holds are released when the companion goes away
 command("horn", 1)

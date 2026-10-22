@@ -1,5 +1,16 @@
 package com.gamecontroller.ui.screens
 
+import com.gamecontroller.ui.components.raceFieldColors
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.rounded.BluetoothDisabled
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -104,7 +115,18 @@ fun ConnectScreen(
             val wide = maxWidth >= 720.dp
             val bt: @Composable (Modifier) -> Unit = { m -> BluetoothPanel(hid, onHidEnable, onHidConnect, onHidDisconnect, m) }
             val pc: @Composable (Modifier) -> Unit = { m -> CompanionPanel(connection, servers, onConnect, onSubmitPin, onDisconnect, onRescan, m) }
-            if (wide) {
+            if (hid.status == HidStatus.UNSUPPORTED) {
+                // Bluetooth can't help on this phone: the PC panel leads and Bluetooth shrinks to one line.
+                Column(
+                    Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                        .padding(start = if (wide) 24.dp else 16.dp, end = if (wide) 24.dp else 16.dp, bottom = 24.dp)
+                        .widthIn(max = 720.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    pc(Modifier.fillMaxWidth())
+                    BluetoothUnsupportedLine()
+                }
+            } else if (wide) {
                 Row(
                     Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, bottom = 24.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -122,6 +144,27 @@ fun ConnectScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BluetoothUnsupportedLine() {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(SlantShape(lean = 10.dp))
+            .background(Race.Panel)
+            .padding(horizontal = 18.dp, vertical = 14.dp)
+            .semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.BluetoothDisabled, contentDescription = null, tint = Race.InkMuted, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(
+            "This phone's Bluetooth can't act as a controller, so input goes through the PC companion.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Race.InkMuted,
+        )
     }
 }
 
@@ -170,8 +213,14 @@ private fun BluetoothPanel(
                 )
             }
             HidStatus.CONNECTED -> {
+                Gap(14)
+                Text(hid.hostName ?: "Windows PC", style = MaterialTheme.typography.titleLarge, color = Race.Ink)
+                Text("Sees this phone as GameCtl Pad", style = MaterialTheme.typography.bodySmall, color = Race.InkMuted)
+                SectionHeader("What Windows gets")
+                Step(1, "A gamepad: buttons, sticks and triggers, in any game that takes a controller.")
+                Step(2, "A keyboard: key presses and held keys, for games without controller support.")
                 Gap(16)
-                SlantButton("Disconnect", onDisconnect, style = SlantStyle.OUTLINE)
+                SlantButton("Disconnect", onDisconnect, style = SlantStyle.QUIET)
             }
             else -> {
                 SectionHeader("Pair with Windows")
@@ -210,7 +259,8 @@ private fun HostRow(name: String, detail: String, action: String, onClick: () ->
             .fillMaxWidth()
             .heightIn(min = 56.dp)
             .clip(CapShape(cut = 10.dp, radius = 4.dp))
-            .background(Race.Cap)
+            .background(Race.PanelRaised)
+            .border(1.dp, Race.Line, CapShape(cut = 10.dp, radius = 4.dp))
             .clickable(onClick = onClick)
             .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp)
             .semantics(mergeDescendants = true) { role = Role.Button; contentDescription = "$action $name" },
@@ -218,7 +268,7 @@ private fun HostRow(name: String, detail: String, action: String, onClick: () ->
     ) {
         Column(Modifier.weight(1f)) {
             Text(name, style = MaterialTheme.typography.titleMedium, color = Race.Ink)
-            Text(detail, style = MaterialTheme.typography.bodySmall, color = Race.InkFaint)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = Race.InkMuted)
         }
         Text(action.uppercase(), style = RaceType.capLabel.copy(fontStyle = FontStyle.Italic), color = Race.Electric, modifier = Modifier.padding(horizontal = 12.dp))
     }
@@ -239,7 +289,8 @@ private fun CompanionPanel(
     val s = connection.summary()
     Panel(modifier) {
         PanelTitle(Icons.Rounded.Computer, "PC companion", "Runs on the PC over Wi-Fi. Needed for vJoy, the virtual Xbox pad, and BeamNG vehicle state.", s.tone, s.long)
-        connection.message?.let { Hint(it, color = Race.Red) }
+        // While pairing, a wrong-PIN message belongs on the PIN field itself.
+        if (connection.status != ConnectionStatus.PAIRING) connection.message?.let { Hint(it, color = Race.Red) }
         when (connection.status) {
             ConnectionStatus.CONNECTED -> {
                 Gap(14)
@@ -257,17 +308,21 @@ private fun CompanionPanel(
                 SectionHeader("What this PC can do")
                 Capabilities(connection.capabilities)
                 Gap(16)
-                SlantButton("Disconnect", onDisconnect)
+                SlantButton("Disconnect", onDisconnect, style = SlantStyle.QUIET)
             }
             ConnectionStatus.PAIRING -> {
                 var pin by remember { mutableStateOf("") }
                 SectionHeader("Enter the PIN")
-                Hint("The PC companion is showing a PIN. Type it here to pair this phone.")
+                Hint("The PC companion is showing a 6-digit PIN. Type it here to pair this phone.")
                 Gap(8)
-                Field(pin, { v -> pin = v.filter { it.isDigit() }.take(6) }, "PIN", number = true, mono = true)
+                PinField(pin, { v ->
+                    pin = v.filter { it.isDigit() }.take(PinLength)
+                    // The sixth digit submits; a wrong PIN comes back as the field's error.
+                    if (pin.length == PinLength) onSubmitPin(pin)
+                }, error = connection.message)
                 Gap(8)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SlantButton("Pair", { onSubmitPin(pin) }, style = SlantStyle.PRIMARY, enabled = pin.length >= 4)
+                    SlantButton("Pair", { onSubmitPin(pin) }, style = SlantStyle.PRIMARY, enabled = pin.length == PinLength)
                     SlantButton("Cancel", onDisconnect, style = SlantStyle.QUIET)
                 }
             }
@@ -292,6 +347,39 @@ private fun CompanionPanel(
                 SlantButton("Connect", { onConnect(manual) }, style = SlantStyle.OUTLINE, enabled = manual.isNotBlank() && connection.status != ConnectionStatus.CONNECTING)
             }
         }
+    }
+}
+
+private const val PinLength = 6
+
+/** PIN entry in the HUD readout type, grouped "482 913" like the PC shows it. */
+@Composable
+private fun PinField(pin: String, onChange: (String) -> Unit, error: String?) {
+    OutlinedTextField(
+        value = pin,
+        onValueChange = onChange,
+        label = { Text("PIN") },
+        singleLine = true,
+        isError = error != null,
+        supportingText = { Text(error ?: "${pin.length} of $PinLength digits") },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+        visualTransformation = PinGrouping,
+        textStyle = RaceType.readoutLarge.copy(letterSpacing = 0.12.em),
+        colors = raceFieldColors(),
+        modifier = Modifier.widthIn(max = 280.dp).fillMaxWidth(),
+    )
+}
+
+/** Inserts a space after the third digit. */
+private object PinGrouping : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val raw = text.text
+        val out = if (raw.length > 3) raw.substring(0, 3) + " " + raw.substring(3) else raw
+        val map = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int) = if (offset > 3) offset + 1 else offset
+            override fun transformedToOriginal(offset: Int) = if (offset > 3) (offset - 1).coerceAtMost(raw.length) else offset.coerceAtMost(raw.length)
+        }
+        return TransformedText(AnnotatedString(out), map)
     }
 }
 

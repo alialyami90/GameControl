@@ -43,7 +43,7 @@ class CompanionClient(
         fun onWelcome()
         fun onState(values: Map<String, Any>, full: Boolean)
         fun onBeamNGCommands(list: List<String>) {}
-        fun onBindingsResult(ok: Boolean, message: String) {}
+        fun onBindingsResult(result: Incoming.BindingsResult) {}
         fun onDisconnected() {}
     }
 
@@ -179,7 +179,7 @@ class CompanionClient(
             is Incoming.CapabilitiesChanged -> _state.update { it.copy(capabilities = msg.capabilities) }
             is Incoming.State -> listener?.onState(msg.values, msg.full)
             is Incoming.BeamNGCommands -> listener?.onBeamNGCommands(msg.list)
-            is Incoming.BindingsResult -> listener?.onBindingsResult(msg.ok, msg.message)
+            is Incoming.BindingsResult -> listener?.onBindingsResult(msg)
             is Incoming.VersionMismatch -> {
                 ws?.send("""{"v":1,"type":"error","code":"version_mismatch","message":"phone supports v${Protocol.VERSION}"}""")
                 userDisconnected = true // do not reconnect into the same mismatch

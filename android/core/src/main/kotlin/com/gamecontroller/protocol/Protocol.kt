@@ -167,7 +167,14 @@ object Protocol {
                 (o["list"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
             )
             "bindings.result" -> Incoming.BindingsResult(
-                o["ok"]?.jsonPrimitive?.booleanOrNull ?: false, str("message") ?: ""
+                ok = o["ok"]?.jsonPrimitive?.booleanOrNull ?: false,
+                message = str("message") ?: "",
+                written = o["written"]?.jsonPrimitive?.booleanOrNull ?: false,
+                count = o["count"]?.jsonPrimitive?.intOrNull ?: 0,
+                unknown = (o["unknown"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList(),
+                device = str("device") ?: "",
+                busy = o["busy"]?.jsonPrimitive?.booleanOrNull ?: false,
+                alreadyBound = o["alreadyBound"]?.jsonPrimitive?.booleanOrNull ?: false,
             )
             "discover.reply" -> Incoming.DiscoverReply(
                 str("name") ?: "PC",
@@ -215,7 +222,16 @@ sealed interface Incoming {
     data class State(val source: String, val values: Map<String, Any>, val full: Boolean) : Incoming
     data class ProfileAck(val profileId: String, val count: Int) : Incoming
     data class BeamNGCommands(val list: List<String>) : Incoming
-    data class BindingsResult(val ok: Boolean, val message: String) : Incoming
+    data class BindingsResult(
+        val ok: Boolean,
+        val message: String,
+        val written: Boolean = false,
+        val count: Int = 0,
+        val unknown: List<String> = emptyList(),
+        val device: String = "",
+        val busy: Boolean = false,
+        val alreadyBound: Boolean = false,
+    ) : Incoming
     data class DiscoverReply(val name: String, val wsPort: Int, val udpPort: Int) : Incoming
     data class VersionMismatch(val remoteVersion: Int) : Incoming
     data class Malformed(val text: String) : Incoming

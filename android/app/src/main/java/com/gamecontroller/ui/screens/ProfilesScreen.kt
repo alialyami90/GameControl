@@ -94,6 +94,7 @@ fun ProfilesScreen(
 ) {
     var creating by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf<Profile?>(null) }
+    var confirmRestore by remember { mutableStateOf<Profile?>(null) }
 
     Box(
         Modifier
@@ -145,7 +146,7 @@ fun ProfilesScreen(
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 300.dp),
-                    contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 96.dp),
+                    contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 120.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize(),
@@ -156,7 +157,7 @@ fun ProfilesScreen(
                             onOpen = { onOpen(p.id) },
                             onDuplicate = { onDuplicate(p.id) },
                             onExport = { onExport(p.id) },
-                            onDelete = { if (p.builtIn) onDelete(p.id) else confirmDelete = p },
+                            onDelete = { if (p.builtIn) confirmRestore = p else confirmDelete = p },
                         )
                     }
                 }
@@ -173,6 +174,20 @@ fun ProfilesScreen(
 
     if (creating) {
         NewProfileDialog(onDismiss = { creating = false }, onCreate = { n, g -> creating = false; onCreate(n, g) })
+    }
+    confirmRestore?.let { p ->
+        AlertDialog(
+            onDismissRequest = { confirmRestore = null },
+            title = { Text("Restore ${p.name}?") },
+            text = { Text("Restore the original ${p.name} layout? Your changes on this phone will be lost. Duplicate it first to keep them.") },
+            confirmButton = {
+                TextButton(onClick = { confirmRestore = null; onDelete(p.id) }) { Text("Restore", color = Race.Red) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRestore = null; onDuplicate(p.id) }) { Text("Duplicate instead") }
+            },
+            containerColor = Race.PanelRaised,
+        )
     }
     confirmDelete?.let { p ->
         AlertDialog(

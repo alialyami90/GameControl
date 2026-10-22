@@ -1,5 +1,6 @@
 package com.gamecontroller.ui.components
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -45,7 +46,7 @@ enum class LinkTone { OK, BUSY, PROBLEM, OFF }
 
 fun LinkTone.color(): Color = when (this) {
     LinkTone.OK -> Race.Green
-    LinkTone.BUSY -> Race.Yellow
+    LinkTone.BUSY -> Race.Amber
     LinkTone.PROBLEM -> Race.Red
     LinkTone.OFF -> Race.InkFaint
 }
@@ -81,7 +82,7 @@ fun LinkBadge(
 ) {
     Row(
         modifier
-            .height(32.dp)
+            .heightIn(min = 32.dp)
             .clip(SlantShape())
             .background(Race.Panel)
             .border(1.dp, Race.Line, SlantShape())
@@ -141,7 +142,7 @@ fun GameReadouts(game: Map<String, Any>, modifier: Modifier = Modifier, imperial
     val speed = (game["speed"] as? Number)?.toDouble()?.let { (it * if (imperial) 2.23694 else 3.6).roundToInt() }
     val rpm = (game["rpm"] as? Number)?.toInt()?.takeIf { showRpm }
     if (gear == null && speed == null && rpm == null) return
-    Row(modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         if (speed != null) Readout(speed.toString(), if (imperial) "MPH" else "KM/H", Modifier.widthIn(min = 44.dp))
         if (rpm != null) Readout("%,d".format(rpm), "RPM", Modifier.widthIn(min = 56.dp))
         if (gear != null) {
@@ -161,7 +162,7 @@ fun GameReadouts(game: Map<String, Any>, modifier: Modifier = Modifier, imperial
 
 @Composable
 private fun Readout(value: String, unit: String, modifier: Modifier = Modifier) {
-    Column(modifier, horizontalAlignment = Alignment.End) {
+    Column(modifier.semantics(mergeDescendants = true) {}, horizontalAlignment = Alignment.End) {
         Text(value, style = RaceType.readout, color = Race.Ink, maxLines = 1)
         Text(unit, style = RaceType.unit, color = Race.InkFaint)
     }
