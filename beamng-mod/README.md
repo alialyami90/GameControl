@@ -39,11 +39,13 @@ The protocol is in [`protocol/PROTOCOL.md`](../protocol/PROTOCOL.md), section "B
 
 ### Notes on specific features
 
-- **ESC and traction control** are one system in BeamNG with several modes per car (for example Regular, Sport, Off). `esc.active` and `tcs.active` are true when the current mode has ESC on, and `esc.mode` gives the mode's name. `esc.toggle` and `tcs.toggle` step to the next mode; the `esc` and `tcs` setters step until the mode matches.
-- **Diff locks** are found by device name (front, centre or transfer case, rear). A toggle switches between "locked" and the diff's original mode.
-- **4WD and range** are found by their powertrain device modes ("connected" or "disconnected", "high" or "low").
+- **ESC and traction control** are one system in BeamNG with several modes per car (for example Regular, Sport, Off). `esc.active` and `tcs.active` are true when the current mode has ESC on, and `esc.mode` gives the mode's name. `esc.toggle` and `tcs.toggle` run the game's own `toggleESCMode` action (so newer drive-mode systems work too). The `esc` and `tcs` setters step through the modes until ESC is on or off. When the car has no readable ESC controller, `has.esc` is left out instead of being sent as false.
+- **Diff locks** are found by device name (front, centre or transfer case, rear). A toggle switches between "locked" and the mode the diff had before. Modes change through `powertrain.setDeviceMode` when the game has it, so the game's own UI follows.
+- **4WD** counts as on in any mode other than "disconnected"; switching it back on restores the mode it had. **Range** is "low" or "high".
+- **Availability (`has.*`)** is only sent when the mod could tell. `has.fog` and `has.light_bar` come from the vehicle's light setup, `has.cruise` from the cruise control extension, and diff, 4WD and range availability only when the powertrain scan found the car's differentials. Anything the mod can't tell is left out, so the phone shows that control.
+- **Starter** uses the vehicle controller's `setStarter` and falls back to holding the ignition key in the start position.
 - **Winch**: stock BeamNG has no winch, so `winch.active` is never reported.
-- **Bindings**: BeamNG keys controller maps by "vidpid" (product ID then vendor ID, in hex). vJoy is `bead1234`; the companion sends the vidpid of the phone's Bluetooth controller. Button N in the app is BeamNG's `button{N-1}`. Every vJoy device shares one vidpid, so the bindings apply to all of them.
+- **Bindings**: BeamNG keys controller maps by "vidpid" (product ID then vendor ID, in hex). vJoy is `bead1234`; the companion sends the vidpid of the phone's Bluetooth controller. Button N in the app is BeamNG's `button{N-1}`. Every vJoy device shares one vidpid, so the bindings apply to all of them. The mod never touches your own `.diff` files. About a second after writing, it checks that BeamNG has loaded the bindings, and only then answers `ok:true`. If it can't confirm (for example the controller isn't plugged in yet), it answers `ok:false` with `written:true` and a message pointing to Options > Controls.
 
 ## Tests
 
@@ -54,10 +56,21 @@ The offline tests simulate the game engine VM, one vehicle VM and the companion 
 luajit tests/run.lua
 ```
 
-## Verify in game
+The test mocks follow the mod's own understanding of the BeamNG APIs, so they can't prove those APIs match the game. That is what the in-game smoke test below is for.
 
-These were checked against the BeamNG documentation and against working mods (BeamMP, a phone controller mod), but not yet inside a running game:
+## In-game smoke test
 
-- that `extensions.cruiseControl` exposes `holdCurrentSpeed`, `setEnabled` and `changeSpeed`;
-- the device-name heuristics for diffs, 4WD and range on modded cars;
-- that a `<vidpid>_gamecontroller.json` file in the user folder's `settings/inputmaps` is merged like the game's own default maps (BeamMP uses the same approach for keyboard maps).
+Run this once in BeamNG.drive with the companion and the phone connected. Use a stock car with 4WD and low range, ESC and cruise control, such as the Gavril D-Series or the Ibishu Hopper. Open the console with the ` key and filter for `gameController` to see the mod's log lines.
+
+1. **Connection.** Start BeamNG, then the companion. Within about 3 seconds you see "Connected to the Game Controller companion" and the phone shows BeamNG as connected. Close the companion: the toast says it disconnected. Open it again: it reconnects within about 3 seconds.
+2. **Actions (B1).** On the phone, use gear up and gear down (any car in manual mode), recover (hold), reset, slow motion and its faster and slower steps, and look back. Each one does the same as its key. In the console, no "action failed" or "action not available" lines appear for these.
+3. **4WD, diffs, range (B2).** In the D-Series: toggle 4WD, low range and each diff lock. The car's state changes (check the Drivetrain UI app or the dash), and the phone's indicators follow. Switch 4WD off and on again: it comes back in the same mode it had.
+4. **Bindings (B3).** In the app, apply BeamNG bindings for vJoy. The phone reports success and Options > Controls shows the vJoy buttons bound to those actions. Press a bound vJoy button: the action runs. In the user folder, `settings/inputmaps/bead1234_gamecontroller.json` exists and your own `.diff` files are unchanged.
+5. **ESC (B4).** Toggle ESC from the phone: the game shows the new ESC mode name, and the phone's ESC indicator turns off for the mode with ESC off. In a car without ESC (for example the Bruckell Bastion), the ESC control is not hidden by mistake. On a car with drive modes (for example the Hirochi Sunburst), toggling ESC still changes the mode.
+6. **Cruise control (B5).** Drive at about 50 km/h, press cruise set: the car holds speed and the phone shows cruise on with that speed. Cruise up and down change the target by 5 km/h. Cruise off releases it.
+7. **Starter (B6).** Turn the ignition off from the phone, then hold the starter: the engine cranks and starts, and stops cranking when you release. Ignition on and off follow on the phone.
+8. **Rest of the profile.** Lights low and high, fog lights, light bar (police car), signals, hazards, horn, parking brake, gearbox P/R/N/D/S/M, camera next and previous, pause. Each works and its indicator follows.
+9. **Vehicle changes.** Switch to another car (Ctrl+E), spawn a new one, and reload one with Ctrl+R. After each, the phone's indicators match the new car within a second, and controls the car doesn't have are dimmed.
+10. **Release on disconnect.** Hold the horn from the phone and close the companion: the horn stops.
+
+Report anything that fails with the console lines around it.
