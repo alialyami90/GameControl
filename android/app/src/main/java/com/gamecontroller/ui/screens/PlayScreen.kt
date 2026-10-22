@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -48,8 +49,12 @@ import com.gamecontroller.ui.components.BluetoothLinkBadge
 import com.gamecontroller.ui.components.ControlView
 import com.gamecontroller.ui.components.GameReadouts
 import com.gamecontroller.ui.components.PcLinkBadge
-import com.gamecontroller.ui.theme.Rig
-import com.gamecontroller.ui.theme.RigType
+import com.gamecontroller.ui.components.SlantButton
+import com.gamecontroller.ui.components.SlantTabs
+import com.gamecontroller.ui.theme.Race
+import com.gamecontroller.ui.theme.OnAccent
+import com.gamecontroller.ui.theme.RaceType
+import com.gamecontroller.ui.theme.SlantShape
 
 /** Gap between grid cells on the play surface and in the editor. */
 val GridGap = 10.dp
@@ -87,7 +92,7 @@ fun PlayScreen(
     Column(
         Modifier
             .fillMaxSize()
-            .background(Rig.Chassis)
+            .background(Race.Ground)
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
         PlayHud(state, pageIndex, onPageChange, onEdit, onBack)
@@ -134,20 +139,20 @@ private fun PlayHud(state: PlayState, pageIndex: Int, onPageChange: (Int) -> Uni
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack) {
-            Icon(Icons.Rounded.ArrowBack, contentDescription = "Back to profiles", tint = Rig.BoneMuted)
+            Icon(Icons.Rounded.ArrowBack, contentDescription = "Back to profiles", tint = Race.InkMuted)
         }
-        Column(Modifier.weight(1f, fill = false).padding(end = 16.dp)) {
+        Column(Modifier.widthIn(min = 96.dp, max = 220.dp).padding(end = 16.dp)) {
             Text(
                 state.profile.name,
-                style = RigType.capLabelLarge,
-                color = Rig.Bone,
+                style = RaceType.capLabelLarge,
+                color = Race.Ink,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 (if (state.profile.game == GameId.CUSTOM) "Any game" else state.profile.game.displayName).uppercase(),
-                style = RigType.unit,
-                color = Rig.BoneFaint,
+                style = RaceType.unit,
+                color = Race.InkFaint,
                 maxLines = 1,
             )
         }
@@ -161,53 +166,14 @@ private fun PlayHud(state: PlayState, pageIndex: Int, onPageChange: (Int) -> Uni
             PcLinkBadge(state.connection)
         }
         Spacer(Modifier.width(10.dp))
-        OutlinedButton(onClick = onEdit, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)) {
-            Icon(Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("EDIT", style = RigType.capLabel)
-        }
+        SlantButton(text = "Edit", icon = Icons.Rounded.Tune, onClick = onEdit)
     }
 }
 
-/** Page switcher: a strip of keys, the current page wearing the hi-vis underline. */
+/** Page switcher: slanted plates, the current page filled electric. */
 @Composable
-fun PageTabs(names: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier
-            .height(36.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(Rig.Case)
-            .border(1.dp, Rig.Stitch, RoundedCornerShape(8.dp))
-            .padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        names.forEachIndexed { i, name ->
-            val on = i == selected
-            Box(
-                Modifier
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (on) Rig.CapHigh else Rig.Case)
-                    .semantics { role = Role.Tab; this.selected = on }
-                    .clickable { onSelect(i) }
-                    .padding(horizontal = 14.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(name.uppercase(), style = RigType.capLabel, color = if (on) Rig.Bone else Rig.BoneMuted, maxLines = 1)
-                if (on) {
-                    Box(
-                        Modifier
-                            .align(Alignment.BottomCenter)
-                            .width(18.dp)
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(Rig.HiVis),
-                    )
-                }
-            }
-        }
-    }
-}
+fun PageTabs(names: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) =
+    SlantTabs(names, selected, onSelect, modifier)
 
 @Composable
 private fun EmptyPage(onEdit: () -> Unit) {
@@ -216,12 +182,12 @@ private fun EmptyPage(onEdit: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("This page is empty", style = androidx.compose.material3.MaterialTheme.typography.headlineSmall, color = Rig.Bone)
+        Text("This page is empty", style = androidx.compose.material3.MaterialTheme.typography.headlineSmall, color = Race.Ink)
         Spacer(Modifier.height(6.dp))
         Text(
             "Add buttons, switches and sliders in the editor.",
             style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-            color = Rig.BoneMuted,
+            color = Race.InkMuted,
         )
         Spacer(Modifier.height(20.dp))
         FilledTonalButton(onClick = onEdit) {

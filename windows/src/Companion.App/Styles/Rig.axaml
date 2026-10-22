@@ -1,0 +1,339 @@
+<!-- Recovery Rig tokens and control styles, shared with the phone app's theme (android ui/theme). -->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <Styles.Resources>
+    <ResourceDictionary>
+      <!-- Grounds: graphite hard case, faint olive tint. -->
+      <Color x:Key="ChassisColor">#101312</Color>
+      <Color x:Key="CaseColor">#171B19</Color>
+      <Color x:Key="CaseRaisedColor">#1F2421</Color>
+      <Color x:Key="CapColor">#272D2A</Color>
+      <Color x:Key="CapHighColor">#323935</Color>
+      <Color x:Key="CapPressedColor">#1B1F1D</Color>
+      <Color x:Key="StitchColor">#39423E</Color>
+      <Color x:Key="StitchStrongColor">#55605A</Color>
+      <!-- Ink. -->
+      <Color x:Key="BoneColor">#ECE9DF</Color>
+      <Color x:Key="BoneMutedColor">#A9B0A9</Color>
+      <Color x:Key="BoneFaintColor">#7E8780</Color>
+      <!-- Signals: only when something is on, needs the user, is confirmed, or failed. -->
+      <Color x:Key="HiVisColor">#FF6A13</Color>
+      <Color x:Key="OnHiVisColor">#1C0B00</Color>
+      <Color x:Key="YellowColor">#F2C200</Color>
+      <Color x:Key="OnYellowColor">#1E1800</Color>
+      <Color x:Key="GreenColor">#4CD27A</Color>
+      <Color x:Key="RedColor">#FF4D3F</Color>
+      <Color x:Key="HiVisDimColor">#4A2410</Color>
+      <Color x:Key="YellowDimColor">#3A3420</Color>
+      <Color x:Key="GreenDimColor">#173A24</Color>
+      <Color x:Key="RedDimColor">#4A1410</Color>
+
+      <SolidColorBrush x:Key="Chassis" Color="{StaticResource ChassisColor}" />
+      <SolidColorBrush x:Key="Case" Color="{StaticResource CaseColor}" />
+      <SolidColorBrush x:Key="CaseRaised" Color="{StaticResource CaseRaisedColor}" />
+      <SolidColorBrush x:Key="Cap" Color="{StaticResource CapColor}" />
+      <SolidColorBrush x:Key="CapHigh" Color="{StaticResource CapHighColor}" />
+      <SolidColorBrush x:Key="CapPressed" Color="{StaticResource CapPressedColor}" />
+      <SolidColorBrush x:Key="Stitch" Color="{StaticResource StitchColor}" />
+      <SolidColorBrush x:Key="StitchStrong" Color="{StaticResource StitchStrongColor}" />
+      <SolidColorBrush x:Key="Bone" Color="{StaticResource BoneColor}" />
+      <SolidColorBrush x:Key="BoneMuted" Color="{StaticResource BoneMutedColor}" />
+      <SolidColorBrush x:Key="BoneFaint" Color="{StaticResource BoneFaintColor}" />
+      <SolidColorBrush x:Key="HiVis" Color="{StaticResource HiVisColor}" />
+      <SolidColorBrush x:Key="OnHiVis" Color="{StaticResource OnHiVisColor}" />
+      <SolidColorBrush x:Key="Yellow" Color="{StaticResource YellowColor}" />
+      <SolidColorBrush x:Key="OnYellow" Color="{StaticResource OnYellowColor}" />
+      <SolidColorBrush x:Key="Green" Color="{StaticResource GreenColor}" />
+      <SolidColorBrush x:Key="Red" Color="{StaticResource RedColor}" />
+      <SolidColorBrush x:Key="HiVisDim" Color="{StaticResource HiVisDimColor}" />
+      <SolidColorBrush x:Key="YellowDim" Color="{StaticResource YellowDimColor}" />
+      <SolidColorBrush x:Key="GreenDim" Color="{StaticResource GreenDimColor}" />
+      <SolidColorBrush x:Key="RedDim" Color="{StaticResource RedDimColor}" />
+
+      <!-- Barlow Condensed carries headings, labels and numerals; Barlow carries body copy. -->
+      <FontFamily x:Key="CondBold">avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed</FontFamily>
+      <FontFamily x:Key="CondSemi">avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed SemiBold</FontFamily>
+      <FontFamily x:Key="CondMedium">avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed Medium</FontFamily>
+      <FontFamily x:Key="Body">avares://GameControllerCompanion/Assets/Fonts#Barlow</FontFamily>
+      <FontFamily x:Key="BodyMedium">avares://GameControllerCompanion/Assets/Fonts#Barlow Medium</FontFamily>
+      <FontFamily x:Key="BodySemi">avares://GameControllerCompanion/Assets/Fonts#Barlow SemiBold</FontFamily>
+
+      <!-- Raised rubber cap: soft offset shadow, never a hard block. -->
+      <BoxShadows x:Key="CapShadow">0 3 10 0 #66000000</BoxShadows>
+      <BoxShadows x:Key="CapShadowLow">0 1 3 0 #55000000</BoxShadows>
+      <CornerRadius x:Key="CapRadius">10</CornerRadius>
+
+      <!-- Fluent overrides so stock parts of controls carry the palette. -->
+      <SolidColorBrush x:Key="TextControlSelectionHighlightColor" Color="#80FF6A13" />
+      <SolidColorBrush x:Key="SystemControlFocusVisualPrimaryBrush" Color="{StaticResource HiVisColor}" />
+      <SolidColorBrush x:Key="SystemControlFocusVisualSecondaryBrush" Color="{StaticResource ChassisColor}" />
+    </ResourceDictionary>
+  </Styles.Resources>
+
+  <!-- Type scale -->
+  <Style Selector="TextBlock">
+    <Setter Property="FontFamily" Value="{StaticResource Body}" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="Foreground" Value="{StaticResource Bone}" />
+  </Style>
+  <Style Selector="TextBlock.h1">
+    <Setter Property="FontFamily" Value="{StaticResource CondBold}" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="FontSize" Value="34" />
+    <Setter Property="LetterSpacing" Value="0.3" />
+  </Style>
+  <Style Selector="TextBlock.h2">
+    <Setter Property="FontFamily" Value="{StaticResource CondBold}" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="FontSize" Value="22" />
+  </Style>
+  <Style Selector="TextBlock.h3">
+    <Setter Property="FontFamily" Value="{StaticResource CondSemi}" />
+    <Setter Property="FontSize" Value="17" />
+    <Setter Property="LetterSpacing" Value="0.4" />
+  </Style>
+  <Style Selector="TextBlock.label">
+    <Setter Property="FontFamily" Value="{StaticResource CondSemi}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="LetterSpacing" Value="1.2" />
+    <Setter Property="Foreground" Value="{StaticResource BoneMuted}" />
+  </Style>
+  <Style Selector="TextBlock.muted">
+    <Setter Property="Foreground" Value="{StaticResource BoneMuted}" />
+  </Style>
+  <Style Selector="TextBlock.faint">
+    <Setter Property="Foreground" Value="{StaticResource BoneFaint}" />
+  </Style>
+  <Style Selector="TextBlock.small">
+    <Setter Property="FontSize" Value="12.5" />
+  </Style>
+  <Style Selector="TextBlock.num">
+    <Setter Property="FontFamily" Value="{StaticResource CondMedium}" />
+    <Setter Property="FontFeatures" Value="+tnum" />
+  </Style>
+  <Style Selector="TextBlock.wrap">
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <!-- Panels: a raised cap on the case. -->
+  <Style Selector="Border.panel">
+    <Setter Property="Background" Value="{StaticResource CaseRaised}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Stitch}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{StaticResource CapRadius}" />
+    <Setter Property="BoxShadow" Value="{StaticResource CapShadow}" />
+    <Setter Property="Padding" Value="20" />
+  </Style>
+  <Style Selector="Border.inset">
+    <Setter Property="Background" Value="{StaticResource Case}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Stitch}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+  </Style>
+  <!-- Banners: yellow means the user has something to do; red means something failed. -->
+  <Style Selector="Border.banner">
+    <Setter Property="CornerRadius" Value="{StaticResource CapRadius}" />
+    <Setter Property="Padding" Value="16,12" />
+    <Setter Property="BorderThickness" Value="2" />
+  </Style>
+  <Style Selector="Border.banner.attention">
+    <Setter Property="Background" Value="{StaticResource YellowDim}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Yellow}" />
+  </Style>
+  <Style Selector="Border.banner.critical">
+    <Setter Property="Background" Value="{StaticResource RedDim}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Red}" />
+  </Style>
+
+  <!-- Buttons: rubber caps that travel down when pressed. -->
+  <Style Selector="Button">
+    <Setter Property="FontFamily" Value="{StaticResource CondSemi}" />
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="Foreground" Value="{StaticResource Bone}" />
+    <Setter Property="Background" Value="{StaticResource Cap}" />
+    <Setter Property="BorderBrush" Value="{StaticResource StitchStrong}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="16,8" />
+    <Setter Property="MinHeight" Value="38" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="RenderTransform" Value="translateY(0px)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.07" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="Button /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BoxShadow" Value="{StaticResource CapShadowLow}" />
+  </Style>
+  <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource CapHigh}" />
+    <Setter Property="BorderBrush" Value="{StaticResource StitchStrong}" />
+    <Setter Property="Foreground" Value="{StaticResource Bone}" />
+  </Style>
+  <Style Selector="Button:pressed">
+    <Setter Property="RenderTransform" Value="translateY(1px)" />
+  </Style>
+  <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource CapPressed}" />
+    <Setter Property="BoxShadow" Value="none" />
+  </Style>
+  <Style Selector="Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Case}" />
+    <Setter Property="Foreground" Value="{StaticResource BoneFaint}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Stitch}" />
+  </Style>
+  <Style Selector="Button.primary /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource HiVis}" />
+    <Setter Property="Foreground" Value="{StaticResource OnHiVis}" />
+    <Setter Property="BorderBrush" Value="{StaticResource HiVis}" />
+  </Style>
+  <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#FF7E33" />
+    <Setter Property="Foreground" Value="{StaticResource OnHiVis}" />
+    <Setter Property="BorderBrush" Value="#FF7E33" />
+  </Style>
+  <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#E25A0B" />
+  </Style>
+  <Style Selector="Button.attention /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Yellow}" />
+    <Setter Property="Foreground" Value="{StaticResource OnYellow}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Yellow}" />
+  </Style>
+  <Style Selector="Button.attention:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#FFD21F" />
+    <Setter Property="Foreground" Value="{StaticResource OnYellow}" />
+  </Style>
+  <Style Selector="Button.quiet">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource BoneMuted}" />
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="MinHeight" Value="32" />
+  </Style>
+  <Style Selector="Button.quiet /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BoxShadow" Value="none" />
+  </Style>
+  <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BorderBrush" Value="{StaticResource Red}" />
+    <Setter Property="Foreground" Value="{StaticResource Red}" />
+  </Style>
+
+  <!-- Text input -->
+  <Style Selector="TextBox">
+    <Setter Property="FontFamily" Value="{StaticResource Body}" />
+    <Setter Property="Foreground" Value="{StaticResource Bone}" />
+    <Setter Property="Background" Value="{StaticResource Case}" />
+    <Setter Property="BorderBrush" Value="{StaticResource StitchStrong}" />
+    <Setter Property="CaretBrush" Value="{StaticResource HiVis}" />
+    <Setter Property="SelectionBrush" Value="#80FF6A13" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="MinHeight" Value="38" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="{StaticResource Case}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BoneFaint}" />
+  </Style>
+  <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="{StaticResource Case}" />
+    <Setter Property="BorderBrush" Value="{StaticResource HiVis}" />
+    <Setter Property="BorderThickness" Value="2" />
+  </Style>
+  <Style Selector="TextBox:focus">
+    <Setter Property="Foreground" Value="{StaticResource Bone}" />
+  </Style>
+
+  <!-- Toggle switch: the thumb track lights hi-vis when on. -->
+  <Style Selector="ToggleSwitch">
+    <Setter Property="FontFamily" Value="{StaticResource Body}" />
+    <Setter Property="Foreground" Value="{StaticResource Bone}" />
+    <Setter Property="OnContent" Value="" />
+    <Setter Property="OffContent" Value="" />
+  </Style>
+  <Style Selector="ToggleSwitch:checked /template/ Border#SwitchKnobBounds">
+    <Setter Property="Background" Value="{StaticResource HiVis}" />
+    <Setter Property="BorderBrush" Value="{StaticResource HiVis}" />
+  </Style>
+  <Style Selector="ToggleSwitch:checked:pointerover /template/ Border#SwitchKnobBounds">
+    <Setter Property="Background" Value="#FF7E33" />
+  </Style>
+  <Style Selector="ToggleSwitch:checked /template/ Ellipse#SwitchKnobOn">
+    <Setter Property="Fill" Value="{StaticResource OnHiVis}" />
+  </Style>
+  <Style Selector="ToggleSwitch /template/ Border#OuterBorder">
+    <Setter Property="BorderBrush" Value="{StaticResource StitchStrong}" />
+  </Style>
+  <Style Selector="ToggleSwitch /template/ Ellipse#SwitchKnobOff">
+    <Setter Property="Fill" Value="{StaticResource BoneMuted}" />
+  </Style>
+
+  <!-- Scrollbars carry the palette, not the platform default. -->
+  <Style Selector="ScrollBar /template/ Thumb">
+    <Setter Property="Background" Value="{StaticResource StitchStrong}" />
+  </Style>
+
+  <!-- Side rail navigation -->
+  <Style Selector="ListBox.rail">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+  <Style Selector="ListBox.rail ListBoxItem">
+    <Setter Property="Padding" Value="14,0" />
+    <Setter Property="Margin" Value="0,2" />
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Foreground" Value="{StaticResource BoneMuted}" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="ListBox.rail ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="CornerRadius" Value="8" />
+  </Style>
+  <Style Selector="ListBox.rail ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource CaseRaised}" />
+  </Style>
+  <Style Selector="ListBox.rail ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Cap}" />
+    <Setter Property="BoxShadow" Value="{StaticResource CapShadowLow}" />
+  </Style>
+  <Style Selector="ListBox.rail ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource CapHigh}" />
+  </Style>
+  <Style Selector="ListBox.rail ListBoxItem:selected">
+    <Setter Property="Foreground" Value="{StaticResource Bone}" />
+  </Style>
+
+  <!-- Plain lists (log, activity) -->
+  <Style Selector="ListBox.plain">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ListBox.plain ListBoxItem">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+  </Style>
+  <Style Selector="ListBox.plain ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource CaseRaised}" />
+  </Style>
+  <Style Selector="ListBox.plain ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Cap}" />
+  </Style>
+
+  <Style Selector="ComboBox">
+    <Setter Property="Background" Value="{StaticResource Case}" />
+    <Setter Property="BorderBrush" Value="{StaticResource StitchStrong}" />
+    <Setter Property="Foreground" Value="{StaticResource Bone}" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="MinHeight" Value="38" />
+  </Style>
+
+  <Style Selector="ToolTip">
+    <Setter Property="Background" Value="{StaticResource CapHigh}" />
+    <Setter Property="Foreground" Value="{StaticResource Bone}" />
+    <Setter Property="BorderBrush" Value="{StaticResource StitchStrong}" />
+    <Setter Property="FontFamily" Value="{StaticResource Body}" />
+  </Style>
+</Styles>

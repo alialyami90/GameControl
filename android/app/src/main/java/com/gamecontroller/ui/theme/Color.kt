@@ -1,49 +1,49 @@
 package com.gamecontroller.ui.theme
 
-import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import com.gamecontroller.model.Accent
 
 /**
- * Recovery Rig palette: graphite hard-case grounds, bone text, and hi-vis signal colours that
- * only appear when something is on, armed, or wrong.
+ * Race Front-End palette: blue-black menu grounds, cool white ink, and one electric magenta
+ * that marks whatever is selected, on, or live. Signal colours appear only where they mean
+ * something (green confirmed, amber waiting, red critical).
  */
-object Rig {
-    val Chassis = Color(0xFF101312)
-    val Case = Color(0xFF171B19)
-    val CaseRaised = Color(0xFF1F2421)
-    val Cap = Color(0xFF272D2A)
-    val CapHigh = Color(0xFF323935)
-    val CapPressed = Color(0xFF1B1F1D)
-    val Stitch = Color(0xFF39423E)
-    val StitchStrong = Color(0xFF55605A)
+object Race {
+    val Ground = Color(0xFF0A0D14)
+    val Panel = Color(0xFF111622)
+    val PanelRaised = Color(0xFF171D2B)
+    val Cap = Color(0xFF1C2333)
+    val CapHigh = Color(0xFF262F44)
+    val CapPressed = Color(0xFF141A27)
+    val Line = Color(0xFF2B3448)
+    val LineStrong = Color(0xFF465170)
 
-    val Bone = Color(0xFFECE9DF)
-    val BoneMuted = Color(0xFFA9B0A9)
-    val BoneFaint = Color(0xFF7E8780)
+    val Ink = Color(0xFFF2F4F8)
+    val InkMuted = Color(0xFFA0A9BC)
+    val InkFaint = Color(0xFF7C869C)
 
-    val HiVis = Color(0xFFFF6A13)
-    val OnHiVis = Color(0xFF1C0B00)
-    val Amber = Color(0xFFFFB21E)
-    val Yellow = Color(0xFFF2C200)
-    val Green = Color(0xFF4CD27A)
-    val Red = Color(0xFFFF4D3F)
-    val Blue = Color(0xFF5AA8FF)
-    val Cyan = Color(0xFF3ED6DF)
+    val Electric = Color(0xFFFF2E7E)
+    val OnElectric = Color(0xFF1F0010)
+    val Amber = Color(0xFFFFB020)
+    val Yellow = Color(0xFFFFD43B)
+    val Green = Color(0xFF34E07F)
+    val Red = Color(0xFFFF4B3A)
+    val Blue = Color(0xFF4C9BFF)
+    val Cyan = Color(0xFF2EE6E6)
 }
 
-/** Colour a control lights up in. Neutral controls use the house hi-vis orange. */
+/** Colour a control lights up in. Neutral controls use the house electric magenta. */
 fun Accent.lit(): Color = when (this) {
-    Accent.NEUTRAL -> Rig.HiVis
-    Accent.AMBER -> Rig.Amber
-    Accent.GREEN -> Rig.Green
-    Accent.RED -> Rig.Red
-    Accent.BLUE -> Rig.Blue
-    Accent.CYAN -> Rig.Cyan
+    Accent.NEUTRAL -> Race.Electric
+    Accent.AMBER -> Race.Amber
+    Accent.GREEN -> Race.Green
+    Accent.RED -> Race.Red
+    Accent.BLUE -> Race.Blue
+    Accent.CYAN -> Race.Cyan
 }
 
 fun Accent.displayName(): String = when (this) {
-    Accent.NEUTRAL -> "Hi-vis"
+    Accent.NEUTRAL -> "Electric"
     Accent.AMBER -> "Amber"
     Accent.GREEN -> "Green"
     Accent.RED -> "Red"
@@ -51,24 +51,5 @@ fun Accent.displayName(): String = when (this) {
     Accent.CYAN -> "Cyan"
 }
 
-/** Ink to put on a filled accent surface. All accents are light enough for dark ink. */
-val onAccent: Color = Color(0xFF14110C)
-
-@Immutable
-data class RigColors(
-    val chassis: Color = Rig.Chassis,
-    val case: Color = Rig.Case,
-    val caseRaised: Color = Rig.CaseRaised,
-    val cap: Color = Rig.Cap,
-    val capHigh: Color = Rig.CapHigh,
-    val capPressed: Color = Rig.CapPressed,
-    val stitch: Color = Rig.Stitch,
-    val stitchStrong: Color = Rig.StitchStrong,
-    val text: Color = Rig.Bone,
-    val textMuted: Color = Rig.BoneMuted,
-    val textFaint: Color = Rig.BoneFaint,
-    val active: Color = Rig.HiVis,
-    val attention: Color = Rig.Yellow,
-    val ok: Color = Rig.Green,
-    val critical: Color = Rig.Red,
-)
+/** Ink for text on a filled accent surface. */
+val OnAccent: Color = Color(0xFF0A0D14)

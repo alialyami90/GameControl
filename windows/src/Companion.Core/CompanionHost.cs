@@ -117,7 +117,7 @@ public sealed class CompanionHost : IDisposable
                     // UDP 5353 can be held exclusively by another responder; hand the job to the OS.
                     m.Dispose();
                     Log("info", $"Built-in mDNS responder unavailable ({e.Message}); using the system one");
-                    return _options.PlatformMdns(c) ?? throw e;
+                    return _options.PlatformMdns(c) ?? throw new InvalidOperationException(e.Message, e);
                 }
             });
         StartService("BeamNG mod link", $"TCP 127.0.0.1:{c.BeamNgPort}", () =>
@@ -359,7 +359,7 @@ public sealed class CompanionHost : IDisposable
         var key = Pairing.NewSessionKey();
         while (_sessions.ContainsKey(key)) key = Pairing.NewSessionKey();
         var session = new PhoneSession(ws, key, deviceId, deviceName, addr,
-            new BindingEngine(Router, (ICommandSink?)BeamNg ?? new NullCommandSink(), deviceName));
+            new BindingEngine(Router, (ICommandSink?)BeamNg ?? new NullCommandSink(), deviceName, deviceId));
 
         // The same phone reconnecting replaces its old session (and frees what it held).
         foreach (var old in _sessions.Values.Where(s => s.DeviceId == deviceId).ToList())

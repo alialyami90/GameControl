@@ -26,23 +26,26 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gamecontroller.model.FeedbackSource
-import com.gamecontroller.ui.theme.Rig
-import com.gamecontroller.ui.theme.RigMotion
+import com.gamecontroller.ui.theme.Race
+import com.gamecontroller.ui.theme.CapShape
+import com.gamecontroller.ui.theme.RaceMotion
 
-/** Height of the hi-vis chevron band that marks a control as on. */
+/** Height of the racing stripe that marks a control as on. */
 val LatchBandHeight = 7.dp
-val CapCorner = 10.dp
+val CapCorner = 6.dp
 
 /**
- * The raised rubber cap every play control is built on. When [lit], a hi-vis chevron band
- * slides across the top edge: solid chevrons once the game confirms ([FeedbackSource.GAME] or
- * a local-only latch), marching hatch while a press is waiting for the game to echo it.
+ * The raised cap every play control is built on, with its top-right corner cut. When [lit], a
+ * racing stripe sweeps across the top edge: solid with speed slashes once the game confirms
+ * ([FeedbackSource.GAME] or a local-only latch), marching slashes while a press is waiting
+ * for the game to echo it.
  */
 @Composable
 fun ControlCap(
@@ -52,18 +55,18 @@ fun ControlCap(
     source: FeedbackSource = FeedbackSource.LOCAL,
     pressed: Boolean = false,
     enabled: Boolean = true,
-    corner: Dp = CapCorner,
+    cut: Dp = 14.dp,
     showBand: Boolean = true,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val shape = RoundedCornerShape(corner)
-    val band by animateFloatAsState(if (lit && showBand) 1f else 0f, RigMotion.latch(), label = "band")
-    val wash by animateFloatAsState(if (lit) 1f else 0f, RigMotion.settle(), label = "wash")
-    val travel by animateFloatAsState(if (pressed) 0.965f else 1f, if (pressed) RigMotion.press() else RigMotion.release(), label = "travel")
-    val elevation by animateDpAsState(if (pressed || !enabled) 0.5.dp else 5.dp, RigMotion.settle(), label = "elev")
+    val shape = CapShape(cut = cut, radius = CapCorner)
+    val band by animateFloatAsState(if (lit && showBand) 1f else 0f, RaceMotion.latch(), label = "band")
+    val wash by animateFloatAsState(if (lit) 1f else 0f, RaceMotion.settle(), label = "wash")
+    val travel by animateFloatAsState(if (pressed) 0.965f else 1f, if (pressed) RaceMotion.press() else RaceMotion.release(), label = "travel")
+    val elevation by animateDpAsState(if (pressed || !enabled) 0.5.dp else 5.dp, RaceMotion.settle(), label = "elev")
     val border by animateColorAsState(
-        if (lit) accent.copy(alpha = 0.85f) else Rig.Stitch,
-        RigMotion.settle(), label = "border",
+        if (lit) accent.copy(alpha = 0.9f) else Race.Line,
+        RaceMotion.settle(), label = "border",
     )
     val pending = lit && source == FeedbackSource.PENDING
     val phase = if (pending) {
@@ -78,25 +81,23 @@ fun ControlCap(
             .shadow(elevation, shape, clip = false, ambientColor = Color.Black, spotColor = Color.Black)
             .clip(shape)
             .drawWithContent {
-                val r = CornerRadius(corner.toPx())
                 if (pressed) {
-                    drawRect(Rig.CapPressed)
+                    drawRect(Race.CapPressed)
                 } else {
-                    drawRect(Brush.verticalGradient(listOf(Rig.CapHigh, Rig.Cap), endY = size.height * 0.9f))
+                    drawRect(Brush.verticalGradient(listOf(Race.CapHigh, Race.Cap), endY = size.height * 0.9f))
                 }
-                if (wash > 0f) drawRect(accent.copy(alpha = 0.13f * wash))
-                // Moulded highlight along the top lip.
-                drawRect(Color.White.copy(alpha = if (pressed) 0.02f else 0.07f), size = Size(size.width, 1.dp.toPx()))
+                if (wash > 0f) drawRect(accent.copy(alpha = 0.14f * wash))
+                // Bevel highlight along the top edge.
+                drawRect(Color.White.copy(alpha = if (pressed) 0.02f else 0.08f), size = Size(size.width, 1.dp.toPx()))
                 drawContent()
                 if (band > 0f) drawLatchBand(accent, band, pending, phase)
                 val sw = (if (lit) 1.5.dp else 1.dp).toPx()
-                drawRoundRect(
-                    color = if (enabled) border else Rig.StitchStrong,
-                    topLeft = Offset(sw / 2, sw / 2),
-                    size = Size(size.width - sw, size.height - sw),
-                    cornerRadius = CornerRadius(r.x - sw / 2),
+                val outline = shape.createOutline(size, layoutDirection, this)
+                drawOutline(
+                    outline,
+                    color = if (enabled) border else Race.LineStrong,
                     style = Stroke(
-                        width = sw,
+                        width = sw * 2,
                         pathEffect = if (enabled) null else PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 5.dp.toPx())),
                     ),
                 )
@@ -108,33 +109,32 @@ fun ControlCap(
 private fun DrawScope.drawLatchBand(accent: Color, progress: Float, pending: Boolean, phase: Float) {
     val h = LatchBandHeight.toPx()
     val w = size.width * progress
+    val lean = h * 1.2f
+    val step = 10.dp.toPx()
     clipRect(0f, 0f, w, h) {
         if (pending) {
-            // Marching diagonal hatch: sent, waiting for the game.
+            // Marching slashes: sent, waiting for the game.
             drawRect(accent.copy(alpha = 0.22f))
-            val step = 9.dp.toPx()
-            var x = -h * 2 + phase * step
-            while (x < w + h) {
-                val p = Path().apply {
-                    moveTo(x, h); lineTo(x + h, 0f); lineTo(x + h + step / 2, 0f); lineTo(x + step / 2, h); close()
-                }
-                drawPath(p, accent)
+            var x = -lean - step + phase * step
+            while (x < w + lean) {
+                drawPath(slash(x, h, lean, step * 0.5f), accent)
                 x += step
             }
         } else {
             drawRect(accent)
-            // Chevron tape: dark arrowheads pointing along the band.
-            val step = 11.dp.toPx()
-            val ink = Color.Black.copy(alpha = 0.32f)
-            var x = step / 2
-            while (x < w) {
-                val p = Path().apply {
-                    moveTo(x - h * 0.35f, 0f); lineTo(x + h * 0.15f, h / 2); lineTo(x - h * 0.35f, h)
-                    lineTo(x - h * 0.05f, h); lineTo(x + h * 0.45f, h / 2); lineTo(x - h * 0.05f, 0f); close()
-                }
-                drawPath(p, ink)
-                x += step
+            // Speed slashes leaning forward, cut into the stripe's leading half.
+            val ink = Color.Black.copy(alpha = 0.3f)
+            var x = w * 0.55f
+            var gap = 3.dp.toPx()
+            while (x < w + lean) {
+                drawPath(slash(x, h, lean, gap), ink)
+                x += gap + step * 0.6f
+                gap += 1.dp.toPx()
             }
         }
     }
+}
+
+private fun slash(x: Float, h: Float, lean: Float, width: Float) = Path().apply {
+    moveTo(x + lean, 0f); lineTo(x + lean + width, 0f); lineTo(x + width, h); lineTo(x, h); close()
 }

@@ -1,0 +1,140 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:GameController.Companion.App.ViewModels"
+             xmlns:c="using:GameController.Companion.App.Controls"
+             x:Class="GameController.Companion.App.Views.SettingsView"
+             x:DataType="vm:MainViewModel">
+  <UserControl.Styles>
+    <Style Selector="Grid.row">
+      <Setter Property="Margin" Value="0,10" />
+    </Style>
+    <Style Selector="Border.section">
+      <Setter Property="BorderBrush" Value="{StaticResource Stitch}" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="Padding" Value="24,18" />
+    </Style>
+  </UserControl.Styles>
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Margin="32,26,32,32" Spacing="18" MaxWidth="860" HorizontalAlignment="Left">
+      <StackPanel Spacing="2">
+        <TextBlock Text="Settings" Classes="h1" />
+        <TextBlock Text="Saved on this PC only. Phones keep their own profiles." Classes="muted" />
+      </StackPanel>
+
+      <Border Classes="panel" Padding="0">
+        <StackPanel>
+          <Border Classes="section">
+            <StackPanel Spacing="8">
+              <TextBlock Text="This PC" Classes="h2" />
+              <Grid Classes="row" ColumnDefinitions="260,*">
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock Text="Name shown on phones" />
+                  <TextBlock Text="Pick something you will recognise in a list." Classes="small muted" />
+                </StackPanel>
+                <TextBox Grid.Column="1" Text="{Binding EditServerName}" MaxWidth="360" HorizontalAlignment="Left" Width="360" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="section">
+            <StackPanel Spacing="4">
+              <TextBlock Text="Startup" Classes="h2" />
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Text="Start with Windows" />
+                  <TextBlock Text="Ready in the tray before you launch a game." Classes="small muted" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding StartWithWindows}" IsEnabled="{Binding IsWindows}" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Text="Start in the tray" />
+                  <TextBlock Text="Open without showing this window." Classes="small muted" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding StartMinimized}" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="section">
+            <StackPanel Spacing="4">
+              <TextBlock Text="Outputs and telemetry" Classes="h2" />
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Text="Virtual Xbox pad" />
+                  <TextBlock Text="Uses ViGEmBus. Turn off if a game sees one controller too many." Classes="small muted wrap" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableVigem}" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Text="Listen for OutGauge telemetry" />
+                  <TextBlock Text="Lights phone indicators from BeamNG's dashboard feed when the mod is not installed." Classes="small muted wrap" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableOutGauge}" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto" IsEnabled="{Binding EnableOutGauge}">
+                <StackPanel>
+                  <TextBlock Text="OutGauge UDP port" />
+                  <TextBlock Text="Must match the port in BeamNG, Options > Other > OutGauge. The default is 4444." Classes="small muted wrap" />
+                </StackPanel>
+                <TextBox Grid.Column="1" Text="{Binding OutGaugePortText}" Width="110" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="section">
+            <StackPanel Spacing="4">
+              <TextBlock Text="Network" Classes="h2" />
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Text="Let phones find this PC automatically" />
+                  <TextBlock Text="Advertises over mDNS. Phones can always find it by broadcast or by typing the address." Classes="small muted wrap" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding EnableMdns}" />
+              </Grid>
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Text="Windows Firewall" />
+                  <TextBlock Text="Adds one inbound rule for this app on private networks. Windows asks for permission." Classes="small muted wrap" />
+                </StackPanel>
+                <Button Grid.Column="1" Command="{Binding AllowFirewallCommand}" IsEnabled="{Binding IsWindows}">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <c:RigIcon Kind="shield" Size="18" Foreground="{StaticResource Bone}" />
+                    <TextBlock Text="Allow on private networks" FontFamily="{StaticResource CondSemi}" FontSize="15" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+              </Grid>
+              <TextBlock Text="{Binding PortsText}" Classes="small faint num" />
+            </StackPanel>
+          </Border>
+
+          <Border Classes="section" BorderThickness="0">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel>
+                <TextBlock Text="Settings file" />
+                <TextBlock Text="{Binding ConfigPath}" Classes="small muted num" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+              <Button Grid.Column="1" Command="{Binding OpenConfigFolderCommand}" IsEnabled="{Binding IsWindows}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <c:RigIcon Kind="folder" Size="18" Foreground="{StaticResource Bone}" />
+                  <TextBlock Text="Open folder" FontFamily="{StaticResource CondSemi}" FontSize="15" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+            </Grid>
+          </Border>
+        </StackPanel>
+      </Border>
+
+      <StackPanel Orientation="Horizontal" Spacing="16">
+        <Button Classes="primary" Content="Save settings" Command="{Binding SaveSettingsCommand}" />
+        <TextBlock Text="{Binding SettingsNote}" Classes="muted" VerticalAlignment="Center" />
+      </StackPanel>
+      <TextBlock Classes="small faint">
+        <Run Text="Game Controller Companion" />
+        <Run Text="{Binding Version}" />
+        <Run Text="· protocol v1" />
+      </TextBlock>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

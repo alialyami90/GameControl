@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Renders the companion window headlessly with live demo data and saves PNGs, for design review on any OS. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPublishable>false</IsPublishable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Skia" Version="11.3.22" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Companion.App\Companion.App.csproj" />
+  </ItemGroup>
+</Project>

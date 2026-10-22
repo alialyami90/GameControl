@@ -1,0 +1,82 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GameController.Companion.App.ViewModels"
+        xmlns:c="using:GameController.Companion.App.Controls"
+        xmlns:v="using:GameController.Companion.App.Views"
+        x:Class="GameController.Companion.App.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="Game Controller Companion"
+        Icon="avares://GameControllerCompanion/Assets/companion.ico"
+        Width="1120" Height="760" MinWidth="940" MinHeight="620"
+        Background="{StaticResource Chassis}"
+        WindowStartupLocation="CenterScreen">
+
+  <Grid ColumnDefinitions="236,*">
+
+    <!-- Side rail -->
+    <Border Grid.Column="0" Background="{StaticResource Case}" BorderBrush="{StaticResource Stitch}" BorderThickness="0,0,1,0">
+      <DockPanel Margin="14,20,14,16">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="8,0,0,26">
+          <c:RigIcon Kind="wheel" Size="30" Foreground="{StaticResource HiVis}" VerticalAlignment="Center" />
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="GAME CONTROLLER" FontFamily="{StaticResource CondBold}" FontWeight="Bold" FontSize="17" LetterSpacing="0.5" />
+            <TextBlock Text="Companion for Windows" Classes="small muted" />
+          </StackPanel>
+        </StackPanel>
+
+        <!-- PC identity and link health -->
+        <Border DockPanel.Dock="Bottom" Classes="inset" Padding="14,12">
+          <StackPanel Spacing="4">
+            <TextBlock Text="{Binding ServerName}" Classes="h3" TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding HubDetail}" Classes="small muted num" />
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+              <Panel Width="10" Height="10" VerticalAlignment="Center">
+                <Ellipse Width="9" Height="9" Fill="{StaticResource HiVis}" IsVisible="{Binding HasConnected}" />
+                <Ellipse Width="9" Height="9" Stroke="{StaticResource BoneFaint}" StrokeThickness="1.5"
+                         IsVisible="{Binding !HasConnected}" />
+              </Panel>
+              <TextBlock Text="{Binding RailHealth}" Classes="small" Foreground="{StaticResource BoneMuted}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <ListBox Classes="rail" ItemsSource="{Binding Nav}" SelectedItem="{Binding SelectedNav}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:NavItem">
+              <Grid ColumnDefinitions="Auto,*,Auto" Height="44">
+                <c:RigIcon Kind="{Binding Icon}" Size="20" VerticalAlignment="Center"
+                           Foreground="{Binding $parent[ListBoxItem].Foreground}" />
+                <TextBlock Grid.Column="1" Text="{Binding Title}" Margin="12,0,0,0" VerticalAlignment="Center"
+                           FontFamily="{StaticResource CondSemi}" FontSize="17" LetterSpacing="0.5"
+                           Foreground="{Binding $parent[ListBoxItem].Foreground}" />
+                <Border Grid.Column="2" IsVisible="{Binding Badge, Converter={x:Static c:Converters.NotEmpty}}"
+                        CornerRadius="9" MinWidth="20" Height="20" Padding="6,0"
+                        VerticalAlignment="Center" Classes.attn="{Binding BadgeIsAttention}">
+                  <Border.Styles>
+                    <Style Selector="Border">
+                      <Setter Property="Background" Value="{StaticResource HiVis}" />
+                    </Style>
+                    <Style Selector="Border.attn">
+                      <Setter Property="Background" Value="{StaticResource Yellow}" />
+                    </Style>
+                  </Border.Styles>
+                  <TextBlock Text="{Binding Badge}" FontFamily="{StaticResource CondBold}" FontWeight="Bold" FontSize="13"
+                             Foreground="{StaticResource OnHiVis}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+    </Border>
+
+    <!-- Pages -->
+    <Panel Grid.Column="1">
+      <v:StatusView IsVisible="{Binding Page, Converter={x:Static c:Converters.Is}, ConverterParameter=status}" />
+      <v:PhonesView IsVisible="{Binding Page, Converter={x:Static c:Converters.Is}, ConverterParameter=phones}" />
+      <v:OutputsView IsVisible="{Binding Page, Converter={x:Static c:Converters.Is}, ConverterParameter=outputs}" />
+      <v:LogView IsVisible="{Binding Page, Converter={x:Static c:Converters.Is}, ConverterParameter=log}" />
+      <v:SettingsView IsVisible="{Binding Page, Converter={x:Static c:Converters.Is}, ConverterParameter=settings}" />
+    </Panel>
+  </Grid>
+</Window>

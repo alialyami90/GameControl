@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:GameController.Companion.App.ViewModels"
+             xmlns:c="using:GameController.Companion.App.Controls"
+             x:Class="GameController.Companion.App.Views.OutputsView"
+             x:DataType="vm:MainViewModel">
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Margin="32,26,32,32" Spacing="18">
+      <StackPanel Spacing="2">
+        <TextBlock Text="Outputs" Classes="h1" />
+        <TextBlock Text="How phone controls reach Windows games. A profile can mix them: keys for one button, vJoy for another." Classes="muted wrap" />
+      </StackPanel>
+
+      <Border Classes="panel" Padding="0">
+        <ItemsControl ItemsSource="{Binding Outputs}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:OutputRow">
+              <Border BorderBrush="{StaticResource Stitch}" BorderThickness="0,0,0,1" Padding="24,18">
+                <Grid ColumnDefinitions="Auto,*,220" RowDefinitions="Auto,Auto">
+                  <Border Width="46" Height="46" CornerRadius="9" Background="{StaticResource Case}" VerticalAlignment="Top">
+                    <c:RigIcon Kind="{Binding Icon}" Size="24" Foreground="{StaticResource Bone}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <StackPanel Grid.Column="1" Margin="18,0,24,0" Spacing="3">
+                    <TextBlock Text="{Binding Title}" Classes="h2" />
+                    <TextBlock Text="{Binding Purpose}" Classes="muted wrap" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2" Spacing="3" VerticalAlignment="Top">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <Ellipse Width="10" Height="10" Fill="{Binding LampBrush}" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding StateWord}" FontFamily="{StaticResource CondBold}" FontWeight="Bold" FontSize="17"
+                                 Foreground="{Binding LampBrush}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Status}" />
+                    <TextBlock Text="{Binding Detail}" Classes="small muted wrap" />
+                  </StackPanel>
+                  <Border Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="18,14,0,0" Classes="inset" Padding="16,12"
+                          IsVisible="{Binding NeedsSetup}">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <TextBlock Text="{Binding Setup}" Classes="wrap" />
+                      <Button Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Content="Open download page"
+                              IsVisible="{Binding SetupLink, Converter={x:Static c:Converters.NotEmpty}}"
+                              Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).OpenLinkCommand}"
+                              CommandParameter="{Binding SetupLink}" />
+                    </Grid>
+                  </Border>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

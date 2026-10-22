@@ -1,0 +1,138 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:GameController.Companion.App.ViewModels"
+             xmlns:c="using:GameController.Companion.App.Controls"
+             x:Class="GameController.Companion.App.Views.StatusView"
+             x:DataType="vm:MainViewModel">
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Margin="32,26,32,32" Spacing="18">
+
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="2">
+          <TextBlock Text="Status" Classes="h1" />
+          <TextBlock Text="Every press on the phone runs down these wires to the game." Classes="muted" />
+        </StackPanel>
+        <Button Grid.Column="1" VerticalAlignment="Center" Command="{Binding ReleaseAllCommand}"
+                ToolTip.Tip="Lifts every key and button the phones are holding down">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <c:RigIcon Kind="stop" Size="18" Foreground="{StaticResource Bone}" />
+            <TextBlock Text="Release all input" FontFamily="{StaticResource CondSemi}" FontSize="15" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </Grid>
+
+      <!-- Things the user has to act on -->
+      <Border Classes="banner critical" IsVisible="{Binding ServiceBanner, Converter={x:Static c:Converters.NotEmpty}}">
+        <Grid ColumnDefinitions="Auto,*">
+          <c:RigIcon Kind="warning" Size="22" Foreground="{StaticResource Red}" VerticalAlignment="Top" />
+          <TextBlock Grid.Column="1" Margin="12,1,0,0" Text="{Binding ServiceBanner}" Classes="wrap" />
+        </Grid>
+      </Border>
+      <Border Classes="banner attention" IsVisible="{Binding BlockedBanner, Converter={x:Static c:Converters.NotEmpty}}">
+        <Grid ColumnDefinitions="Auto,*">
+          <c:RigIcon Kind="warning" Size="22" Foreground="{StaticResource Yellow}" VerticalAlignment="Top" />
+          <TextBlock Grid.Column="1" Margin="12,1,0,0" Text="{Binding BlockedBanner}" Classes="wrap" />
+        </Grid>
+      </Border>
+      <Border Classes="banner attention" IsVisible="{Binding FirewallBanner, Converter={x:Static c:Converters.NotEmpty}}">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <c:RigIcon Kind="shield" Size="22" Foreground="{StaticResource Yellow}" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Margin="12,0,16,0" Text="{Binding FirewallBanner}" Classes="wrap" VerticalAlignment="Center" />
+          <Button Grid.Column="2" Classes="attention" Content="Allow on private networks" Command="{Binding AllowFirewallCommand}" />
+        </Grid>
+      </Border>
+
+      <!-- Pairing PIN -->
+      <Border Classes="panel" Padding="24,18">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="PAIRING PIN" Classes="label" />
+            <TextBlock Text="{Binding Pin}" FontFamily="{StaticResource CondBold}" FontWeight="Bold" FontSize="58" LetterSpacing="3"
+                       FontFeatures="+tnum" Margin="0,-4,0,-6"
+                       Classes.attn="{Binding PinIsAttention}">
+              <TextBlock.Styles>
+                <Style Selector="TextBlock.attn">
+                  <Setter Property="Foreground" Value="{StaticResource Yellow}" />
+                </Style>
+              </TextBlock.Styles>
+            </TextBlock>
+          </StackPanel>
+          <Border Grid.Column="1" Width="1" Background="{StaticResource Stitch}" HorizontalAlignment="Left" Margin="28,4,0,4" />
+          <StackPanel Grid.Column="1" Margin="56,0,24,0" VerticalAlignment="Center" Spacing="6">
+            <TextBlock Text="{Binding PinHint}" Classes="wrap" FontSize="15" />
+            <TextBlock Classes="small muted num wrap">
+              <Run Text="{Binding Addresses}" />
+              <Run Text="  ·  " />
+              <Run Text="{Binding PortsText}" />
+            </TextBlock>
+          </StackPanel>
+          <Button Grid.Column="2" VerticalAlignment="Center" Command="{Binding NewPinCommand}"
+                  ToolTip.Tip="Makes a new PIN. Phones already paired stay paired.">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <c:RigIcon Kind="refresh" Size="18" Foreground="{StaticResource Bone}" />
+              <TextBlock Text="New PIN" FontFamily="{StaticResource CondSemi}" FontSize="15" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </Grid>
+      </Border>
+
+      <!-- Signal path: the companion's signature -->
+      <Border Classes="panel" Padding="24,18,24,24">
+        <StackPanel Spacing="16">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="Signal path" Classes="h2" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="18" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Ellipse Width="9" Height="9" Fill="{StaticResource HiVis}" VerticalAlignment="Center" />
+                <TextBlock Text="In use" Classes="small muted" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Ellipse Width="9" Height="9" Fill="{StaticResource Green}" VerticalAlignment="Center" />
+                <TextBlock Text="Ready or game confirmed" Classes="small muted" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Path Data="M5,0 L10,9 L0,9 Z" Fill="{StaticResource Yellow}" VerticalAlignment="Center" />
+                <TextBlock Text="Needs setup" Classes="small muted" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Ellipse Width="9" Height="9" Stroke="{StaticResource BoneFaint}" StrokeThickness="1.5" VerticalAlignment="Center" />
+                <TextBlock Text="Off" Classes="small muted" />
+              </StackPanel>
+            </StackPanel>
+          </Grid>
+          <c:SignalPath x:Name="Signal" Phones="{Binding PhoneNodes}" Outputs="{Binding OutputNodes}"
+                        HubTitle="{Binding ServerName}" HubDetail="{Binding HubDetail}" ReduceMotion="{Binding ReduceMotion}"
+                        AutomationProperties.Name="Signal path from phones through this PC to the game outputs" />
+        </StackPanel>
+      </Border>
+
+      <!-- Recent input -->
+      <Border Classes="panel" Padding="24,18">
+        <StackPanel Spacing="10">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="Recent input" Classes="h2" />
+            <Button Grid.Column="1" Classes="quiet" Content="Open the full log" Command="{Binding GoCommand}" CommandParameter="log" />
+          </Grid>
+          <TextBlock IsVisible="{Binding !HasActivity}" Classes="muted wrap" Margin="0,4,0,6"
+                     Text="Nothing yet. Press any control on the phone and it shows up here, with the key or button it sent." />
+          <ItemsControl ItemsSource="{Binding Activity}" IsVisible="{Binding HasActivity}" MaxHeight="300">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ActivityRow">
+                <Border BorderBrush="{StaticResource Stitch}" BorderThickness="0,0,0,1" Padding="0,7">
+                  <Grid ColumnDefinitions="86,28,150,170,*">
+                    <TextBlock Text="{Binding Time}" Classes="num faint" FontSize="14" VerticalAlignment="Center" />
+                    <c:RigIcon Grid.Column="1" Kind="{Binding Icon}" Size="18" Foreground="{StaticResource BoneMuted}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="{Binding Phone}" Classes="muted" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="3" Text="{Binding Control}" FontFamily="{StaticResource CondSemi}" FontSize="15"
+                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="4" Text="{Binding What}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

@@ -35,17 +35,19 @@ import com.gamecontroller.model.ConnectionStatus
 import com.gamecontroller.model.ConnectionUi
 import com.gamecontroller.model.HidStatus
 import com.gamecontroller.model.HidUi
-import com.gamecontroller.ui.theme.Rig
-import com.gamecontroller.ui.theme.RigType
+import com.gamecontroller.ui.theme.Race
+import com.gamecontroller.ui.theme.OnAccent
+import com.gamecontroller.ui.theme.RaceType
+import com.gamecontroller.ui.theme.SlantShape
 import kotlin.math.roundToInt
 
 enum class LinkTone { OK, BUSY, PROBLEM, OFF }
 
 fun LinkTone.color(): Color = when (this) {
-    LinkTone.OK -> Rig.Green
-    LinkTone.BUSY -> Rig.Yellow
-    LinkTone.PROBLEM -> Rig.Red
-    LinkTone.OFF -> Rig.BoneFaint
+    LinkTone.OK -> Race.Green
+    LinkTone.BUSY -> Race.Yellow
+    LinkTone.PROBLEM -> Race.Red
+    LinkTone.OFF -> Race.InkFaint
 }
 
 data class LinkSummary(val tone: LinkTone, val short: String, val long: String)
@@ -73,20 +75,20 @@ fun LinkBadge(icon: ImageVector, name: String, summary: LinkSummary, modifier: M
     Row(
         modifier
             .height(32.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(Rig.Case)
-            .border(1.dp, Rig.Stitch, RoundedCornerShape(8.dp))
-            .padding(horizontal = 8.dp)
+            .clip(SlantShape())
+            .background(Race.Panel)
+            .border(1.dp, Race.Line, SlantShape())
+            .padding(horizontal = 14.dp)
             .semantics(mergeDescendants = true) { contentDescription = summary.long },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, tint = if (summary.tone == LinkTone.OFF) Rig.BoneFaint else Rig.Bone, modifier = Modifier.size(16.dp))
+        Icon(icon, contentDescription = null, tint = if (summary.tone == LinkTone.OFF) Race.InkFaint else Race.Ink, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
         StatusLamp(summary.tone.color(), lit = summary.tone != LinkTone.OFF)
         Spacer(Modifier.width(6.dp))
-        Text(name, style = RigType.unit, color = Rig.BoneMuted)
+        Text(name, style = RaceType.unit, color = Race.InkMuted)
         Spacer(Modifier.width(4.dp))
-        Text(summary.short.uppercase(), style = RigType.unit, color = if (summary.tone == LinkTone.OFF) Rig.BoneFaint else Rig.Bone, maxLines = 1)
+        Text(summary.short.uppercase(), style = RaceType.unit, color = if (summary.tone == LinkTone.OFF) Race.InkFaint else Race.Ink, maxLines = 1)
     }
 }
 
@@ -124,14 +126,13 @@ fun GameReadouts(game: Map<String, Any>, modifier: Modifier = Modifier) {
         if (gear != null) {
             Box(
                 Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Rig.Case)
-                    .border(1.5.dp, Rig.HiVis, RoundedCornerShape(8.dp))
+                    .size(width = 52.dp, height = 40.dp)
+                    .clip(SlantShape())
+                    .background(Race.Electric)
                     .semantics { contentDescription = "Gear $gear" },
                 contentAlignment = Alignment.Center,
             ) {
-                Text(gear, style = RigType.readoutLarge.copy(fontSize = RigType.readout.fontSize * 1.25f), color = Rig.Bone, maxLines = 1, overflow = TextOverflow.Clip)
+                Text(gear, style = RaceType.readoutLarge.copy(fontSize = RaceType.readout.fontSize * 1.3f), color = OnAccent, maxLines = 1, overflow = TextOverflow.Clip)
             }
         }
     }
@@ -140,7 +141,7 @@ fun GameReadouts(game: Map<String, Any>, modifier: Modifier = Modifier) {
 @Composable
 private fun Readout(value: String, unit: String, modifier: Modifier = Modifier) {
     Column(modifier, horizontalAlignment = Alignment.End) {
-        Text(value, style = RigType.readout, color = Rig.Bone, maxLines = 1)
-        Text(unit, style = RigType.unit, color = Rig.BoneFaint)
+        Text(value, style = RaceType.readout, color = Race.Ink, maxLines = 1)
+        Text(unit, style = RaceType.unit, color = Race.InkFaint)
     }
 }

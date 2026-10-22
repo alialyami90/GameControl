@@ -5,77 +5,65 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 /**
- * The app is dark by design rather than by default: it is used in a room lit by the game
- * monitor, glanced at from arm's length, so only lit controls should glow.
+ * Dark by use, not by habit: the phone sits beside a monitor in a dim room and is read from
+ * arm's length, so the ground stays near-black and only live controls carry colour.
  */
-private val RigScheme = darkColorScheme(
-    primary = Rig.HiVis,
-    onPrimary = Rig.OnHiVis,
-    primaryContainer = Color(0xFF4A2410),
-    onPrimaryContainer = Color(0xFFFFD9C4),
-    secondary = Rig.Yellow,
-    onSecondary = Color(0xFF1E1800),
-    secondaryContainer = Color(0xFF3A3420),
-    onSecondaryContainer = Color(0xFFF6E7B0),
-    tertiary = Rig.Green,
-    onTertiary = Color(0xFF00210C),
-    tertiaryContainer = Color(0xFF173A24),
-    onTertiaryContainer = Color(0xFFBDF2CD),
-    error = Rig.Red,
-    onError = Color(0xFF2A0300),
-    errorContainer = Color(0xFF4A1410),
-    onErrorContainer = Color(0xFFFFDAD5),
-    background = Rig.Chassis,
-    onBackground = Rig.Bone,
-    surface = Rig.Chassis,
-    onSurface = Rig.Bone,
-    surfaceVariant = Rig.Cap,
-    onSurfaceVariant = Rig.BoneMuted,
-    surfaceDim = Rig.Chassis,
-    surfaceBright = Rig.CapHigh,
-    surfaceContainerLowest = Color(0xFF0C0E0D),
-    surfaceContainerLow = Rig.Case,
-    surfaceContainer = Rig.CaseRaised,
-    surfaceContainerHigh = Rig.Cap,
-    surfaceContainerHighest = Rig.CapHigh,
-    outline = Rig.StitchStrong,
-    outlineVariant = Rig.Stitch,
-    inverseSurface = Rig.Bone,
-    inverseOnSurface = Rig.Chassis,
-    inversePrimary = Color(0xFF9C3F00),
+private val RaceScheme = darkColorScheme(
+    primary = Race.Electric,
+    onPrimary = Race.OnElectric,
+    primaryContainer = Color(0xFF4A0F2A),
+    onPrimaryContainer = Color(0xFFFFD9E4),
+    secondary = Race.Cyan,
+    onSecondary = Color(0xFF002020),
+    secondaryContainer = Color(0xFF1E2C3A),
+    onSecondaryContainer = Color(0xFFD3E4F5),
+    tertiary = Race.Green,
+    onTertiary = Color(0xFF00210E),
+    tertiaryContainer = Color(0xFF0F3A22),
+    onTertiaryContainer = Color(0xFFB8F5CD),
+    error = Race.Red,
+    onError = Color(0xFF2A0500),
+    errorContainer = Color(0xFF4A1610),
+    onErrorContainer = Color(0xFFFFDAD4),
+    background = Race.Ground,
+    onBackground = Race.Ink,
+    surface = Race.Ground,
+    onSurface = Race.Ink,
+    surfaceVariant = Race.Cap,
+    onSurfaceVariant = Race.InkMuted,
+    surfaceDim = Race.Ground,
+    surfaceBright = Race.CapHigh,
+    surfaceContainerLowest = Color(0xFF070A0F),
+    surfaceContainerLow = Race.Panel,
+    surfaceContainer = Race.PanelRaised,
+    surfaceContainerHigh = Race.Cap,
+    surfaceContainerHighest = Race.CapHigh,
+    outline = Race.LineStrong,
+    outlineVariant = Race.Line,
+    inverseSurface = Race.Ink,
+    inverseOnSurface = Race.Ground,
+    inversePrimary = Color(0xFFB0004F),
     scrim = Color(0xFF000000),
 )
 
-val RigShapes = Shapes(
-    extraSmall = RoundedCornerShape(4.dp),
-    small = RoundedCornerShape(6.dp),
-    medium = RoundedCornerShape(10.dp),
-    large = RoundedCornerShape(14.dp),
-    extraLarge = RoundedCornerShape(20.dp),
+val RaceShapes = Shapes(
+    extraSmall = RoundedCornerShape(3.dp),
+    small = RoundedCornerShape(4.dp),
+    medium = RoundedCornerShape(6.dp),
+    large = RoundedCornerShape(10.dp),
+    extraLarge = RoundedCornerShape(14.dp),
 )
-
-val LocalRigColors = staticCompositionLocalOf { RigColors() }
-
-object RigTheme {
-    val colors: RigColors
-        @Composable @ReadOnlyComposable get() = LocalRigColors.current
-}
 
 @Composable
 fun GcTheme(content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalRigColors provides RigColors()) {
-        MaterialTheme(
-            colorScheme = RigScheme,
-            typography = RigTypography,
-            shapes = RigShapes,
-            content = content,
-        )
-    }
+    MaterialTheme(
+        colorScheme = RaceScheme,
+        typography = RaceTypography,
+        shapes = RaceShapes,
+        content = content,
+    )
 }

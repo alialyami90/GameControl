@@ -1,0 +1,400 @@
+using System.Collections.ObjectModel;
+using Avalonia.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using GameController.Companion.App.Controls;
+using GameController.Companion.App.Services;
+using GameController.Companion.Input;
+using GameController.Companion.Net;
+using GameController.Companion.Protocol;
+
+namespace GameController.Companion.App.ViewModels;
+
+public sealed partial class MainViewModel : ObservableObject, IDisposable
+{
+    const int MaxActivity = 60, MaxLog = 400;
+
+    readonly IPlatform _platform;
+    readonly DispatcherTimer _slow;
+    DateTime _lastBeamNgEcho, _lastTelemetryEcho;
+    readonly Dictionary<string, DateTime> _lastOutputUse = new();
+
+    public CompanionHost Host { get; }
+
+    /// <summary>Raised on the UI thread for the signal path: (phone id, output key).</summary>
+    public event Action<string, string>? InputFired;
+    /// <summary>Raised on the UI thread when the game reports state through an output.</summary>
+    public event Action<string>? GameEchoed;
+    public event Action? QuitRequested;
+    public event Action? ShowRequested;
+
+    public ObservableCollection<NavItem> Nav { get; } = new();
+    public ObservableCollection<PhoneRow> Phones { get; } = new();
+    public ObservableCollection<OutputRow> Outputs { get; } = new();
+    public ObservableCollection<ActivityRow> Activity { get; } = new();
+    public ObservableCollection<LogRow> Log { get; } = new();
+
+    [ObservableProperty] private NavItem? _selectedNav;
+    [ObservableProperty] private string _page = "status";
+
+    partial void OnSelectedNavChanged(NavItem? value) { if (value != null) Page = value.Key; }
+    [ObservableProperty] private string _pin = "";
+    [ObservableProperty] private string _serverName = "";
+    [ObservableProperty] private string _addresses = "";
+    [ObservableProperty] private string _portsText = "";
+    [ObservableProperty] private int _connectedCount;
+    [ObservableProperty] private IReadOnlyList<SignalNode> _phoneNodes = Array.Empty<SignalNode>();
+    [ObservableProperty] private IReadOnlyList<SignalNode> _outputNodes = Array.Empty<SignalNode>();
+    [ObservableProperty] private string _hubDetail = "";
+    [ObservableProperty] private string? _blockedBanner;
+    [ObservableProperty] private string? _firewallBanner;
+    [ObservableProperty] private string? _serviceBanner;
+    [ObservableProperty] private bool _reduceMotion;
+    [ObservableProperty] private string _railHealth = "";
+    [ObservableProperty] private bool _railHealthy;
+
+    // Settings
+    [ObservableProperty] private string _editServerName = "";
+    [ObservableProperty] private bool _startWithWindows;
+    [ObservableProperty] private bool _startMinimized;
+    [ObservableProperty] private bool _enableVigem;
+    [ObservableProperty] private bool _enableOutGauge;
+    [ObservableProperty] private bool _enableMdns;
+    [ObservableProperty] private string _outGaugePortText = "";
+    [ObservableProperty] private string? _settingsNote;
+
+    public bool IsWindows => _platform.IsWindows;
+    public string ConfigPath => Host.Store.Path;
+    public string Version => typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
+    public bool HasPhones => Phones.Count > 0;
+    public bool HasConnected => ConnectedCount > 0;
+    partial void OnConnectedCountChanged(int value) => OnPropertyChanged(nameof(HasConnected));
+    public bool HasActivity => Activity.Count > 0;
+    public bool PinIsAttention => ConnectedCount == 0;
+    public string PinHint => ConnectedCount == 0
+        ? $"Open the phone app, tap Connect, pick {ServerName} and type this PIN."
+        : "To add another phone, type this PIN on it. It changes after each pairing.";
+
+    public MainViewModel(CompanionHost host, IPlatform platform)
+    {
+        Host = host;
+        _platform = platform;
+        ReduceMotion = platform.ReduceMotion;
+
+        Nav.Add(new NavItem { Key = "status", Title = "Status", Icon = "status" });
+        Nav.Add(new NavItem { Key = "phones", Title = "Phones", Icon = "phone" });
+        Nav.Add(new NavItem { Key = "outputs", Title = "Outputs", Icon = "outputs" });
+        Nav.Add(new NavItem { Key = "log", Title = "Log", Icon = "log" });
+        Nav.Add(new NavItem { Key = "settings", Title = "Settings", Icon = "settings" });
+        SelectedNav = Nav[0];
+
+        Outputs.Add(new OutputRow { Key = "keyboard", Title = "Keyboard", Icon = "keyboard", Purpose = "Key presses as hardware scancodes, which DirectInput and raw-input games read." });
+        Outputs.Add(new OutputRow { Key = "vjoy", Title = "vJoy joystick", Icon = "joystick", Purpose = "Up to 128 buttons and 8 axes on a virtual joystick, so controls do not use up keyboard keys." });
+        Outputs.Add(new OutputRow { Key = "xbox", Title = "Xbox pad", Icon = "gamepad", Purpose = "A virtual Xbox 360 controller for games that only read XInput. Optional." });
+        Outputs.Add(new OutputRow { Key = "beamng", Title = "BeamNG mod", Icon = "car", Purpose = "Game commands and live vehicle state, both ways, through the Game Controller mod." });
+        Outputs.Add(new OutputRow { Key = "telemetry", Title = "Telemetry", Icon = "telemetry", Purpose = "OutGauge dashboard data (speed, gear, lamps) when the mod is not installed." });
+
+        Host.Pairing.PinChanged += () => Ui(RefreshPin);
+        Host.SessionsChanged += () => Ui(RefreshPhones);
+        Host.Pairing.DevicesChanged += () => Ui(RefreshPhones);
+        Host.StatusChanged += () => Ui(RefreshOutputs);
+        Host.Logged += e => Ui(() => AddLog(e));
+        Host.GameState += (_, source) => Ui(() => Echo(source));
+        Host.Router.Activity += a => Ui(() => AddActivity(a));
+
+        LoadSettings();
+        RefreshPin();
+        RefreshPhones();
+        RefreshOutputs();
+
+        _slow = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) => SlowTick());
+        _slow.Start();
+        SlowTick();
+    }
+
+    static void Ui(Action a)
+    {
+        if (Dispatcher.UIThread.CheckAccess()) a();
+        else Dispatcher.UIThread.Post(a);
+    }
+
+    // ------------------------------------------------------------ refresh
+
+    void RefreshPin()
+    {
+        var p = Host.Pairing.Pin;
+        Pin = p.Length == 6 ? $"{p[..3]} {p[3..]}" : p;
+        ServerName = Host.Config.ServerName;
+        var addrs = MdnsAdvertiser.LocalAddresses();
+        Addresses = addrs.Count == 0 ? "No network connection" : string.Join("  ·  ", addrs.Select(a => a.ToString()));
+        PortsText = $"Phone link TCP {Host.Config.WsPort}  ·  input UDP {Host.Config.UdpPort}";
+        HubDetail = addrs.FirstOrDefault()?.ToString() ?? "offline";
+        OnPropertyChanged(nameof(PinHint));
+    }
+
+    void RefreshPhones()
+    {
+        var sessions = Host.Sessions.ToList();
+        var known = Host.Config.Devices.ToList();
+        var rows = new List<PhoneRow>();
+        foreach (var d in known.OrderByDescending(d => d.LastSeen))
+        {
+            var s = sessions.FirstOrDefault(x => x.DeviceId == d.DeviceId);
+            rows.Add(new PhoneRow
+            {
+                DeviceId = d.DeviceId,
+                Name = d.DeviceName,
+                Connected = s != null,
+                Address = s?.RemoteAddress.ToString() ?? "",
+                Profile = s?.ProfileId is { Length: > 0 } pid ? pid : (s != null ? "No profile loaded yet" : ""),
+                Events = s != null ? Interlocked.Read(ref s.EventCount) : 0,
+                PairedText = d.PairedAt.LocalDateTime.ToString("d MMM yyyy"),
+                LastSeenText = s != null ? "now" : Ago(d.LastSeen),
+            });
+        }
+        Phones.Clear();
+        foreach (var r in rows) Phones.Add(r);
+
+        ConnectedCount = sessions.Count;
+        PhoneNodes = sessions.Select(s => new SignalNode(s.DeviceId, s.DeviceName,
+            s.ProfileId is { Length: > 0 } p ? $"{s.Engine.BindingCount} controls · {p}" : s.RemoteAddress.ToString(),
+            "phone", NodeState.Live)).ToList();
+        Nav[1].Badge = sessions.Count > 0 ? sessions.Count.ToString() : null;
+        OnPropertyChanged(nameof(HasPhones));
+        OnPropertyChanged(nameof(PinIsAttention));
+        OnPropertyChanged(nameof(PinHint));
+        RefreshRailHealth();
+    }
+
+    static string Ago(DateTimeOffset t)
+    {
+        var d = DateTimeOffset.Now - t;
+        if (d.TotalMinutes < 1) return "just now";
+        if (d.TotalHours < 1) return $"{(int)d.TotalMinutes} min ago";
+        if (d.TotalDays < 1) return $"{(int)d.TotalHours} h ago";
+        return t.LocalDateTime.ToString("d MMM");
+    }
+
+    void RefreshOutputs()
+    {
+        var caps = Host.Capabilities();
+        bool recently(string key) => _lastOutputUse.TryGetValue(key, out var t) && (DateTime.UtcNow - t).TotalSeconds < 5;
+        NodeState ready(bool ok, string key) => !ok ? NodeState.Attention : recently(key) ? NodeState.Live : NodeState.Ready;
+
+        var kb = Outputs[0];
+        kb.State = ready(Host.Router.Keyboard.Available, "keyboard");
+        kb.Status = Host.Router.Keyboard.Available ? "Scancode input" : "Not available";
+        kb.Detail = Host.Router.Keyboard.Available ? "SendInput, works with any game window in focus" : "Keyboard input only works on Windows";
+        kb.Setup = "";
+
+        var vj = Outputs[1];
+        bool vjoyOk = caps["vjoy"]?.GetValue<bool>() == true;
+        vj.State = ready(vjoyOk, "vjoy");
+        var devs = Host.Router.VJoy.Devices;
+        vj.Status = vjoyOk ? (devs.Count == 1 ? $"Device {devs[0]}" : $"Devices {string.Join(", ", devs)}") : "Not installed";
+        vj.Detail = vjoyOk ? "Buttons and axes ready" : _platform.VJoyStatus;
+        vj.Setup = vjoyOk ? "" : "Install vJoy 2.2 (the BrunnerInnovation release for Windows 10 and 11), open Configure vJoy, enable device 1 with 32 or more buttons and all axes, then come back here. The companion picks it up within a few seconds.";
+        vj.SetupLink = vjoyOk ? null : "https://github.com/BrunnerInnovation/vJoy/releases";
+
+        var xb = Outputs[2];
+        bool vigemOk = caps["vigem"]?.GetValue<bool>() == true;
+        xb.State = !Host.Config.EnableVigem ? NodeState.Off : ready(vigemOk, "xbox");
+        xb.Status = !Host.Config.EnableVigem ? "Turned off" : vigemOk ? "Plugs in on first use" : "ViGEmBus missing";
+        xb.Detail = !Host.Config.EnableVigem ? "Turn it on in Settings" : vigemOk ? "Virtual Xbox 360 controller" : _platform.VigemStatus;
+        xb.Setup = Host.Config.EnableVigem && !vigemOk ? "Only needed for games that ignore joysticks and read Xbox controllers only. Install the last ViGEmBus release (1.22), then restart the companion." : "";
+        xb.SetupLink = Host.Config.EnableVigem && !vigemOk ? "https://github.com/nefarius/ViGEmBus/releases" : null;
+
+        var bn = Outputs[3];
+        bool modOk = Host.BeamNg?.Connected == true;
+        bn.State = modOk ? NodeState.Live : NodeState.Off;
+        bn.Status = modOk ? (Host.BeamNg?.ModVersion is { } v ? $"Mod {v} connected" : "Mod connected") : "Game not running";
+        bn.Detail = modOk ? $"{Host.BeamNg?.KnownCommands.Count ?? 0} commands, live vehicle state" : "Waiting for BeamNG.drive";
+        bn.Setup = modOk ? "" : "Copy gamecontroller.zip into Documents\\BeamNG.drive\\current\\mods (or BeamNG's user folder \\mods), start the game and load a vehicle. It connects to this PC by itself.";
+
+        var tm = Outputs[4];
+        bool ogOn = Host.Config.EnableOutGauge, ogLive = Host.OutGaugeActive;
+        tm.State = !ogOn ? NodeState.Off : ogLive ? NodeState.Live : NodeState.Ready;
+        tm.Status = !ogOn ? "Turned off" : ogLive ? "Receiving" : $"Listening on UDP {Host.Config.OutGaugePort}";
+        tm.Detail = ogLive ? (modOk ? "Paused while the mod is connected" : "Speed, gear and lamps") : "No telemetry arriving";
+        tm.Setup = ogOn && !ogLive && !modOk ? $"Optional. In BeamNG open Options > Other, turn on OutGauge, set IP 127.0.0.1 and port {Host.Config.OutGaugePort}." : "";
+
+        OutputNodes = Outputs.Select(o => new SignalNode(o.Key, o.Title, o.Status, o.Icon, o.State)).ToList();
+
+        var failed = Host.Services.Where(s => s.State == ServiceState.Failed).ToList();
+        ServiceBanner = failed.Count == 0 ? null :
+            $"{string.Join(", ", failed.Select(f => f.Name))} could not start: {failed[0].Detail.Split(": ").Last()}. Another program may be using the port. Close it, or change the port in the settings file, then restart the companion.";
+        Nav[2].Badge = Outputs.Count(o => o.State == NodeState.Attention) is > 0 and var n ? n.ToString() : null;
+        Nav[2].BadgeIsAttention = true;
+        RefreshRailHealth();
+    }
+
+    void RefreshRailHealth()
+    {
+        bool servicesOk = Host.Services.All(s => s.State != ServiceState.Failed);
+        RailHealthy = servicesOk;
+        RailHealth = !servicesOk ? "A listener failed" : ConnectedCount switch
+        {
+            0 => "Waiting for a phone",
+            1 => "1 phone connected",
+            var n => $"{n} phones connected",
+        };
+    }
+
+    void SlowTick()
+    {
+        RefreshOutputs();
+        foreach (var row in Phones)
+        {
+            var s = Host.Sessions.FirstOrDefault(x => x.DeviceId == row.DeviceId);
+            if (s != null) row.Events = Interlocked.Read(ref s.EventCount);
+        }
+
+        var blocked = _platform.BlockedForegroundApp();
+        BlockedBanner = blocked == null ? null :
+            $"{blocked} is running as administrator, so Windows blocks the key presses the companion sends it. Close the companion and start it with Run as administrator.";
+    }
+
+    public void CheckFirewall()
+    {
+        var exists = _platform.FirewallRuleExists();
+        FirewallBanner = exists == false
+            ? "Windows Firewall may block phones from reaching this PC. Allow the companion on private networks once and you will not be asked again."
+            : null;
+    }
+
+    // ------------------------------------------------------------ live feeds
+
+    static string OutputKey(ActionType t) => t switch
+    {
+        ActionType.Key or ActionType.Macro => "keyboard",
+        ActionType.VJoyButton or ActionType.VJoyAxis => "vjoy",
+        ActionType.XInputButton or ActionType.XInputAxis => "xbox",
+        ActionType.BeamNG => "beamng",
+        _ => "",
+    };
+
+    void AddActivity(InputActivity a)
+    {
+        var key = OutputKey(a.Target);
+        if (key != "")
+        {
+            bool wasLive = _lastOutputUse.TryGetValue(key, out var t) && (DateTime.UtcNow - t).TotalSeconds < 5;
+            _lastOutputUse[key] = DateTime.UtcNow;
+            InputFired?.Invoke(a.SourceId, key);
+            if (!wasLive) RefreshOutputs();
+        }
+        var icon = key switch { "keyboard" => "keyboard", "vjoy" => "joystick", "xbox" => "gamepad", "beamng" => "car", _ => "link" };
+        Activity.Insert(0, new ActivityRow(a.At.ToString("HH:mm:ss.f"), a.Source, a.ControlId, a.What, icon));
+        while (Activity.Count > MaxActivity) Activity.RemoveAt(Activity.Count - 1);
+        if (Activity.Count == 1) OnPropertyChanged(nameof(HasActivity));
+    }
+
+    void Echo(string source)
+    {
+        // Game state can arrive 10-30 times a second; one spark every 700 ms is enough to read.
+        var now = DateTime.UtcNow;
+        if (source == "beamng")
+        {
+            if ((now - _lastBeamNgEcho).TotalMilliseconds < 700) return;
+            _lastBeamNgEcho = now;
+            GameEchoed?.Invoke("beamng");
+        }
+        else
+        {
+            if ((now - _lastTelemetryEcho).TotalMilliseconds < 700) return;
+            _lastTelemetryEcho = now;
+            GameEchoed?.Invoke("telemetry");
+        }
+    }
+
+    void AddLog(LogEntry e)
+    {
+        Log.Insert(0, new LogRow(e.At.ToString("HH:mm:ss"), e.Level, e.Message));
+        while (Log.Count > MaxLog) Log.RemoveAt(Log.Count - 1);
+    }
+
+    // ------------------------------------------------------------ commands
+
+    [RelayCommand]
+    void NewPin() => Host.Pairing.RotatePin();
+
+    [RelayCommand]
+    void ReleaseAll() => Host.ReleaseEverything();
+
+    [RelayCommand]
+    void Forget(PhoneRow? row)
+    {
+        if (row == null) return;
+        Host.ForgetDevice(row.DeviceId);
+        Host.Log("info", $"Forgot {row.Name}. It needs the PIN to connect again.");
+    }
+
+    [RelayCommand]
+    async Task AllowFirewall()
+    {
+        bool ok = await Task.Run(_platform.AddFirewallRule);
+        Host.Log(ok ? "info" : "warn", ok ? "Firewall rule added for private networks" : "The firewall rule was not added (the Windows prompt was declined or failed)");
+        CheckFirewall();
+    }
+
+    [RelayCommand]
+    void OpenConfigFolder() => _platform.OpenFolder(Path.GetDirectoryName(ConfigPath) ?? ".");
+
+    [RelayCommand]
+    void OpenLink(string? url) { if (!string.IsNullOrEmpty(url)) _platform.OpenLink(url); }
+
+    [RelayCommand]
+    void Go(string key) => SelectedNav = Nav.FirstOrDefault(n => n.Key == key) ?? SelectedNav;
+
+    [RelayCommand]
+    void Show() => ShowRequested?.Invoke();
+
+    [RelayCommand]
+    void Quit() => QuitRequested?.Invoke();
+
+    [RelayCommand]
+    void ClearLog() => Log.Clear();
+
+    void LoadSettings()
+    {
+        var c = Host.Config;
+        EditServerName = c.ServerName;
+        StartMinimized = c.StartMinimized;
+        EnableVigem = c.EnableVigem;
+        EnableOutGauge = c.EnableOutGauge;
+        EnableMdns = c.EnableMdns;
+        OutGaugePortText = c.OutGaugePort.ToString();
+        try { StartWithWindows = _platform.StartsWithWindows; } catch { StartWithWindows = c.StartWithWindows; }
+    }
+
+    [RelayCommand]
+    void SaveSettings()
+    {
+        var name = EditServerName.Trim();
+        if (name.Length == 0) { SettingsNote = "Give this PC a name so phones can tell it apart."; return; }
+        if (!int.TryParse(OutGaugePortText, out var port) || port is < 1 or > 65535) { SettingsNote = "The OutGauge port must be a number from 1 to 65535."; return; }
+
+        var c = Host.Config;
+        bool restart = c.EnableVigem != EnableVigem || c.EnableOutGauge != EnableOutGauge || c.EnableMdns != EnableMdns
+                       || c.OutGaugePort != port || c.ServerName != name;
+        Host.Store.Update(x =>
+        {
+            x.ServerName = name;
+            x.StartMinimized = StartMinimized;
+            x.EnableVigem = EnableVigem;
+            x.EnableOutGauge = EnableOutGauge;
+            x.EnableMdns = EnableMdns;
+            x.OutGaugePort = port;
+            x.StartWithWindows = StartWithWindows;
+        });
+        try { _platform.StartsWithWindows = StartWithWindows; }
+        catch (Exception e) { Host.Log("warn", $"Could not change start with Windows: {e.Message}"); }
+        SettingsNote = restart ? "Saved. Restart the companion to apply the name, discovery and output changes." : "Saved.";
+        RefreshPin();
+    }
+
+    public void Dispose()
+    {
+        _slow.Stop();
+    }
+}

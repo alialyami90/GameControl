@@ -21,9 +21,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
 import com.gamecontroller.ui.icons.IconLibrary
-import com.gamecontroller.ui.theme.Rig
-import com.gamecontroller.ui.theme.RigMotion
-import com.gamecontroller.ui.theme.RigType
+import com.gamecontroller.ui.theme.Race
+import com.gamecontroller.ui.theme.RaceMotion
+import com.gamecontroller.ui.theme.RaceType
 
 /**
  * Icon, label and optional readout printed on a cap. Scales the icon with the cap and drops
@@ -38,8 +38,8 @@ fun CapFace(
     readout: String? = null,
     modifier: Modifier = Modifier,
 ) {
-    val ink by animateColorAsState(if (lit) accent else Rig.Bone, RigMotion.settle(), label = "ink")
-    val labelInk by animateColorAsState(if (lit) Rig.Bone else Rig.BoneMuted, RigMotion.settle(), label = "labelInk")
+    val ink by animateColorAsState(if (lit) accent else Race.Ink, RaceMotion.settle(), label = "ink")
+    val labelInk by animateColorAsState(if (lit) Race.Ink else Race.InkMuted, RaceMotion.settle(), label = "labelInk")
     BoxWithConstraints(modifier.fillMaxSize().padding(top = LatchBandHeight, start = 6.dp, end = 6.dp, bottom = 6.dp)) {
         val minSide = if (maxWidth < maxHeight) maxWidth else maxHeight
         val wide = maxWidth >= 120.dp
@@ -54,14 +54,14 @@ fun CapFace(
             when {
                 readout != null -> Text(
                     readout,
-                    style = if (minSide >= 96.dp) RigType.readoutLarge else RigType.readout,
+                    style = if (minSide >= 96.dp) RaceType.readoutLarge else RaceType.readout,
                     color = ink,
                     maxLines = 1,
                 )
                 vector != null -> Icon(vector, contentDescription = null, tint = ink, modifier = Modifier.size(iconSize))
                 else -> Text(
                     label.uppercase(),
-                    style = if (minSide >= 96.dp) RigType.capLabelLarge else RigType.capLabel,
+                    style = if (minSide >= 96.dp) RaceType.capLabelLarge else RaceType.capLabel,
                     color = ink,
                     textAlign = TextAlign.Center,
                     maxLines = 2,
@@ -72,7 +72,7 @@ fun CapFace(
                 Spacer(Modifier.height(6.dp))
                 Text(
                     label.uppercase(),
-                    style = if (wide) RigType.capLabelLarge else RigType.capLabel,
+                    style = if (wide) RaceType.capLabelLarge else RaceType.capLabel,
                     color = labelInk,
                     textAlign = TextAlign.Center,
                     maxLines = 1,

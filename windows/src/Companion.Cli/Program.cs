@@ -43,7 +43,7 @@ bool dry = Flag("--dry-run") || !OperatingSystem.IsWindows();
 InputRouter router;
 HostOptions options;
 IDisposable[] owned = Array.Empty<IDisposable>();
-if (dry)
+if (dry || !OperatingSystem.IsWindows())
 {
     var rec = new RecordingOutputs { OnEvent = s => Console.WriteLine($"  INJECT {s}") };
     router = new InputRouter(rec, rec, rec);

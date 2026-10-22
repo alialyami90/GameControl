@@ -12,7 +12,9 @@ public readonly record struct Holdable(ActionType Kind, int Device, int Code, st
 }
 
 /// <summary>A user-visible note about input that was just injected (for the live monitor in the UI).</summary>
-public readonly record struct InputActivity(DateTimeOffset At, string Source, string ControlId, string What);
+/// <param name="SourceId">The phone's device id.</param>
+/// <param name="Target">Which output it went to; <see cref="ActionType.None"/> for releases and notes.</param>
+public readonly record struct InputActivity(DateTimeOffset At, string SourceId, string Source, string ControlId, string What, ActionType Target);
 
 /// <summary>
 /// The single place where input reaches Windows. Holds are reference-counted, so two
@@ -39,8 +41,8 @@ public sealed class InputRouter
         Keyboard = keyboard; VJoy = vjoy; XInput = xinput;
     }
 
-    public void Report(string source, string controlId, string what) =>
-        Activity?.Invoke(new InputActivity(DateTimeOffset.Now, source, controlId, what));
+    public void Report(string sourceId, string source, string controlId, string what, ActionType target = ActionType.None) =>
+        Activity?.Invoke(new InputActivity(DateTimeOffset.Now, sourceId, source, controlId, what, target));
 
     public void Down(Holdable h, ScanKey? key = null)
     {

@@ -7,10 +7,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.Spring
 
 /**
- * Motion is mechanical: caps travel fast and settle, latch bands slide in like a strap pulled
- * tight. Compose scales these by the system animator setting, so Remove animations cuts them.
+ * Motion is quick and decisive, like a racing menu: selections snap, latch stripes sweep in.
+ * Compose scales these by the system animator setting, so Remove animations cuts them.
  */
-object RigMotion {
+object RaceMotion {
     val EmphasizedDecel = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
     val Standard = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 

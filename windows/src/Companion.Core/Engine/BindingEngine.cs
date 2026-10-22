@@ -29,13 +29,16 @@ public sealed class BindingEngine
     readonly InputRouter _router;
     readonly ICommandSink _commands;
     readonly string _source;
+    readonly string _sourceId;
     Dictionary<string, Binding> _bindings = new();
     readonly Dictionary<string, ControlState> _state = new();
 
-    public BindingEngine(InputRouter router, ICommandSink commands, string source)
+    public BindingEngine(InputRouter router, ICommandSink commands, string source, string? sourceId = null)
     {
-        _router = router; _commands = commands; _source = source;
+        _router = router; _commands = commands; _source = source; _sourceId = sourceId ?? source;
     }
+
+    void Report(string id, string what, ActionType target = ActionType.None) => _router.Report(_sourceId, _source, id, what, target);
 
     public int BindingCount { get { lock (_gate) return _bindings.Count; } }
     public string? ProfileId { get; private set; }
@@ -153,7 +156,7 @@ public sealed class BindingEngine
     {
         for (int i = st.Holds.Count - 1; i >= 0; i--) _router.Up(st.Holds[i]);
         st.Holds.Clear();
-        _router.Report(_source, id, why);
+        Report(id, why);
     }
 
     static bool On(double v) => v >= 0.5;
@@ -171,13 +174,13 @@ public sealed class BindingEngine
                         if (On(cur) && st.Holds.Count == 0)
                         {
                             foreach (var k in a.Keys) { var h = Holdable.Key(k); _router.Down(h, k); st.Holds.Add(h); }
-                            _router.Report(_source, b.Id, $"{KeyNames(a)} down");
+                            Report(b.Id, $"{KeyNames(a)} down", ActionType.Key);
                         }
                         else if (!On(cur) && st.Holds.Count > 0)
                         {
                             for (int i = st.Holds.Count - 1; i >= 0; i--) _router.Up(st.Holds[i]);
                             st.Holds.Clear();
-                            _router.Report(_source, b.Id, $"{KeyNames(a)} up");
+                            Report(b.Id, $"{KeyNames(a)} up", ActionType.Key);
                         }
                         break;
                     case KeyTrigger.Tap:
@@ -193,12 +196,12 @@ public sealed class BindingEngine
             case ActionType.XInputButton:
             {
                 var h = a.Type == ActionType.VJoyButton ? Holdable.VJoy(a.Device, a.Button) : Holdable.Xbox(a.XButton);
-                if (On(cur) && st.Holds.Count == 0) { _router.Down(h); st.Holds.Add(h); _router.Report(_source, b.Id, $"{a} down"); }
+                if (On(cur) && st.Holds.Count == 0) { _router.Down(h); st.Holds.Add(h); Report(b.Id, $"{a} down", a.Type); }
                 else if (!On(cur) && st.Holds.Count > 0)
                 {
                     foreach (var held in st.Holds) _router.Up(held);
                     st.Holds.Clear();
-                    _router.Report(_source, b.Id, $"{a} up");
+                    Report(b.Id, $"{a} up", a.Type);
                 }
                 break;
             }
@@ -207,7 +210,7 @@ public sealed class BindingEngine
             {
                 double pos = a.Range == AxisRange.Unipolar ? cur : (cur + 1) / 2;
                 _router.VJoyAxis(a.Device, a.Axis, pos);
-                _router.Report(_source, b.Id, $"{a} {Math.Clamp(pos, 0, 1):P0}");
+                Report(b.Id, $"{a} {Math.Clamp(pos, 0, 1):P0}", a.Type);
                 break;
             }
 
@@ -217,7 +220,7 @@ public sealed class BindingEngine
                     ? (a.Range == AxisRange.Bipolar ? (cur + 1) / 2 : cur)
                     : (a.Range == AxisRange.Unipolar ? cur * 2 - 1 : cur);
                 _router.XboxAxis(a.Axis, v);
-                _router.Report(_source, b.Id, $"{a} {v:0.00}");
+                Report(b.Id, $"{a} {v:0.00}", a.Type);
                 break;
             }
 
@@ -251,7 +254,7 @@ public sealed class BindingEngine
             {
                 double pos = count <= 1 ? 0 : (double)index / (count - 1);
                 _router.VJoyAxis(a.Device, a.Axis, pos);
-                _router.Report(_source, b.Id, $"{a} {pos:P0}");
+                Report(b.Id, $"{a} {pos:P0}", a.Type);
                 break;
             }
             case ActionType.XInputAxis:
@@ -259,7 +262,7 @@ public sealed class BindingEngine
                 double pos = count <= 1 ? 0 : (double)index / (count - 1);
                 double v = a.Axis is "LT" or "RT" ? pos : pos * 2 - 1;
                 _router.XboxAxis(a.Axis, v);
-                _router.Report(_source, b.Id, $"{a} {v:0.00}");
+                Report(b.Id, $"{a} {v:0.00}", a.Type);
                 break;
             }
             default:
@@ -276,11 +279,11 @@ public sealed class BindingEngine
             case ActionType.Key: Tap(b, a); break;
             case ActionType.VJoyButton:
                 _ = _router.Pulse(Holdable.VJoy(a.Device, a.Button));
-                _router.Report(_source, b.Id, $"{a} pulse");
+                Report(b.Id, $"{a} pulse", a.Type);
                 break;
             case ActionType.XInputButton:
                 _ = _router.Pulse(Holdable.Xbox(a.XButton));
-                _router.Report(_source, b.Id, $"{a} pulse");
+                Report(b.Id, $"{a} pulse", a.Type);
                 break;
             case ActionType.Macro: RunMacro(b, a, st); break;
             case ActionType.BeamNG:
@@ -300,21 +303,21 @@ public sealed class BindingEngine
     void Tap(Binding b, ActionSpec a)
     {
         _ = _router.TapKeys(a.Keys);
-        _router.Report(_source, b.Id, $"{KeyNames(a)} tap");
+        Report(b.Id, $"{KeyNames(a)} tap", ActionType.Key);
     }
 
     void SendCommand(Binding b, string command, double value)
     {
-        if (!_commands.Connected) { _router.Report(_source, b.Id, $"BeamNG {command} skipped (mod not connected)"); return; }
+        if (!_commands.Connected) { Report(b.Id, $"BeamNG {command} skipped (mod not connected)"); return; }
         _commands.SendCommand(command, value);
-        _router.Report(_source, b.Id, $"BeamNG {command} = {value:0.##}");
+        Report(b.Id, $"BeamNG {command} = {value:0.##}", ActionType.BeamNG);
     }
 
     void RunMacro(Binding b, ActionSpec a, ControlState st)
     {
         if (st.MacroRunning) return;
         st.MacroRunning = true;
-        _router.Report(_source, b.Id, $"macro start ({a.Steps.Count} steps)");
+        Report(b.Id, $"macro start ({a.Steps.Count} steps)", ActionType.Key);
         _ = Task.Run(async () =>
         {
             try

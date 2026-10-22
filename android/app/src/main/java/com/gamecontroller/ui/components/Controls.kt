@@ -68,9 +68,10 @@ import com.gamecontroller.model.ControlType
 import com.gamecontroller.model.FeedbackSource
 import com.gamecontroller.model.IndicatorState
 import com.gamecontroller.ui.icons.IconLibrary
-import com.gamecontroller.ui.theme.Rig
-import com.gamecontroller.ui.theme.RigMotion
-import com.gamecontroller.ui.theme.RigType
+import com.gamecontroller.ui.theme.Race
+import com.gamecontroller.ui.theme.CapShape
+import com.gamecontroller.ui.theme.RaceMotion
+import com.gamecontroller.ui.theme.RaceType
 import com.gamecontroller.ui.theme.lit
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -227,7 +228,7 @@ private fun SelectorSwitch(
     val index = activeIndex(control, value, indicator)
     val accent = control.accent.lit()
     val haptics = LocalHapticFeedback.current
-    val thumb by animateFloatAsState(index.toFloat(), RigMotion.release(), label = "thumb")
+    val thumb by animateFloatAsState(index.toFloat(), RaceMotion.release(), label = "thumb")
     val currentOnValue by rememberUpdatedState(onValue)
     val currentIndex by rememberUpdatedState(index)
     var box by remember { mutableStateOf(IntSize.Zero) }
@@ -248,9 +249,9 @@ private fun SelectorSwitch(
     Box(
         modifier
             .onSizeChanged { box = it }
-            .clip(RoundedCornerShape(CapCorner))
-            .background(Rig.Case)
-            .border(1.dp, Rig.Stitch, RoundedCornerShape(CapCorner))
+            .clip(CapShape())
+            .background(Race.Panel)
+            .border(1.dp, Race.Line, CapShape())
             .semantics {
                 role = Role.DropdownList
                 contentDescription = control.label
@@ -287,12 +288,12 @@ private fun SelectorSwitch(
                 accent = accent,
                 source = indicator?.source ?: FeedbackSource.LOCAL,
                 enabled = enabled,
-                corner = 8.dp,
+                cut = 8.dp,
                 showBand = !pending,
             ) {}
             val content: @Composable (Int) -> Unit = { i ->
                 val selected = i == index
-                val ink by animateColorAsState(if (selected && enabled) accent else Rig.BoneMuted, RigMotion.settle(), label = "seg")
+                val ink by animateColorAsState(if (selected && enabled) accent else Race.InkMuted, RaceMotion.settle(), label = "seg")
                 Box(
                     Modifier
                         .size(segW, segH)
@@ -305,8 +306,8 @@ private fun SelectorSwitch(
                         if (vector != null) Icon(vector, null, tint = ink, modifier = Modifier.size(22.dp))
                         Text(
                             p.label.uppercase(),
-                            style = if (segH >= 56.dp && segW >= 56.dp) RigType.readout else RigType.capLabel,
-                            color = if (selected && enabled) Rig.Bone else ink,
+                            style = if (segH >= 56.dp && segW >= 56.dp) RaceType.readout else RaceType.capLabel,
+                            color = if (selected && enabled) Race.Ink else ink,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -397,7 +398,7 @@ private fun AxisSlider(
     var dragging by remember { mutableStateOf(false) }
     val shown = remember { Animatable(value) }
     if (!dragging && !shown.isRunning && shown.value != value) {
-        scope.launch { shown.animateTo(value, RigMotion.settle()) }
+        scope.launch { shown.animateTo(value, RaceMotion.settle()) }
     }
     var box by remember { mutableStateOf(IntSize.Zero) }
     val vertical = control.vertical
@@ -425,8 +426,8 @@ private fun AxisSlider(
         ) {
             Text(
                 control.label.uppercase(),
-                style = RigType.capLabel,
-                color = Rig.BoneMuted,
+                style = RaceType.capLabel,
+                color = Race.InkMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
@@ -434,8 +435,8 @@ private fun AxisSlider(
             Spacer(Modifier.width(6.dp))
             Text(
                 (if (bipolar && pct > 0) "+" else "") + pct,
-                style = RigType.readout,
-                color = if (abs(shown.value - rest) > 0.01f) accent else Rig.BoneFaint,
+                style = RaceType.readout,
+                color = if (abs(shown.value - rest) > 0.01f) accent else Race.InkFaint,
             )
         }
         Spacer(Modifier.height(6.dp))
@@ -444,9 +445,9 @@ private fun AxisSlider(
                 .weight(1f)
                 .fillMaxWidth()
                 .onSizeChanged { box = it }
-                .clip(RoundedCornerShape(CapCorner))
-                .background(Rig.Case)
-                .border(1.dp, if (enabled) Rig.Stitch else Rig.StitchStrong, RoundedCornerShape(CapCorner))
+                .clip(CapShape())
+                .background(Race.Panel)
+                .border(1.dp, if (enabled) Race.Line else Race.LineStrong, CapShape())
                 .then(
                     if (!active) Modifier else Modifier.pointerInput(vertical, bipolar, control.springReturn) {
                         awaitEachGesture {
@@ -470,7 +471,7 @@ private fun AxisSlider(
                             dragging = false
                             if (control.springReturn) {
                                 currentOnValue(rest)
-                                scope.launch { shown.animateTo(rest, RigMotion.springBack()) }
+                                scope.launch { shown.animateTo(rest, RaceMotion.springBack()) }
                             }
                         }
                     }
@@ -487,7 +488,7 @@ private fun AxisSlider(
                     val major = i % 5 == 0
                     val p = at(v)
                     val tl = if (major) cross * 0.22f else cross * 0.12f
-                    val c = Rig.StitchStrong.copy(alpha = if (major) 1f else 0.6f)
+                    val c = Race.LineStrong.copy(alpha = if (major) 1f else 0.6f)
                     if (vertical) {
                         val y = size.height - p
                         drawLine(c, Offset(6.dp.toPx(), y), Offset(6.dp.toPx() + tl, y), 1.dp.toPx())
@@ -517,10 +518,10 @@ private fun AxisSlider(
                 val tl = if (vertical) Offset(6.dp.toPx(), size.height - t - handleLen / 2) else Offset(t - handleLen / 2, 6.dp.toPx())
                 val hs = if (vertical) Size(handleCross, handleLen) else Size(handleLen, handleCross)
                 drawRoundRect(Color.Black.copy(alpha = 0.5f), tl + Offset(0f, 3.dp.toPx()), hs, CornerRadius(6.dp.toPx()))
-                drawRoundRect(Brush.verticalGradient(listOf(Rig.CapHigh, Rig.Cap), startY = tl.y, endY = tl.y + hs.height), tl, hs, CornerRadius(6.dp.toPx()))
-                drawRoundRect(if (dragging) accent else Rig.StitchStrong, tl, hs, CornerRadius(6.dp.toPx()), style = Stroke(1.5.dp.toPx()))
+                drawRoundRect(Brush.verticalGradient(listOf(Race.CapHigh, Race.Cap), startY = tl.y, endY = tl.y + hs.height), tl, hs, CornerRadius(6.dp.toPx()))
+                drawRoundRect(if (dragging) accent else Race.LineStrong, tl, hs, CornerRadius(6.dp.toPx()), style = Stroke(1.5.dp.toPx()))
                 // Grip line in the handle's centre.
-                val gripC = if (enabled) accent else Rig.BoneFaint
+                val gripC = if (enabled) accent else Race.InkFaint
                 if (vertical) {
                     val y = tl.y + hs.height / 2
                     drawLine(gripC, Offset(tl.x + hs.width * 0.2f, y), Offset(tl.x + hs.width * 0.8f, y), 3.dp.toPx(), StrokeCap.Round)
@@ -551,7 +552,7 @@ private fun RotaryKnob(
     var angle by remember { mutableFloatStateOf(0f) }
     var steps by remember { mutableIntStateOf(0) }
     var turning by remember { mutableStateOf(false) }
-    val shownAngle by animateFloatAsState(angle, RigMotion.settle(), label = "knob")
+    val shownAngle by animateFloatAsState(angle, RaceMotion.settle(), label = "knob")
     val currentOnStep by rememberUpdatedState(onStep)
     val stepDeg = 15f
 
@@ -614,7 +615,7 @@ private fun RotaryKnob(
                         val major = i % 6 == 0
                         val r1 = r - 2.dp.toPx(); val r0 = r1 - (if (major) 9.dp else 5.dp).toPx()
                         drawLine(
-                            if (major) Rig.StitchStrong else Rig.Stitch,
+                            if (major) Race.LineStrong else Race.Line,
                             Offset(c.x + cos(a) * r0, c.y + sin(a) * r0),
                             Offset(c.x + cos(a) * r1, c.y + sin(a) * r1),
                             (if (major) 2.dp else 1.dp).toPx(), StrokeCap.Round,
@@ -622,8 +623,8 @@ private fun RotaryKnob(
                     }
                     val kr = r - 14.dp.toPx()
                     drawCircle(Color.Black.copy(alpha = 0.5f), kr, c + Offset(0f, 4.dp.toPx()))
-                    drawCircle(Brush.verticalGradient(listOf(Rig.CapHigh, Rig.Cap), startY = c.y - kr, endY = c.y + kr), kr, c)
-                    drawCircle(if (turning) accent else Rig.Stitch, kr, c, style = Stroke(1.5.dp.toPx()))
+                    drawCircle(Brush.verticalGradient(listOf(Race.CapHigh, Race.Cap), startY = c.y - kr, endY = c.y + kr), kr, c)
+                    drawCircle(if (turning) accent else Race.Line, kr, c, style = Stroke(1.5.dp.toPx()))
                     // Knurled grip ring.
                     for (i in 0 until 36) {
                         val a = (i * 10f + shownAngle) * PI.toFloat() / 180f
@@ -637,25 +638,26 @@ private fun RotaryKnob(
                     // Pointer.
                     val pa = (shownAngle - 90f) * PI.toFloat() / 180f
                     drawLine(
-                        if (enabled) accent else Rig.BoneFaint,
+                        if (enabled) accent else Race.InkFaint,
                         Offset(c.x + cos(pa) * kr * 0.25f, c.y + sin(pa) * kr * 0.25f),
                         Offset(c.x + cos(pa) * (kr - 10.dp.toPx()), c.y + sin(pa) * (kr - 10.dp.toPx())),
                         4.dp.toPx(), StrokeCap.Round,
                     )
                 }
                 val vector = IconLibrary[control.icon]
-                if (indicator?.text != null) {
-                    Text(indicator.text, style = RigType.readout, color = Rig.Bone)
+                val readout = indicator?.text
+                if (readout != null) {
+                    Text(readout, style = RaceType.readout, color = Race.Ink)
                 } else if (vector != null && d >= 110.dp) {
-                    Icon(vector, null, tint = Rig.BoneMuted, modifier = Modifier.size(d * 0.16f).offset(y = d * 0.12f))
+                    Icon(vector, null, tint = Race.InkMuted, modifier = Modifier.size(d * 0.16f).offset(y = d * 0.12f))
                 }
             }
         }
         if (control.label.isNotBlank()) {
             Text(
                 control.label.uppercase(),
-                style = RigType.capLabel,
-                color = Rig.BoneMuted,
+                style = RaceType.capLabel,
+                color = Race.InkMuted,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
