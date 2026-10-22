@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading.Channels;
 using GameController.Companion.Engine;
 using GameController.Companion.Protocol;
 
@@ -20,7 +21,9 @@ public sealed class BeamNgLink : ICommandSink, IDisposable
     readonly CancellationTokenSource _cts = new();
     readonly object _gate = new();
     TcpClient? _client;
-    StreamWriter? _writer;
+    /// <summary>Outgoing lines for the live connection. Callers (the binding engine, under its lock) only enqueue.</summary>
+    Channel<string>? _writer;
+    Task? _pump;
     IReadOnlyCollection<string> _commands = Array.Empty<string>();
 
     public string? ModVersion { get; private set; }
@@ -65,13 +68,15 @@ public sealed class BeamNgLink : ICommandSink, IDisposable
     {
         c.NoDelay = true;
         var stream = c.GetStream();
-        var writer = new StreamWriter(stream, new UTF8Encoding(false)) { AutoFlush = true, NewLine = "\n" };
+        var writer = Channel.CreateBounded<string>(new BoundedChannelOptions(1024) { SingleReader = true, FullMode = BoundedChannelFullMode.DropWrite });
+        var pump = Pump(stream, writer.Reader);
         TcpClient? old;
         lock (_gate)
         {
             old = _client;
             _client = c;
             _writer = writer;
+            _pump = pump;
         }
         old?.Dispose();
         Log?.Invoke("BeamNG mod connected");
@@ -99,7 +104,9 @@ public sealed class BeamNgLink : ICommandSink, IDisposable
                 wasCurrent = _client == c;
                 if (wasCurrent) { _client = null; _writer = null; _commands = Array.Empty<string>(); ModVersion = null; }
             }
+            writer.Writer.TryComplete();
             c.Dispose();
+            try { await pump.ConfigureAwait(false); } catch { }
             if (wasCurrent)
             {
                 Log?.Invoke("BeamNG mod disconnected");
@@ -149,18 +156,28 @@ public sealed class BeamNgLink : ICommandSink, IDisposable
         }
     }
 
-    public bool Send(JsonObject msg)
+    /// <summary>Writes queued lines in order. A game stalled in a loading screen only backs up this task.</summary>
+    async Task Pump(Stream stream, ChannelReader<string> lines)
     {
-        StreamWriter? w;
-        lock (_gate) w = _writer;
-        if (w == null) return false;
         try
         {
-            var text = msg.ToJsonString();
-            lock (w) w.WriteLine(text);
-            return true;
+            await foreach (var line in lines.ReadAllAsync(_cts.Token).ConfigureAwait(false))
+            {
+                var bytes = Encoding.UTF8.GetBytes(line + "\n");
+                await stream.WriteAsync(bytes, _cts.Token).ConfigureAwait(false);
+            }
         }
-        catch (Exception) { return false; }
+        catch (Exception) { /* socket closed; Serve notices on its read side */ }
+    }
+
+    public bool Send(JsonObject msg)
+    {
+        Channel<string>? w;
+        lock (_gate) w = _writer;
+        if (w == null) return false;
+        if (w.Writer.TryWrite(msg.ToJsonString())) return true;
+        Log?.Invoke("BeamNG mod is not reading; a message was dropped");
+        return false;
     }
 
     public void SendCommand(string command, double value)
@@ -175,8 +192,12 @@ public sealed class BeamNgLink : ICommandSink, IDisposable
 
     public void Dispose()
     {
+        // Let queued lines (the 0s for held commands sent on shutdown) reach the mod before closing.
+        Task? pump;
+        lock (_gate) { _writer?.Writer.TryComplete(); pump = _pump; }
+        try { pump?.Wait(TimeSpan.FromMilliseconds(500)); } catch { }
         _cts.Cancel();
         try { _listener.Stop(); } catch { }
-        lock (_gate) { _client?.Dispose(); _client = null; _writer = null; }
+        lock (_gate) { _writer?.Writer.TryComplete(); _client?.Dispose(); _client = null; _writer = null; }
     }
 }

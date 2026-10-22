@@ -25,7 +25,7 @@ public sealed class HostIntegrationTests : IDisposable
         c.ServerName = "TEST";
         c.WsPort = FreeTcp(); c.UdpPort = FreeUdp(); c.DiscoveryPort = FreeUdp(); c.BeamNgPort = FreeTcp(); c.OutGaugePort = FreeUdp();
         c.EnableMdns = false;
-        _host = new CompanionHost(_store, new InputRouter(_out, _out, _out), new HostOptions { Bind = IPAddress.Loopback });
+        _host = new CompanionHost(_store, new InputRouter(_out, _out, _out), new HostOptions { Bind = IPAddress.Loopback, IdleTimeout = TimeSpan.FromSeconds(1.5) });
         _host.Pairing.UsePin("424242");
         _host.Start();
     }
@@ -221,6 +221,44 @@ public sealed class HostIntegrationTests : IDisposable
 
         mod.Close();
         Assert.False((bool)(await p.Expect("capabilities"))["capabilities"]!["beamng"]!);
+        var cleared = await p.Expect("state");
+        Assert.Equal("beamng", (string?)cleared["source"]);
+        Assert.True((bool?)cleared["full"]);
+        Assert.Empty(cleared["values"]!.AsObject());
+    }
+
+    [Fact]
+    public async Task Browser_origin_is_refused()
+    {
+        using var ws = new ClientWebSocket();
+        ws.Options.SetRequestHeader("Origin", "http://evil.example");
+        var e = await Assert.ThrowsAnyAsync<WebSocketException>(() => ws.ConnectAsync(new Uri($"ws://127.0.0.1:{_store.Config.WsPort}/ws"), CancellationToken.None));
+        Assert.Contains("403", e.Message);
+    }
+
+    [Fact]
+    public async Task Silent_phone_is_dropped_and_released()
+    {
+        var (p, _, _) = await Pair();
+        await using var _p = p;
+        await p.Send(Sync);
+        await p.Expect("profile.ack");
+        await p.Send("""{"v":1,"type":"input","s":1,"id":"horn","val":1}""");
+        await WaitFor(() => _out.Log.Contains("key H down"));
+        // No pings: the idle timeout (1.5 s in these tests, 8 s for real) ends the session and releases its input.
+        await WaitFor(() => _out.Log.Contains("key H up"), 4000);
+        Assert.Contains("key H up", _out.Log);
+        await WaitFor(() => _host.Sessions.Count == 0, 4000);
+        Assert.Empty(_host.Sessions);
+    }
+
+    [Fact]
+    public async Task Pings_keep_a_phone_connected()
+    {
+        var (p, _, _) = await Pair();
+        await using var _p = p;
+        for (int i = 0; i < 6; i++) { await p.Send("""{"v":1,"type":"ping","t":1}"""); await Task.Delay(500); }
+        Assert.Single(_host.Sessions);
     }
 
     [Fact]

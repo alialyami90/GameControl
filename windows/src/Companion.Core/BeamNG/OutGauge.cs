@@ -22,6 +22,8 @@ public static class OutGauge
         float rpm = BinaryPrimitives.ReadSingleLittleEndian(p[16..]);
         float fuel = BinaryPrimitives.ReadSingleLittleEndian(p[28..]);
         uint dashLights = BinaryPrimitives.ReadUInt32LittleEndian(p[40..]);
+        // Some sources leave DashLights at 0 ("nothing declared"); then trust every ShowLights bit we map.
+        if (dashLights == 0) dashLights = uint.MaxValue;
         uint showLights = BinaryPrimitives.ReadUInt32LittleEndian(p[44..]);
 
         var v = new Dictionary<string, object>

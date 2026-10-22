@@ -59,15 +59,22 @@ public sealed class Pairing
         PinChanged?.Invoke();
     }
 
+    /// <summary>A hand-edited or corrupt hash in the config matches nothing instead of throwing.</summary>
+    static byte[] FromHex(string? hex)
+    {
+        try { return Convert.FromHexString(hex ?? ""); }
+        catch (FormatException) { return Array.Empty<byte>(); }
+    }
+
     /// <summary>Checks a hello. On a good PIN, a new token is issued in <paramref name="token"/>.</summary>
     public PairOutcome Authenticate(string deviceId, string deviceName, string? pin, string? token, out string? issuedToken)
     {
         issuedToken = null;
         if (!string.IsNullOrEmpty(token))
         {
-            var hash = CompanionConfig.HashToken(token);
-            var dev = _store.Config.Devices.FirstOrDefault(d => d.DeviceId == deviceId &&
-                CryptographicOperations.FixedTimeEquals(Convert.FromHexString(d.TokenHash), Convert.FromHexString(hash)));
+            var hash = Convert.FromHexString(CompanionConfig.HashToken(token));
+            var dev = _store.Read(c => c.Devices.FirstOrDefault(d => d.DeviceId == deviceId &&
+                CryptographicOperations.FixedTimeEquals(FromHex(d.TokenHash), hash)));
             if (dev == null)
             {
                 // Fall through to the PIN if the phone also sent one (e.g. after "forget device" on the PC).

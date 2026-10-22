@@ -74,6 +74,12 @@ public sealed class ConfigStore
         return new CompanionConfig();
     }
 
+    /// <summary>Reads under the same lock as <see cref="Update"/>, so lists are never seen mid-change.</summary>
+    public T Read<T>(Func<CompanionConfig, T> read)
+    {
+        lock (_gate) return read(Config);
+    }
+
     public void Update(Action<CompanionConfig> change)
     {
         lock (_gate)

@@ -124,13 +124,14 @@ public sealed class InputRouter
 
     public void VJoyAxis(int device, string axis, double position)
     {
-        lock (_gate) VJoy.SetAxis(device, axis, Math.Clamp(position, 0, 1));
+        // Like Emit: a driver that fails (device unplugged, vJoy reinstalled) drops the update, never the session.
+        lock (_gate) try { VJoy.SetAxis(device, axis, Math.Clamp(position, 0, 1)); } catch (Exception) { }
     }
 
     public void XboxAxis(string axis, double value)
     {
         bool trigger = axis is "LT" or "RT";
-        lock (_gate) XInput.SetAxis(axis, Math.Clamp(value, trigger ? 0 : -1, 1));
+        lock (_gate) try { XInput.SetAxis(axis, Math.Clamp(value, trigger ? 0 : -1, 1)); } catch (Exception) { }
     }
 
     /// <summary>Releases everything that is held (used on shutdown).</summary>

@@ -43,7 +43,7 @@ public class BeamNgRuleTests
     {
         var r = new Rig(B("latching", "lights.low"));
         r.Send("c", 0); r.Send("c", 1); r.Send("c", 1); r.Send("c", 0);
-        Assert.Equal(new[] { ("lights.low", 0.0), ("lights.low", 1.0), ("lights.low", 0.0) }, r.Commands.Sent);
+        Assert.Equal(new[] { ("lights.low", 0.0), ("lights.low", 1.0), ("lights.low", 1.0), ("lights.low", 0.0) }, r.Commands.Sent);
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public class BeamNgRuleTests
     {
         var r = new Rig("""{"id":"g","kind":"switch","positions":[{"type":"beamng","command":"gearbox.mode"},{"type":"beamng","command":"gearbox.mode"},{"type":"beamng","command":"gearbox.mode"},{"type":"beamng","command":"gearbox.mode"}]}""");
         r.Send("g", 3); r.Send("g", 3); r.Send("g", 1);
-        Assert.Equal(new[] { ("gearbox.mode", 3.0), ("gearbox.mode", 1.0) }, r.Commands.Sent);
+        Assert.Equal(new[] { ("gearbox.mode", 3.0), ("gearbox.mode", 3.0), ("gearbox.mode", 1.0) }, r.Commands.Sent);
     }
 
     [Fact]
@@ -61,6 +61,42 @@ public class BeamNgRuleTests
         r.Send("z", 1); r.Send("z", -1);
         Rig.Settle();
         Assert.Equal(new[] { ("action.look_back", 1.0), ("camera.prev", 1.0), ("action.look_back", 0.0) }, r.Commands.Sent);
+    }
+
+    [Fact]
+    public void Held_command_gets_zero_on_session_end()
+    {
+        var r = new Rig(B("latching", "action.parkingbrake_hold"));
+        r.Send("c", 1);
+        r.Engine.ReleaseAll();
+        Assert.Equal(new[] { ("action.parkingbrake_hold", 1.0), ("action.parkingbrake_hold", 0.0) }, r.Commands.Sent);
+    }
+
+    [Fact]
+    public void Silent_momentary_horn_is_auto_released()
+    {
+        var r = new Rig(B("momentary", "horn"));
+        r.Send("c", 1);
+        r.Now = 1500; r.Engine.Tick(r.Now);
+        Assert.Equal(new[] { ("horn", 1.0), ("horn", 0.0) }, r.Commands.Sent);
+    }
+
+    [Fact]
+    public void Changed_binding_releases_held_command()
+    {
+        var r = new Rig(B("momentary", "horn"));
+        r.Send("c", 1);
+        r.Load(B("momentary", "action.look_back"));
+        Assert.Equal(new[] { ("horn", 1.0), ("horn", 0.0) }, r.Commands.Sent);
+    }
+
+    [Fact]
+    public void Setters_are_not_zeroed_on_session_end()
+    {
+        var r = new Rig(B("latching", "lights.low"));
+        r.Send("c", 1);
+        r.Engine.ReleaseAll();
+        Assert.Equal(new[] { ("lights.low", 1.0) }, r.Commands.Sent);
     }
 
     [Fact]

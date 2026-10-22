@@ -42,9 +42,18 @@ public class OutGaugeTests
     [Fact]
     public void Lamps_the_game_does_not_drive_are_not_reported()
     {
-        var v = OutGauge.Parse(Packet(1, 0, 0, 0, 0, 0xFFFF))!;
+        var v = OutGauge.Parse(Packet(1, 0, 0, 0, OutGauge.DL_HANDBRAKE, 0xFFFF))!;
+        Assert.True((bool)v["parkingbrake"]!);
         Assert.False(v.ContainsKey("lights.high"));
         Assert.False(v.ContainsKey("hazard"));
+    }
+
+    [Fact]
+    public void No_declared_lamps_means_trust_every_lamp()
+    {
+        var v = OutGauge.Parse(Packet(1, 0, 0, 0, 0, OutGauge.DL_FULLBEAM))!;
+        Assert.True((bool)v["lights.high"]!);
+        Assert.False((bool)v["hazard"]!);
     }
 
     [Fact]

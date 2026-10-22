@@ -4,12 +4,14 @@ using GameController.Companion.Protocol;
 
 namespace GameController.Companion.Engine;
 
-public enum ApplyResult { Applied, Stale, Repeat, UnknownControl, RoutedOverHid }
+public enum ApplyResult { Applied, Stale, UnknownControl, RoutedOverHid }
 
 /// <summary>
 /// Turns control events from one phone session into input, following the semantics in
 /// PROTOCOL.md ("How each control kind sends values"). One instance per session key, so the
-/// sequence table, idempotency table and held inputs are all per phone.
+/// sequence table and held inputs are per phone. Duplicates are recognised by sequence number
+/// only, never by value: the game can change state on its own, so the same value sent again
+/// with a new sequence number is a real request.
 /// </summary>
 public sealed class BindingEngine
 {
@@ -19,10 +21,17 @@ public sealed class BindingEngine
     sealed class ControlState
     {
         public long LastSeq = long.MinValue;
+        /// <summary>Last value applied; momentary and slider edges are computed from it.</summary>
         public double? LastApplied;
         public long LastUpdateMs;
         public readonly List<Holdable> Holds = new();
+        /// <summary>BeamNG commands this control holds at 1 (horn, recover, action.*); they get a 0 on release.</summary>
+        public readonly List<string> HeldCommands = new();
+        /// <summary>The axis this control last moved, so a session end can park it.</summary>
+        public ActionSpec? Axis;
         public bool MacroRunning;
+
+        public bool Holding => Holds.Count > 0 || HeldCommands.Count > 0;
     }
 
     readonly object _gate = new();
@@ -43,18 +52,23 @@ public sealed class BindingEngine
     public int BindingCount { get { lock (_gate) return _bindings.Count; } }
     public string? ProfileId { get; private set; }
 
-    /// <summary>Replaces the active bindings. Anything this session held is released first.</summary>
+    /// <summary>
+    /// Replaces the active bindings. Controls whose binding is unchanged keep what they hold (a
+    /// latched hold stays down across an edit); controls that were removed or changed are released.
+    /// </summary>
     public void SetBindings(string? profileId, IEnumerable<Binding> bindings)
     {
         lock (_gate)
         {
-            ReleaseAllLocked();
             var map = new Dictionary<string, Binding>(StringComparer.Ordinal);
             foreach (var b in bindings) map[b.Id] = b;
-            // A control whose meaning changed must not be skipped as a "repeat" of its old value.
             foreach (var (id, st) in _state)
-                if (!map.ContainsKey(id) || !_bindings.TryGetValue(id, out var old) || !SameShape(old, map[id]))
-                    st.LastApplied = null;
+            {
+                bool same = map.TryGetValue(id, out var now) && _bindings.TryGetValue(id, out var old) && SameShape(old, now);
+                if (same) continue;
+                ReleaseControl(id, st, "released (binding changed)", parkAxis: false);
+                st.LastApplied = null;
+            }
             _bindings = map;
             ProfileId = profileId;
         }
@@ -84,6 +98,7 @@ public sealed class BindingEngine
                 case ControlKind.Momentary:
                 case ControlKind.Slider:
                 {
+                    // Continuous inputs are re-sent while held, so their edges come from the last value.
                     bool first = st.LastApplied is null;
                     double prev = st.LastApplied ?? 0;
                     st.LastApplied = value;
@@ -92,18 +107,16 @@ public sealed class BindingEngine
                 }
                 case ControlKind.Latching:
                 {
-                    if (st.LastApplied == value) return ApplyResult.Repeat;
-                    bool first = st.LastApplied is null;
-                    double prev = st.LastApplied ?? 0;
+                    // Every latching event is a deliberate change: treat it as an edge in its own
+                    // direction, so "on" after the game switched itself off still switches it on.
                     st.LastApplied = value;
-                    ApplyLevel(b, b.Action, st, prev, value, first);
+                    ApplyLevel(b, b.Action, st, On(value) ? 0 : 1, value, first: true);
                     return ApplyResult.Applied;
                 }
                 case ControlKind.Switch:
                 case ControlKind.Radio:
                 {
                     int index = (int)Math.Round(value);
-                    if (st.LastApplied == index) return ApplyResult.Repeat;
                     if (index < 0 || index >= b.Positions.Count) return ApplyResult.Stale;
                     st.LastApplied = index;
                     ApplyPosition(b, b.Positions[index], st, index, b.Positions.Count);
@@ -121,42 +134,58 @@ public sealed class BindingEngine
         }
     }
 
-    /// <summary>Auto-releases held inputs of momentary controls that went silent (lost release packets).</summary>
+    /// <summary>Auto-releases what momentary controls hold once they go silent (lost release packets).</summary>
     public void Tick(long nowMs)
     {
         lock (_gate)
         {
             foreach (var (id, st) in _state)
             {
-                if (st.Holds.Count == 0 || nowMs - st.LastUpdateMs < AutoReleaseMs) continue;
+                if (!st.Holding || nowMs - st.LastUpdateMs < AutoReleaseMs) continue;
                 if (!_bindings.TryGetValue(id, out var b) || b.Kind != ControlKind.Momentary) continue;
-                ReleaseHolds(id, st, "auto-released (no update for 1 s)");
+                ReleaseControl(id, st, "auto-released (no update for 1 s)", parkAxis: false);
                 st.LastApplied = 0;
             }
         }
     }
 
-    /// <summary>Releases only what this session holds (phone disconnect, profile change).</summary>
+    /// <summary>
+    /// Session end (or "Release all input"): every key and button this phone holds goes up, held
+    /// BeamNG commands get value 0, and axes it moved go back to rest (bipolar centre, unipolar 0).
+    /// </summary>
     public void ReleaseAll()
     {
-        lock (_gate) ReleaseAllLocked();
+        lock (_gate)
+            foreach (var (id, st) in _state)
+            {
+                ReleaseControl(id, st, "released", parkAxis: true);
+                if (_bindings.TryGetValue(id, out var b) && b.Kind is ControlKind.Momentary or ControlKind.Slider) st.LastApplied = null;
+            }
     }
 
-    void ReleaseAllLocked()
+    void ReleaseControl(string id, ControlState st, string why, bool parkAxis)
     {
-        foreach (var (id, st) in _state)
-        {
-            if (st.Holds.Count == 0) continue;
-            ReleaseHolds(id, st, "released");
-            if (_bindings.TryGetValue(id, out var b) && b.Kind == ControlKind.Momentary) st.LastApplied = 0;
-        }
-    }
-
-    void ReleaseHolds(string id, ControlState st, string why)
-    {
+        bool any = st.Holding;
         for (int i = st.Holds.Count - 1; i >= 0; i--) _router.Up(st.Holds[i]);
         st.Holds.Clear();
-        Report(id, why);
+        foreach (var cmd in st.HeldCommands)
+            if (_commands.Connected) _commands.SendCommand(cmd, 0);
+        st.HeldCommands.Clear();
+        if (parkAxis && st.Axis is { } axis)
+        {
+            ParkAxis(axis);
+            st.Axis = null;
+            any = true;
+        }
+        if (any) Report(id, why);
+    }
+
+    void ParkAxis(ActionSpec a)
+    {
+        if (a.Type == ActionType.VJoyAxis)
+            _router.VJoyAxis(a.Device, a.Axis, a.Range == AxisRange.Unipolar ? 0 : 0.5);
+        else if (a.Type == ActionType.XInputAxis)
+            _router.XboxAxis(a.Axis, 0); // sticks centre, triggers released
     }
 
     static bool On(double v) => v >= 0.5;
@@ -210,6 +239,7 @@ public sealed class BindingEngine
             {
                 double pos = a.Range == AxisRange.Unipolar ? cur : (cur + 1) / 2;
                 _router.VJoyAxis(a.Device, a.Axis, pos);
+                st.Axis = a;
                 Report(b.Id, $"{a} {Math.Clamp(pos, 0, 1):P0}", a.Type);
                 break;
             }
@@ -220,6 +250,7 @@ public sealed class BindingEngine
                     ? (a.Range == AxisRange.Bipolar ? (cur + 1) / 2 : cur)
                     : (a.Range == AxisRange.Unipolar ? cur * 2 - 1 : cur);
                 _router.XboxAxis(a.Axis, v);
+                st.Axis = a;
                 Report(b.Id, $"{a} {v:0.00}", a.Type);
                 break;
             }
@@ -238,7 +269,16 @@ public sealed class BindingEngine
                         // A setter is idempotent, so the very first value is sent even when it is "off":
                         // that brings the game in line with a latch the phone restored.
                         if (b.Kind == ControlKind.Slider ? (cur != prev || first) : (On(cur) != On(prev) || first))
-                            SendCommand(b, a.Command, b.Kind == ControlKind.Slider ? cur : (On(cur) ? 1 : 0));
+                        {
+                            double value = b.Kind == ControlKind.Slider ? cur : (On(cur) ? 1 : 0);
+                            SendCommand(b, a.Command, value);
+                            // Remember held commands (horn, action.*) so a lost release or a session end sends the 0.
+                            if (BeamNgCommands.IsHeld(a.Command))
+                            {
+                                if (value > 0) { if (!st.HeldCommands.Contains(a.Command)) st.HeldCommands.Add(a.Command); }
+                                else st.HeldCommands.Remove(a.Command);
+                            }
+                        }
                         break;
                 }
                 break;
@@ -254,6 +294,7 @@ public sealed class BindingEngine
             {
                 double pos = count <= 1 ? 0 : (double)index / (count - 1);
                 _router.VJoyAxis(a.Device, a.Axis, pos);
+                st.Axis = a;
                 Report(b.Id, $"{a} {pos:P0}", a.Type);
                 break;
             }
@@ -262,6 +303,7 @@ public sealed class BindingEngine
                 double pos = count <= 1 ? 0 : (double)index / (count - 1);
                 double v = a.Axis is "LT" or "RT" ? pos : pos * 2 - 1;
                 _router.XboxAxis(a.Axis, v);
+                st.Axis = a;
                 Report(b.Id, $"{a} {v:0.00}", a.Type);
                 break;
             }

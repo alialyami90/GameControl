@@ -59,9 +59,18 @@ public sealed class ViGEmOutput : IXInputOutput, IDisposable
     IXbox360Controller? Pad()
     {
         if (_client == null) return null;
-        if (_pad == null) _pad = _client.CreateXbox360Controller();
-        if (!_connected) { _pad.Connect(); _connected = true; }
-        return _pad;
+        try
+        {
+            if (_pad == null) _pad = _client.CreateXbox360Controller();
+            if (!_connected) { _pad.Connect(); _connected = true; }
+            return _pad;
+        }
+        catch (Exception e)
+        {
+            // The bus can vanish (driver removed, too many pads); report it and try again on the next use.
+            Status = "could not plug in the virtual pad: " + e.Message;
+            return null;
+        }
     }
 
     static Xbox360Button? Button(string name) => name.ToUpperInvariant() switch

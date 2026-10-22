@@ -68,6 +68,13 @@ public sealed class WsServer : IDisposable
                 await WriteText(stream, "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").ConfigureAwait(false);
                 return;
             }
+            // Browsers always send Origin and the phone app never does: refusing it stops any web page
+            // the PC visits from opening a socket to us (cross-site WebSocket hijacking).
+            if (headers.ContainsKey("origin"))
+            {
+                await WriteText(stream, "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").ConfigureAwait(false);
+                return;
+            }
             if (path.Split('?')[0] != _path)
             {
                 await WriteText(stream, "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").ConfigureAwait(false);

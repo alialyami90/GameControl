@@ -27,6 +27,8 @@ public sealed class HostOptions
     public Func<CompanionConfig, IDisposable?>? PlatformMdns { get; init; }
     public IDeviceIdentity Identity { get; init; } = new DefaultDeviceIdentity();
     public IPAddress Bind { get; init; } = IPAddress.Any;
+    /// <summary>The phone pings every 2 s; after this much silence its session is closed and released.</summary>
+    public TimeSpan IdleTimeout { get; init; } = TimeSpan.FromSeconds(8);
 }
 
 /// <summary>
@@ -54,6 +56,9 @@ public sealed class CompanionHost : IDisposable
     string _lastCapabilities = "";
     Timer? _timer;
     int _tickCount;
+    int _ticking;
+    IReadOnlySet<IPAddress> _localAddresses = new HashSet<IPAddress>();
+    long _localAddressesAtMs = long.MinValue;
 
     public InputRouter Router { get; }
     public Pairing Pairing { get; }
@@ -124,7 +129,7 @@ public sealed class CompanionHost : IDisposable
         {
             var link = new BeamNgLink(c.BeamNgPort);
             link.Log += s => Log("info", s);
-            link.ConnectionChanged += _ => { if (!link.Connected) ClearBeamNgState(); PushCapabilities(); StatusChanged?.Invoke(); };
+            link.ConnectionChanged += _ => { if (!link.Connected) OnBeamNgDisconnected(); PushCapabilities(); StatusChanged?.Invoke(); };
             link.StateReceived += OnBeamNgState;
             link.CommandsReceived += OnBeamNgCommands;
             link.BindingsResult += r => { Log(r["ok"]?.GetValue<bool>() == true ? "info" : "warn", $"BeamNG bindings: {r["message"]}"); Broadcast(r); };
@@ -162,8 +167,19 @@ public sealed class CompanionHost : IDisposable
 
     void Tick()
     {
+        // The timer fires on the thread pool: skip a tick that would overlap a slow one, and never let
+        // an exception escape (an unhandled one there ends the process).
+        if (Interlocked.Exchange(ref _ticking, 1) == 1) return;
+        try { TickCore(); }
+        catch (Exception e) { Log("error", $"Background tick failed: {e.Message}"); }
+        finally { Volatile.Write(ref _ticking, 0); }
+    }
+
+    void TickCore()
+    {
         long now = Environment.TickCount64;
         foreach (var s in _sessions.Values) s.Engine.Tick(now);
+        DropIdleSessions();
         FlushOutGauge(now);
 
         bool active = OutGaugeActive;
@@ -182,6 +198,20 @@ public sealed class CompanionHost : IDisposable
             try { changed |= Router.VJoy.Refresh(); } catch { }
             try { changed |= Router.XInput.Refresh(); } catch { }
             if (changed) { PushCapabilities(); StatusChanged?.Invoke(); }
+        }
+    }
+
+    void DropIdleSessions()
+    {
+        var idle = _options.IdleTimeout;
+        var cutoff = DateTimeOffset.Now - idle;
+        foreach (var s in _sessions.Values.Where(x => x.LastMessageAt < cutoff).ToList())
+        {
+            if (!_sessions.TryRemove(s.SessionKey, out PhoneSession? _)) continue;
+            s.Engine.ReleaseAll();
+            Log("warn", $"{s.DeviceName} went silent for {idle.TotalSeconds:0.#} s; its held inputs were released");
+            _ = s.CloseAsync("no messages (idle timeout)");
+            SessionsChanged?.Invoke();
         }
     }
 
@@ -213,15 +243,22 @@ public sealed class CompanionHost : IDisposable
         };
     }
 
+    readonly object _capsGate = new();
+
     void PushCapabilities()
     {
-        var caps = Capabilities();
-        var text = caps.ToJsonString();
-        if (text == _lastCapabilities) return;
-        _lastCapabilities = text;
-        var m = JsonExt.Msg("capabilities");
-        m["capabilities"] = caps;
-        Broadcast(m);
+        // Called from the timer, the mod link and UI threads; the lock keeps the "changed?" check and
+        // the broadcast together so phones never see capabilities go backwards.
+        lock (_capsGate)
+        {
+            var caps = Capabilities();
+            var text = caps.ToJsonString();
+            if (text == _lastCapabilities) return;
+            _lastCapabilities = text;
+            var m = JsonExt.Msg("capabilities");
+            m["capabilities"] = caps;
+            Broadcast(m);
+        }
     }
 
     JsonObject DiscoverReply()
@@ -260,16 +297,22 @@ public sealed class CompanionHost : IDisposable
                 var text = await Receive(ws, buffer, ct).ConfigureAwait(false);
                 if (text == null) break;
                 session.LastMessageAt = DateTimeOffset.Now;
-                HandleMessage(session, text);
+                try { HandleMessage(session, text); }
+                catch (Exception e)
+                {
+                    // One bad message (or a failing output driver) must not end the phone's session.
+                    Log("warn", $"Message from {session.DeviceName} failed: {e.Message}");
+                    session.Send(JsonExt.Error("bad_message", "the companion could not handle that message"));
+                }
             }
         }
         catch (Exception) { /* dropped connection */ }
         finally
         {
-            if (session != null)
+            // Skip when the session was already dropped (idle timeout, replaced, forgotten): it was released then.
+            if (session != null && _sessions.TryRemove(session.SessionKey, out _))
             {
                 session.Engine.ReleaseAll();
-                _sessions.TryRemove(session.SessionKey, out _);
                 Log("info", $"{session.DeviceName} disconnected; its held inputs were released");
                 SessionsChanged?.Invoke();
             }
@@ -368,7 +411,6 @@ public sealed class CompanionHost : IDisposable
             _sessions.TryRemove(old.SessionKey, out PhoneSession? _);
             _ = old.CloseAsync("replaced by a new connection");
         }
-        _sessions[key] = session;
 
         var welcome = JsonExt.Msg("welcome");
         welcome["serverName"] = Config.ServerName;
@@ -377,6 +419,9 @@ public sealed class CompanionHost : IDisposable
         welcome["udpPort"] = Config.UdpPort;
         welcome["capabilities"] = Capabilities();
         await session.SendAsync(welcome).ConfigureAwait(false);
+        // Registered only now, so no broadcast (state, capabilities) can reach the phone before its welcome.
+        session.LastMessageAt = DateTimeOffset.Now;
+        _sessions[key] = session;
 
         Log("info", $"{deviceName} connected from {addr}");
         SessionsChanged?.Invoke();
@@ -513,6 +558,7 @@ public sealed class CompanionHost : IDisposable
         if (key == null || !_sessions.TryGetValue(key, out var s)) return;
         var addr = from.Address.IsIPv4MappedToIPv6 ? from.Address.MapToIPv4() : from.Address;
         if (!addr.Equals(s.RemoteAddress)) return;
+        s.LastMessageAt = DateTimeOffset.Now;
         var id = m.Str("id");
         var seq = m.Long("s");
         var val = m.Num("val");
@@ -553,6 +599,26 @@ public sealed class CompanionHost : IDisposable
         _beamngCommands = Array.Empty<string>();
     }
 
+    /// <summary>
+    /// The mod went away: phones drop every BeamNG value (a full, empty state), and if OutGauge is
+    /// still arriving they get its whole picture, since its changes were held back while the mod was live.
+    /// </summary>
+    void OnBeamNgDisconnected()
+    {
+        ClearBeamNgState();
+        Broadcast(StateMessage("beamng", new JsonObject(), full: true));
+        GameState?.Invoke(new Dictionary<string, JsonNode?>(), "beamng");
+        if (!OutGaugeActive) return;
+        JsonObject values = new();
+        lock (_stateGate)
+        {
+            foreach (var (k, v) in _outgaugeState) values[k] = v?.DeepClone();
+            _outgaugePending.Clear();
+        }
+        Broadcast(StateMessage("outgauge", values, full: true));
+        GameState?.Invoke(SnapshotDict(_outgaugeState), "outgauge");
+    }
+
     IReadOnlyDictionary<string, JsonNode?> SnapshotDict(Dictionary<string, JsonNode?> d)
     {
         lock (_stateGate) return d.ToDictionary(kv => kv.Key, kv => kv.Value?.DeepClone());
@@ -561,7 +627,7 @@ public sealed class CompanionHost : IDisposable
     void OnOutGauge(byte[] data, IPEndPoint from)
     {
         // Telemetry is local; ignore anything that is not from this PC.
-        if (!IPAddress.IsLoopback(from.Address) && !MdnsAdvertiser.LocalAddresses().Contains(from.Address)) return;
+        if (!IPAddress.IsLoopback(from.Address) && !LocalAddresses().Contains(from.Address)) return;
         var values = OutGauge.Parse(data);
         if (values == null) return;
         Interlocked.Exchange(ref _lastOutGaugeMs, Environment.TickCount64);
@@ -575,6 +641,18 @@ public sealed class CompanionHost : IDisposable
                 _outgaugePending[k] = node?.DeepClone();
             }
         }
+    }
+
+    /// <summary>This PC's addresses, refreshed every 10 s rather than per packet (OutGauge runs at up to 60 Hz).</summary>
+    IReadOnlySet<IPAddress> LocalAddresses()
+    {
+        long now = Environment.TickCount64;
+        if (now - Interlocked.Read(ref _localAddressesAtMs) > 10_000)
+        {
+            _localAddresses = MdnsAdvertiser.LocalAddresses().ToHashSet();
+            Interlocked.Exchange(ref _localAddressesAtMs, now);
+        }
+        return _localAddresses;
     }
 
     /// <summary>Sends OutGauge changes at most 10 times a second, and not while the richer mod feed is live.</summary>

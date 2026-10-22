@@ -4,6 +4,7 @@ namespace GameController.Companion.Tests;
 
 public class EngineTests
 {
+    const string Latch = """{"id":"l","kind":"latching","action":{"type":"vjoy_button","device":1,"button":7}}""";
     const string Horn = """{"id":"horn","kind":"momentary","action":{"type":"key","keys":["H"],"trigger":"hold"}}""";
 
     [Fact]
@@ -66,12 +67,12 @@ public class EngineTests
     }
 
     [Fact]
-    public void Latching_tap_is_idempotent_and_taps_on_each_change()
+    public void Latching_tap_taps_on_every_new_sequence_even_with_the_same_value()
     {
         var r = new Rig("""{"id":"l","kind":"latching","action":{"type":"key","keys":["L"],"trigger":"tap"}}""");
         Assert.Equal(ApplyResult.Applied, r.Send("l", 1));
-        Assert.Equal(ApplyResult.Repeat, r.Send("l", 1));
-        Assert.Equal(ApplyResult.Applied, r.Send("l", 0));
+        Assert.Equal(ApplyResult.Applied, r.Send("l", 1));
+        Assert.Equal(ApplyResult.Stale, r.SendSeq("l", 2, 1));
         Rig.Settle();
         Assert.Equal(new[] { "key L down", "key L up", "key L down", "key L up" }, r.Out.Log);
     }
@@ -91,8 +92,8 @@ public class EngineTests
         var r = new Rig("""{"id":"s","kind":"switch","positions":[{"type":"key","keys":["D1"],"trigger":"hold"},{"type":"vjoy_button","device":1,"button":3}]}""");
         r.Send("s", 0); r.Send("s", 0); r.Send("s", 1); r.Send("s", 5);
         Rig.Settle();
-        // Different outputs run concurrently, so only compare what happened, not the interleaving.
-        Assert.Equal(new[] { "key D1 down", "key D1 up", "vjoy 1 btn 3 down", "vjoy 1 btn 3 up" }.Order(), r.Out.Log.Order());
+        // A repeated position is a new request (sequence-only dedupe), so D1 taps twice. Outputs run concurrently, so compare sorted.
+        Assert.Equal(new[] { "key D1 down", "key D1 up", "key D1 down", "key D1 up", "vjoy 1 btn 3 down", "vjoy 1 btn 3 up" }.Order(), r.Out.Log.Order());
     }
 
     [Fact]
@@ -187,24 +188,58 @@ public class EngineTests
     }
 
     [Fact]
-    public void Profile_change_releases_holds()
+    public void Changed_binding_releases_its_hold_on_resync()
     {
         var r = new Rig(Horn);
         r.Send("horn", 1);
-        r.Load(Horn);
+        r.Load(Horn.Replace("\"H\"", "\"J\""));
         Assert.Equal(new[] { "key H down", "key H up" }, r.Out.Log);
     }
 
     [Fact]
-    public void Latching_idempotency_survives_identical_resync_but_not_a_changed_binding()
+    public void Removed_binding_releases_its_hold_on_resync()
+    {
+        var r = new Rig(Horn, Latch);
+        r.Send("horn", 1);
+        r.Load(Latch);
+        Assert.Equal(new[] { "key H down", "key H up" }, r.Out.Log);
+    }
+
+    [Fact]
+    public void Unchanged_latched_hold_survives_resync()
+    {
+        var r = new Rig(Latch, Horn);
+        r.Send("l", 1);
+        r.Load(Latch, Horn.Replace("\"H\"", "\"J\""));
+        r.Send("l", 0);
+        Assert.Equal(new[] { "vjoy 1 btn 7 down", "vjoy 1 btn 7 up" }, r.Out.Log);
+    }
+
+    [Fact]
+    public void Session_end_parks_axes()
+    {
+        var r = new Rig(
+            """{"id":"t","kind":"slider","action":{"type":"vjoy_axis","device":1,"axis":"Z","range":"unipolar"}}""",
+            """{"id":"s","kind":"slider","action":{"type":"vjoy_axis","device":1,"axis":"X","range":"bipolar"}}""",
+            """{"id":"x","kind":"slider","action":{"type":"xinput_axis","axis":"LX"}}""");
+        r.Send("t", 0.8); r.Send("s", 0.5); r.Send("x", -0.4);
+        int before = r.Out.Log.Count;
+        r.Engine.ReleaseAll();
+        var parked = r.Out.Log.Skip(before).ToList();
+        Assert.Contains("vjoy 1 axis Z 0", parked);
+        Assert.Contains("vjoy 1 axis X 0.5", parked);
+        Assert.Contains("xbox LX 0", parked);
+    }
+
+    [Fact]
+    public void Sequence_table_survives_resync()
     {
         var tap = """{"id":"l","kind":"latching","action":{"type":"key","keys":["L"],"trigger":"tap"}}""";
         var r = new Rig(tap);
-        r.Send("l", 1);
+        r.SendSeq("l", 5, 1);
         r.Load(tap);
-        Assert.Equal(ApplyResult.Repeat, r.Send("l", 1));
-        r.Load("""{"id":"l","kind":"latching","action":{"type":"key","keys":["K"],"trigger":"tap"}}""");
-        Assert.Equal(ApplyResult.Applied, r.Send("l", 1));
+        Assert.Equal(ApplyResult.Stale, r.SendSeq("l", 5, 1));
+        Assert.Equal(ApplyResult.Applied, r.SendSeq("l", 6, 1));
     }
 
     [Fact]

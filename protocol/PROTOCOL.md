@@ -55,9 +55,9 @@ or `{"v":1,"type":"error","code":"bad_pin"|"bad_token"|"version_mismatch","messa
 
 PIN attempts are rate-limited: after 5 wrong PINs the companion refuses new pairing for 60 s (`error` code `rate_limited`). Several phones may be connected at once; each has its own session key, its own held-input table, and its own active bindings. When a phone disconnects, the companion releases only the inputs that phone was holding.
 
-When a phone's session ends for any reason (close, 6 s of silence, error), the companion releases every input that phone holds: keys and buttons go up, every BeamNG level command it holds is sent with value 0, bipolar axes return to centre and unipolar axes to 0.
+When a phone's session ends for any reason (close, 8 s of silence, error), the companion releases every input that phone holds: keys and buttons go up, every BeamNG level command it holds is sent with value 0, bipolar axes return to centre and unipolar axes to 0.
 
-Keep-alive: either side may send `{"v":1,"type":"ping","t":<ms>}`; the other replies `{"v":1,"type":"pong","t":<same>}`. The phone pings every 2 s and treats 6 s of silence as disconnected. The companion releases that phone's held inputs when its WebSocket closes.
+Keep-alive: either side may send `{"v":1,"type":"ping","t":<ms>}`; the other replies `{"v":1,"type":"pong","t":<same>}`. The phone pings every 2 s and treats 6 s of silence as disconnected; the companion treats 8 s of silence from a phone as a dead session and releases its inputs. The companion releases that phone's held inputs when its WebSocket closes.
 
 When `capabilities` change (BeamNG mod connects or disconnects, vJoy appears), the companion sends a fresh `{"v":1,"type":"capabilities","capabilities":{...}}`.
 
@@ -107,6 +107,7 @@ Companion replies `{"v":1,"type":"profile.ack","profileId":"beamng-default","cou
 - `vjoy_axis`: `X`,`Y`,`Z`,`RX`,`RY`,`RZ`,`SL0`,`SL1`. Value -1..1 maps to the full axis range (bipolar). A unipolar slider sends 0..1 and the phone sets `"range":"unipolar"` on the action; then 0..1 maps to the full range.
 - `macro`: runs once on the rising edge. Steps run in order.
 - `beamng`: forwarded to the BeamNG mod as a `command` (see below). If no mod is connected the companion ignores it. Edge rules, applied by the companion:
+  - A `latching` control should be bound to a setter (`lights.low` with 1/0), never to a `*.toggle`: with a toggle only the rising edge fires, so the control would turn the feature on but never off.
   - `*.toggle` commands and one-shots (`reset`, `gear.up`, `camera.next`, ...) are sent to the mod only on the rising edge (value goes from < 0.5 to >= 0.5).
   - Level commands pass the value through on every change: `starter`, `horn`, `recover`, every `action.<name>` command, and the idempotent setters `<feature>` with value 1/0 (for example `lights.low` with 1 = on, 0 = off). Built-in latching controls use the setters, so a resend never flips state.
   - On a `switch`/`radio`, the command at the selected position is sent with `value` = 1 (a setter) or once (a toggle/one-shot). `gearbox.mode` gets `value` = index.

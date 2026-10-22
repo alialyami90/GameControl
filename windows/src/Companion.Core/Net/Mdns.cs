@@ -178,7 +178,7 @@ public sealed class MdnsAdvertiser : IDisposable
         udp.ExclusiveAddressUse = false;
         udp.Client.Bind(new IPEndPoint(IPAddress.Any, Port));
         udp.MulticastLoopback = true;
-        foreach (var addr in LocalAddresses())
+        foreach (var addr in AdvertisedAddresses())
         {
             try { udp.JoinMulticastGroup(Group, addr); } catch (SocketException) { }
         }
@@ -239,17 +239,50 @@ public sealed class MdnsAdvertiser : IDisposable
     DnsWire.Record SrvRecord(uint ttl) => new(_instance, DnsWire.TypeSrv, DnsWire.ClassIn | DnsWire.CacheFlush, ttl, DnsWire.Srv(_port, _host));
     DnsWire.Record TxtRecord(uint ttl) => new(_instance, DnsWire.TypeTxt, DnsWire.ClassIn | DnsWire.CacheFlush, ttl, DnsWire.Txt(_txt));
 
-    List<DnsWire.Record> ARecords(uint ttl) => LocalAddresses()
+    List<DnsWire.Record> ARecords(uint ttl) => AdvertisedAddresses()
         .Select(a => new DnsWire.Record(_host, DnsWire.TypeA, DnsWire.ClassIn | DnsWire.CacheFlush, ttl, a.GetAddressBytes())).ToList();
 
+    readonly object _sendGate = new();
+
+    /// <summary>
+    /// Sends on every LAN interface in turn. Windows otherwise picks one interface for multicast,
+    /// often a Hyper-V or VPN adapter, and the phone on the Wi-Fi never hears the answer.
+    /// </summary>
     void Send(byte[] data)
     {
-        try { _udp?.Send(data, data.Length, new IPEndPoint(Group, Port)); }
-        catch (Exception e) { Log?.Invoke($"mDNS send failed: {e.Message}"); }
+        var udp = _udp;
+        if (udp == null) return;
+        var target = new IPEndPoint(Group, Port);
+        lock (_sendGate)
+        {
+            var addrs = AdvertisedAddresses();
+            if (addrs.Count == 0) { TrySend(udp, data, target, null); return; }
+            foreach (var a in addrs) TrySend(udp, data, target, a);
+        }
+    }
+
+    void TrySend(UdpClient udp, byte[] data, IPEndPoint target, IPAddress? via)
+    {
+        try
+        {
+            if (via != null) udp.Client.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, via.GetAddressBytes());
+            udp.Send(data, data.Length, target);
+        }
+        catch (Exception e) { Log?.Invoke($"mDNS send via {via?.ToString() ?? "default"} failed: {e.Message}"); }
+    }
+
+    /// <summary>
+    /// Addresses to advertise: those of interfaces with a default gateway (the real LAN), which leaves
+    /// out host-only adapters (Hyper-V, WSL, VirtualBox). Falls back to every address when none has one.
+    /// </summary>
+    public static List<IPAddress> AdvertisedAddresses()
+    {
+        var lan = LocalAddresses(requireGateway: true);
+        return lan.Count > 0 ? lan : LocalAddresses();
     }
 
     /// <summary>Usable IPv4 addresses of interfaces that are up (no loopback, no link-local).</summary>
-    public static List<IPAddress> LocalAddresses()
+    public static List<IPAddress> LocalAddresses(bool requireGateway = false)
     {
         var list = new List<IPAddress>();
         try
@@ -257,7 +290,10 @@ public sealed class MdnsAdvertiser : IDisposable
             foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
             {
                 if (ni.OperationalStatus != OperationalStatus.Up || ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
-                foreach (var ua in ni.GetIPProperties().UnicastAddresses)
+                var props = ni.GetIPProperties();
+                if (requireGateway && !props.GatewayAddresses.Any(g => g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals(IPAddress.Any)))
+                    continue;
+                foreach (var ua in props.UnicastAddresses)
                 {
                     var a = ua.Address;
                     if (a.AddressFamily != AddressFamily.InterNetwork || IPAddress.IsLoopback(a)) continue;

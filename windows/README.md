@@ -57,7 +57,11 @@ Screenshots for design review: `dotnet run --project tools/UiSnap -- docs/screen
 ## Behaviour worth knowing
 
 - Bindings marked `"route":"hid"` are never injected (the phone sends those over Bluetooth HID).
-- `latching`, `switch` and `radio` are idempotent per control; `momentary` holds auto-release after 1 s without updates; sliders keep their value.
+- Duplicates are dropped by sequence number only. A `latching`, `switch` or `radio` event with a new sequence number is applied again even when its value repeats, because the game may have changed state on its own. `momentary` holds (keys, buttons and held BeamNG commands such as `horn` or `action.*`) auto-release after 1 s without updates; sliders keep their value.
+- When a phone's session ends (closed, 8 s without a message, replaced, forgotten), everything it held is released: keys and buttons go up, held BeamNG commands get value 0, bipolar axes return to centre and unipolar axes to 0. BeamNG setters such as `lights.low` are left as they are.
+- A profile re-sync releases only controls whose binding was removed or changed; an unchanged latched hold stays down.
+- vJoy devices are listed when free, and a device is acquired only the first time a binding uses it.
+- WebSocket upgrades that carry an `Origin` header (that is, from a browser) are refused with 403.
 - Holds are reference-counted, so two controls or two phones holding the same key release it only when both let go.
 - A tap on a key that is still mid-tap waits for it (about 20 ms gap), so two quick toggles or two rotary detents reach the game as two presses.
 - `PAUSE` is sent as scancode E0 45, which DirectInput reports as `DIK_PAUSE`; the real E1 1D 45 sequence cannot be expressed with `SendInput`.
@@ -69,6 +73,7 @@ Screenshots for design review: `dotnet run --project tools/UiSnap -- docs/screen
 - **The phone cannot find the PC.** Allow the companion through Windows Firewall (the Status page offers it; it adds one rule for private networks). Check the PC and phone are on the same network and the network is set to Private. Type the address shown under the PIN as a last resort.
 - **Keys do nothing in one game.** If the game runs as administrator, Windows blocks input from apps that are not. The companion warns about this; start it with Run as administrator.
 - **vJoy shows Needs setup.** Install vJoy, open Configure vJoy, enable device 1. The companion picks it up within ten seconds.
+- **SimHub (or another dashboard) also wants OutGauge.** Only one program can listen on UDP 4444. Either give the companion another port in Settings and point BeamNG there, or use SimHub's UDP forwarding to pass OutGauge on to the companion's port. With the BeamNG mod connected the companion does not need OutGauge at all.
 - **A key seems stuck.** Status > Release all input, or the tray menu item of the same name.
 
 Settings live in `%APPDATA%\GameController\companion.json`.

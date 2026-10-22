@@ -36,6 +36,7 @@ public sealed class VJoyOutput : IVJoyOutput, IDisposable
     static int _resolverSet;
     readonly object _gate = new();
     List<int> _devices = new();
+    readonly HashSet<int> _owned = new();
     readonly Dictionary<int, int> _buttonCount = new();
     readonly Dictionary<(int, uint), (int Min, int Max)> _axisRange = new();
 
@@ -67,7 +68,10 @@ public sealed class VJoyOutput : IVJoyOutput, IDisposable
         return IntPtr.Zero;
     }
 
-    /// <summary>Acquires every enabled vJoy device that nobody else owns.</summary>
+    /// <summary>
+    /// Lists the vJoy devices we could use (free, or already ours). A device is only acquired the
+    /// first time a binding uses it, so other feeders (and other games' tools) can keep the rest.
+    /// </summary>
     public bool Refresh()
     {
         lock (_gate)
@@ -85,14 +89,8 @@ public sealed class VJoyOutput : IVJoyOutput, IDisposable
                 for (int id = 1; id <= 16; id++)
                 {
                     var st = GetVJDStatus((uint)id);
-                    if (st == VjdStat.Own) { now.Add(id); continue; }
-                    if (st == VjdStat.Free && AcquireVJD((uint)id))
-                    {
-                        ResetVJD((uint)id);
-                        _buttonCount[id] = GetVJDButtonNumber((uint)id);
-                        CenterAxes(id);
-                        now.Add(id);
-                    }
+                    if (st == VjdStat.Own || st == VjdStat.Free) now.Add(id);
+                    else _owned.Remove(id); // taken by another feeder, or removed in "Configure vJoy"
                 }
                 _devices = now;
                 Status = now.Count == 0 ? "vJoy installed, no free device (configure one in \"Configure vJoy\")" : $"devices {string.Join(", ", now)}";
@@ -109,6 +107,21 @@ public sealed class VJoyOutput : IVJoyOutput, IDisposable
         }
     }
 
+    /// <summary>Takes the device on first use; false when another program got it first.</summary>
+    bool Owned(int id)
+    {
+        if (_owned.Contains(id)) return true;
+        if (!_devices.Contains(id)) return false;
+        var st = GetVJDStatus((uint)id);
+        if (st != VjdStat.Own && !(st == VjdStat.Free && AcquireVJD((uint)id))) return false;
+        ResetVJD((uint)id);
+        _buttonCount[id] = GetVJDButtonNumber((uint)id);
+        CenterAxes(id);
+        _owned.Add(id);
+        Status = $"devices {string.Join(", ", _devices)} (using {string.Join(", ", _owned.Order())})";
+        return true;
+    }
+
     void CenterAxes(int id)
     {
         foreach (var usage in AxisUsage.Values)
@@ -119,7 +132,7 @@ public sealed class VJoyOutput : IVJoyOutput, IDisposable
     {
         lock (_gate)
         {
-            if (!_devices.Contains(device)) return;
+            if (!Owned(device)) return;
             if (_buttonCount.TryGetValue(device, out var n) && button > n) return;
             SetBtn(down, (uint)device, (byte)button);
         }
@@ -130,7 +143,7 @@ public sealed class VJoyOutput : IVJoyOutput, IDisposable
         if (!AxisUsage.TryGetValue(axis, out var usage)) return;
         lock (_gate)
         {
-            if (!_devices.Contains(device)) return;
+            if (!Owned(device)) return;
             SetAxisRaw(device, usage, position);
         }
     }
@@ -152,7 +165,8 @@ public sealed class VJoyOutput : IVJoyOutput, IDisposable
     {
         lock (_gate)
         {
-            try { foreach (var d in _devices) { ResetVJD((uint)d); RelinquishVJD((uint)d); } } catch { }
+            try { foreach (var d in _owned) { ResetVJD((uint)d); RelinquishVJD((uint)d); } } catch { }
+            _owned.Clear();
             _devices.Clear();
         }
     }
