@@ -403,6 +403,10 @@ public sealed class CompanionHost : IDisposable
             case PairOutcome.Missing:
                 await Reject(ws, "not_paired", "Enter the PIN shown on the PC").ConfigureAwait(false);
                 return null;
+            case PairOutcome.SaveFailed:
+                Log("error", $"Could not pair {deviceName}: {_store.Path} could not be written ({Pairing.SaveError}). Check the file is not read-only or locked, then try again.");
+                await Reject(ws, "config_write_failed", "The PC could not save the pairing. Check the companion on the PC, then try again.").ConfigureAwait(false);
+                return null;
         }
 
         var key = Pairing.NewSessionKey();
@@ -681,16 +685,20 @@ public sealed class CompanionHost : IDisposable
 
     // ---------------------------------------------------------------- UI actions
 
+    /// <summary>
+    /// Disconnects and releases the phone first, then removes its pairing. If saving fails the phone is
+    /// still stopped (it can reconnect with its token) and the exception tells the caller to report it.
+    /// </summary>
     public void ForgetDevice(string deviceId)
     {
-        Pairing.Forget(deviceId);
         foreach (var s in _sessions.Values.Where(x => x.DeviceId == deviceId).ToList())
         {
+            if (!_sessions.TryRemove(s.SessionKey, out PhoneSession? _)) continue;
             s.Engine.ReleaseAll();
-            _sessions.TryRemove(s.SessionKey, out PhoneSession? _);
             _ = s.CloseAsync("forgotten on the PC");
         }
         SessionsChanged?.Invoke();
+        Pairing.Forget(deviceId);
     }
 
     public void ReleaseEverything()

@@ -222,7 +222,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun back() {
         when (_screen.value) {
-            is Screen.Editor -> doneEditing()
+            // The editor owns Back (EditorBackHandler asks to discard when dirty), so nothing to do here.
+            is Screen.Editor -> Unit
             is Screen.Play, Screen.Connect -> openProfiles()
             Screen.Profiles -> Unit
         }
@@ -439,7 +440,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun editProfile(f: (EditorState) -> EditorState) {
-        _editor.update { s -> s?.let { f(it).copy(dirty = true) } }
+        // Dirty means "differs from what is saved", so an undo back to the saved layout clears it.
+        _editor.update { s -> s?.let { val n = f(it); n.copy(dirty = n.profile != repo.get(n.profile.id)) } }
     }
 
     fun editorSelect(id: String?) = _editor.update { it?.copy(selectedControlId = id) }

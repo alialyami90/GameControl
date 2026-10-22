@@ -227,7 +227,7 @@ Extended (need `KEYEVENTF_EXTENDEDKEY`): `RCTRL RALT LWIN RWIN APPS UP DOWN LEFT
 
 ## Error codes
 
-`version_mismatch`, `bad_pin`, `bad_token`, `rate_limited`, `not_paired`, `bad_message`, `unknown_control`, `no_vjoy`, `no_beamng`.
+`version_mismatch`, `bad_pin`, `bad_token`, `rate_limited`, `not_paired`, `bad_message`, `unknown_control`, `no_vjoy`, `no_beamng`, `config_write_failed` (the companion could not save its config during pairing or Forget; the PIN stays valid, nothing was persisted, try again after fixing the config path).
 
 ## Profile file format (import / export)
 

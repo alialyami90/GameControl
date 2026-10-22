@@ -15,6 +15,19 @@ public class PairingTests
     }
 
     [Fact]
+    public void Failed_save_pairs_nothing_and_keeps_the_pin()
+    {
+        var (p, store, _) = Make();
+        Directory.CreateDirectory(store.Path); // the settings file cannot be written
+        var pin = p.Pin;
+        Assert.Equal(PairOutcome.SaveFailed, p.Authenticate("dev1", "Pixel", pin, null, out var token));
+        Assert.Null(token);
+        Assert.Empty(store.Config.Devices); // rolled back: no ghost device
+        Assert.Equal(pin, p.Pin);
+        Assert.NotNull(p.SaveError);
+    }
+
+    [Fact]
     public void Good_pin_pairs_and_issues_a_token_that_works_later()
     {
         var (p, store, _) = Make();

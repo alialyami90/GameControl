@@ -122,6 +122,28 @@ public class BeamNgRuleTests
     }
 
     [Fact]
+    public void Lost_release_does_not_swallow_the_next_toggle()
+    {
+        var r = new Rig(B("momentary", "hazard.toggle"));
+        r.Send("c", 1);                       // press; every copy of the release is lost
+        r.Now = 1500; r.Engine.Tick(r.Now);   // silence
+        r.Send("c", 1);                       // the next press is a new rising edge
+        Assert.Equal(2, r.Commands.Sent.Count);
+    }
+
+    [Fact]
+    public void Binding_edit_while_held_does_not_refire_on_the_resend()
+    {
+        var r = new Rig(B("momentary", "hazard.toggle"));
+        r.Send("c", 1);
+        r.Load(B("momentary", "camera.next"));
+        r.Send("c", 1);                       // the phone's 250 ms resend of the same press
+        r.Send("c", 0);
+        r.Send("c", 1);                       // a real new press
+        Assert.Equal(new[] { ("hazard.toggle", 1.0), ("camera.next", 1.0) }, r.Commands.Sent);
+    }
+
+    [Fact]
     public void Setters_are_not_zeroed_on_session_end()
     {
         var r = new Rig(B("latching", "lights.low"));

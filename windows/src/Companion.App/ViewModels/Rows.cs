@@ -80,14 +80,14 @@ public sealed record LogRow(string Time, string Level, string Message)
     public string LevelWord => Level switch { "error" => "ERROR", "warn" => "WARN", _ => "INFO" };
 }
 
-/// <summary>Race Front-End signal colours for code-side bindings (DESIGN.md); the XAML tokens live in Styles/Rig.axaml.</summary>
+/// <summary>Signal colours for code-side bindings, read from the shared tokens in Styles/Rig.axaml.</summary>
 public static class Palette
 {
-    public static readonly IBrush Electric = new SolidColorBrush(Color.Parse("#FF2E7E"));
-    public static readonly IBrush Amber = new SolidColorBrush(Color.Parse("#FFB020"));
-    public static readonly IBrush Green = new SolidColorBrush(Color.Parse("#34E07F"));
-    public static readonly IBrush Red = new SolidColorBrush(Color.Parse("#FF4B3A"));
-    public static readonly IBrush Ink = new SolidColorBrush(Color.Parse("#F2F4F8"));
-    public static readonly IBrush InkMuted = new SolidColorBrush(Color.Parse("#A0A9BC"));
-    public static readonly IBrush InkFaint = new SolidColorBrush(Color.Parse("#7C869C"));
+    public static readonly IBrush Electric = Tokens.Brush("Electric", "#FF2E7E");
+    public static readonly IBrush Amber = Tokens.Brush("Amber", "#FFB020");
+    public static readonly IBrush Green = Tokens.Brush("Green", "#34E07F");
+    public static readonly IBrush Red = Tokens.Brush("Red", "#FF4B3A");
+    public static readonly IBrush Ink = Tokens.Brush("Ink", "#F2F4F8");
+    public static readonly IBrush InkMuted = Tokens.Brush("InkMuted", "#A0A9BC");
+    public static readonly IBrush InkFaint = Tokens.Brush("InkFaint", "#7C869C");
 }

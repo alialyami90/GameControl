@@ -80,12 +80,22 @@ public sealed class ConfigStore
         lock (_gate) return read(Config);
     }
 
+    /// <summary>
+    /// Applies a change and saves it. If the save fails the change is rolled back, so memory never
+    /// holds something the file does not (no ghost devices after a failed pairing), and the error is rethrown.
+    /// </summary>
     public void Update(Action<CompanionConfig> change)
     {
         lock (_gate)
         {
+            var before = JsonSerializer.Serialize(Config, Options);
             change(Config);
-            Save();
+            try { Save(); }
+            catch
+            {
+                Config = JsonSerializer.Deserialize<CompanionConfig>(before, Options) ?? Config;
+                throw;
+            }
         }
     }
 

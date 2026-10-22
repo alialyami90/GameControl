@@ -3,7 +3,7 @@ using GameController.Companion.Config;
 
 namespace GameController.Companion.Engine;
 
-public enum PairOutcome { Ok, BadPin, BadToken, RateLimited, Missing }
+public enum PairOutcome { Ok, BadPin, BadToken, RateLimited, Missing, SaveFailed }
 
 /// <summary>PIN pairing and token checks, with the 5-tries-then-60-s lockout from PROTOCOL.md.</summary>
 public sealed class Pairing
@@ -20,6 +20,8 @@ public sealed class Pairing
     public string Pin { get; private set; } = NewPin();
     public event Action? PinChanged;
     public event Action? DevicesChanged;
+    /// <summary>Why the last <see cref="PairOutcome.SaveFailed"/> happened, for the log.</summary>
+    public string? SaveError { get; private set; }
 
     public Pairing(ConfigStore store, Func<DateTimeOffset>? now = null)
     {
@@ -107,19 +109,28 @@ public sealed class Pairing
         }
 
         var newToken = NewToken();
-        issuedToken = newToken;
-        _store.Update(c =>
+        try
         {
-            c.Devices.RemoveAll(d => d.DeviceId == deviceId);
-            c.Devices.Add(new PairedDevice
+            _store.Update(c =>
             {
-                DeviceId = deviceId,
-                DeviceName = string.IsNullOrWhiteSpace(deviceName) ? "Phone" : deviceName,
-                TokenHash = CompanionConfig.HashToken(newToken),
-                PairedAt = _now(),
-                LastSeen = _now(),
+                c.Devices.RemoveAll(d => d.DeviceId == deviceId);
+                c.Devices.Add(new PairedDevice
+                {
+                    DeviceId = deviceId,
+                    DeviceName = string.IsNullOrWhiteSpace(deviceName) ? "Phone" : deviceName,
+                    TokenHash = CompanionConfig.HashToken(newToken),
+                    PairedAt = _now(),
+                    LastSeen = _now(),
+                });
             });
-        });
+        }
+        catch (Exception e)
+        {
+            // Nothing was paired: the store rolled back, the PIN stays valid, and the phone is told why.
+            SaveError = e.Message;
+            return PairOutcome.SaveFailed;
+        }
+        issuedToken = newToken;
         DevicesChanged?.Invoke();
         // A PIN is single-use: once a phone has paired, show a fresh one.
         if (rotate && !FixedPin) RotatePin();

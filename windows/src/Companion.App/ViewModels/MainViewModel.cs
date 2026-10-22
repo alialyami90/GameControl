@@ -374,12 +374,13 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     void ReleaseAll() => Host.ReleaseEverything();
 
     [RelayCommand]
-    void Forget(PhoneRow? row)
+    async Task Forget(PhoneRow? row)
     {
         if (row == null) return;
         try
         {
-            Host.ForgetDevice(row.DeviceId);
+            // Off the UI thread: a locked settings file is retried for a moment before giving up.
+            await Task.Run(() => Host.ForgetDevice(row.DeviceId));
             Host.Log("info", $"Forgot {row.Name}. It needs the PIN to connect again.");
         }
         catch (Exception e)
@@ -427,7 +428,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    void SaveSettings()
+    async Task SaveSettings()
     {
         var name = EditServerName.Trim();
         if (name.Length == 0) { SettingsNote = "Give this PC a name so phones can tell it apart."; return; }
@@ -436,18 +437,20 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var c = Host.Config;
         bool restart = c.EnableVigem != EnableVigem || c.EnableOutGauge != EnableOutGauge || c.EnableMdns != EnableMdns
                        || c.OutGaugePort != port || c.ServerName != name;
+        // Read the form on the UI thread; the save (with its short retry on a locked file) runs off it.
+        bool startMinimized = StartMinimized, vigem = EnableVigem, outGauge = EnableOutGauge, mdns = EnableMdns, startWithWindows = StartWithWindows;
         try
         {
-            Host.Store.Update(x =>
+            await Task.Run(() => Host.Store.Update(x =>
             {
                 x.ServerName = name;
-                x.StartMinimized = StartMinimized;
-                x.EnableVigem = EnableVigem;
-                x.EnableOutGauge = EnableOutGauge;
-                x.EnableMdns = EnableMdns;
+                x.StartMinimized = startMinimized;
+                x.EnableVigem = vigem;
+                x.EnableOutGauge = outGauge;
+                x.EnableMdns = mdns;
                 x.OutGaugePort = port;
-                x.StartWithWindows = StartWithWindows;
-            });
+                x.StartWithWindows = startWithWindows;
+            }));
         }
         catch (Exception e)
         {

@@ -44,11 +44,13 @@ public sealed class SignalPath : Control
     readonly DispatcherTimer _timer;
 
     // Palette (kept in code because the control draws itself).
-    static readonly Color Ground = Color.Parse("#0A0D14"), Panel = Color.Parse("#111622"), PanelRaised = Color.Parse("#171D2B"),
-        Cap = Color.Parse("#1C2333"), CapHigh = Color.Parse("#262F44"), Line = Color.Parse("#2B3448"), LineStrong = Color.Parse("#465170"),
-        Ink = Color.Parse("#F2F4F8"), InkMuted = Color.Parse("#A0A9BC"), InkFaint = Color.Parse("#7C869C"),
-        Electric = Color.Parse("#FF2E7E"), OnElectric = Color.Parse("#1F0010"),
-        Amber = Color.Parse("#FFB020"), Green = Color.Parse("#34E07F"), Red = Color.Parse("#FF4B3A");
+    // Palette from the shared tokens (Styles/Rig.axaml), read once when the control is first used.
+    static readonly Color Ground = Tokens.Color("Ground", "#0A0D14"), Panel = Tokens.Color("Panel", "#111622"),
+        PanelRaised = Tokens.Color("PanelRaised", "#171D2B"), Cap = Tokens.Color("Cap", "#1C2333"), CapHigh = Tokens.Color("CapHigh", "#262F44"),
+        Line = Tokens.Color("Line", "#2B3448"), LineStrong = Tokens.Color("LineStrong", "#465170"),
+        Ink = Tokens.Color("Ink", "#F2F4F8"), InkMuted = Tokens.Color("InkMuted", "#A0A9BC"), InkFaint = Tokens.Color("InkFaint", "#7C869C"),
+        Electric = Tokens.Color("Electric", "#FF2E7E"), Amber = Tokens.Color("Amber", "#FFB020"),
+        Green = Tokens.Color("Green", "#34E07F"), Red = Tokens.Color("Red", "#FF4B3A");
 
     // Names and numbers in italic condensed; detail lines upright.
     static readonly Typeface TitleFace = new(new FontFamily("avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed SemiBold"), FontStyle.Italic);
@@ -100,7 +102,8 @@ public sealed class SignalPath : Control
 
     Rect HubRect()
     {
-        double w = Math.Min(HubW, Bounds.Width * 0.3);
+        // Whatever the nodes leave, minus room for the wires.
+        double w = Math.Clamp(Bounds.Width - 2 * NodeWidth() - 120, 112, HubW);
         double x = Bounds.Width * 0.5 - w / 2 - 10;
         return new Rect(x, (Bounds.Height - HubH) / 2, w, HubH);
     }
@@ -109,9 +112,12 @@ public sealed class SignalPath : Control
     {
         double total = count * NodeH + (count - 1) * Gap;
         double y = (Bounds.Height - total) / 2 + i * (NodeH + Gap);
-        double w = Math.Min(NodeW, Bounds.Width * 0.3);
+        double w = NodeWidth();
         return new Rect(right ? Bounds.Width - w : 0, y, w, NodeH);
     }
+
+    /// <summary>Nodes shrink with the window but never below 156 px; narrow nodes switch to two-line titles.</summary>
+    double NodeWidth() => Math.Clamp(Bounds.Width * 0.3, 156, NodeW);
 
     static (Point a, Point c1, Point c2, Point b) Curve(Point a, Point b)
     {
@@ -276,8 +282,18 @@ public sealed class SignalPath : Control
         DrawIcon(ctx, n.Icon, new Rect(well.X + 8, well.Y + 8, 22, 22), iconColor);
 
         double tx = well.Right + 10, tw = r.Right - tx - 26;
-        DrawText(ctx, n.Title, TitleFace, 16, n.State == NodeState.Off ? InkMuted : Ink, new Point(tx, r.Y + 8), tw);
-        DrawText(ctx, n.Detail, DetailFace, 12.5, InkMuted, new Point(tx, r.Y + 31), tw);
+        var titleInk = n.State == NodeState.Off ? InkMuted : Ink;
+        if (r.Width >= 190)
+        {
+            DrawText(ctx, n.Title, TitleFace, 16, titleInk, new Point(tx, r.Y + 8), tw);
+            DrawText(ctx, n.Detail, DetailFace, 12.5, InkMuted, new Point(tx, r.Y + 31), tw);
+        }
+        else
+        {
+            // Narrow: the name gets both lines; the detail is on the Outputs and Phones pages.
+            var t = Layout(n.Title, TitleFace, 14.5, titleInk, tw, 2);
+            ctx.DrawText(t, new Point(tx, r.Y + (r.Height - t.Height) / 2));
+        }
 
         // Status lamp: shape changes with state so colour is never the only signal.
         var lc = new Point(r.Right - 22, r.Y + 17);
@@ -330,14 +346,17 @@ public sealed class SignalPath : Control
             foreach (var (g, filled) in parts) ctx.DrawGeometry(filled ? brush : null, filled ? null : pen, g);
     }
 
-    static void DrawText(DrawingContext ctx, string text, Typeface face, double size, Color color, Point at, double maxWidth, bool center = false)
-    {
-        var ft = new FormattedText(text, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, face, size, new SolidColorBrush(color))
+    static FormattedText Layout(string text, Typeface face, double size, Color color, double maxWidth, int lines) =>
+        new(text, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, face, size, new SolidColorBrush(color))
         {
             MaxTextWidth = Math.Max(1, maxWidth),
-            MaxLineCount = 1,
+            MaxLineCount = lines,
             Trimming = TextTrimming.CharacterEllipsis,
         };
+
+    static void DrawText(DrawingContext ctx, string text, Typeface face, double size, Color color, Point at, double maxWidth, bool center = false)
+    {
+        var ft = Layout(text, face, size, color, maxWidth, 1);
         if (center) at = new Point(at.X + (maxWidth - Math.Min(ft.Width, maxWidth)) / 2, at.Y);
         ctx.DrawText(ft, at);
     }

@@ -25,6 +25,7 @@
       <Color x:Key="OnElectricColor">#1F0010</Color>
       <!-- Signals carry meaning only: green confirmed, amber waiting, red failed. -->
       <Color x:Key="AmberColor">#FFB020</Color>
+      <Color x:Key="AmberHoverColor">#FFC24D</Color>
       <Color x:Key="OnAmberColor">#241600</Color>
       <Color x:Key="GreenColor">#34E07F</Color>
       <Color x:Key="RedColor">#FF4B3A</Color>
@@ -49,6 +50,7 @@
       <SolidColorBrush x:Key="ElectricPressed" Color="{StaticResource ElectricPressedColor}" />
       <SolidColorBrush x:Key="OnElectric" Color="{StaticResource OnElectricColor}" />
       <SolidColorBrush x:Key="Amber" Color="{StaticResource AmberColor}" />
+      <SolidColorBrush x:Key="AmberHover" Color="{StaticResource AmberHoverColor}" />
       <SolidColorBrush x:Key="OnAmber" Color="{StaticResource OnAmberColor}" />
       <SolidColorBrush x:Key="Green" Color="{StaticResource GreenColor}" />
       <SolidColorBrush x:Key="Red" Color="{StaticResource RedColor}" />
@@ -226,7 +228,7 @@
     <Setter Property="BorderBrush" Value="{x:Null}" />
   </Style>
   <Style Selector="Button.attention:pointerover">
-    <Setter Property="Background" Value="#FFC24D" />
+    <Setter Property="Background" Value="{StaticResource AmberHover}" />
   </Style>
   <Style Selector="Button.quiet">
     <Setter Property="Background" Value="Transparent" />

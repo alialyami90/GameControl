@@ -40,16 +40,16 @@
         <StackPanel>
           <Grid Margin="22,14,22,10">
             <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="*" MinWidth="150" /><ColumnDefinition Width="Auto" SharedSizeGroup="st" /><ColumnDefinition Width="Auto" SharedSizeGroup="pr" />
+              <ColumnDefinition Width="*" MinWidth="130" /><ColumnDefinition Width="Auto" SharedSizeGroup="st" /><ColumnDefinition Width="Auto" SharedSizeGroup="pr" />
               <ColumnDefinition Width="Auto" SharedSizeGroup="in" /><ColumnDefinition Width="Auto" SharedSizeGroup="ls" />
               <ColumnDefinition Width="Auto" SharedSizeGroup="pa" /><ColumnDefinition Width="Auto" SharedSizeGroup="bt" />
             </Grid.ColumnDefinitions>
             <TextBlock Text="PHONE" Classes="label" />
-            <TextBlock Grid.Column="1" Text="STATUS" Classes="label" MinWidth="120" Margin="16,0,0,0" />
-            <TextBlock Grid.Column="2" Text="PROFILE" Classes="label wide" MinWidth="150" Margin="16,0,0,0" />
-            <TextBlock Grid.Column="3" Text="INPUTS" Classes="label" MinWidth="56" TextAlignment="Right" Margin="16,0,0,0" />
-            <TextBlock Grid.Column="4" Text="LAST SEEN" Classes="label wide" MinWidth="96" Margin="24,0,0,0" />
-            <TextBlock Grid.Column="5" Text="PAIRED" Classes="label wide extra" MinWidth="96" Margin="16,0,0,0" />
+            <TextBlock Grid.Column="1" Text="STATUS" Classes="label" MinWidth="104" Margin="12,0,0,0" />
+            <TextBlock Grid.Column="2" Text="PROFILE" Classes="label wide" MinWidth="120" Margin="12,0,0,0" />
+            <TextBlock Grid.Column="3" Text="INPUTS" Classes="label" MinWidth="56" TextAlignment="Right" Margin="12,0,0,0" />
+            <TextBlock Grid.Column="4" Text="LAST SEEN" Classes="label wide" MinWidth="84" Margin="20,0,0,0" />
+            <TextBlock Grid.Column="5" Text="PAIRED" Classes="label wide extra" MinWidth="88" Margin="12,0,0,0" />
           </Grid>
           <ItemsControl ItemsSource="{Binding Phones}">
             <ItemsControl.ItemTemplate>
@@ -57,29 +57,29 @@
                 <Border BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="22,12">
                   <Grid>
                     <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="*" MinWidth="150" /><ColumnDefinition Width="Auto" SharedSizeGroup="st" /><ColumnDefinition Width="Auto" SharedSizeGroup="pr" />
+                      <ColumnDefinition Width="*" MinWidth="130" /><ColumnDefinition Width="Auto" SharedSizeGroup="st" /><ColumnDefinition Width="Auto" SharedSizeGroup="pr" />
                       <ColumnDefinition Width="Auto" SharedSizeGroup="in" /><ColumnDefinition Width="Auto" SharedSizeGroup="ls" />
                       <ColumnDefinition Width="Auto" SharedSizeGroup="pa" /><ColumnDefinition Width="Auto" SharedSizeGroup="bt" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" MinWidth="140" ClipToBounds="True">
+                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" MinWidth="130" ClipToBounds="True">
                       <c:RigIcon Kind="phone" Size="22" Foreground="{StaticResource InkMuted}" />
                       <StackPanel>
                         <TextBlock Text="{Binding Name}" Classes="h3" TextTrimming="CharacterEllipsis" />
                         <TextBlock Text="{Binding Address}" Classes="small faint num" IsVisible="{Binding Connected}" />
                       </StackPanel>
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" MinWidth="120" Margin="16,0,0,0">
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" MinWidth="104" Margin="12,0,0,0">
                       <Panel Width="10" Height="10" VerticalAlignment="Center">
                         <Ellipse Width="9" Height="9" Fill="{StaticResource Green}" IsVisible="{Binding Connected}" />
                         <Ellipse Width="9" Height="9" Stroke="{StaticResource InkFaint}" StrokeThickness="1.5" IsVisible="{Binding !Connected}" />
                       </Panel>
                       <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" />
                     </StackPanel>
-                    <TextBlock Grid.Column="2" Text="{Binding Profile}" Classes="muted wide" MinWidth="150" MaxWidth="220" Margin="16,0,0,0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="3" Text="{Binding Events}" Classes="readout" FontSize="18" MinWidth="56" Margin="16,0,0,0" TextAlignment="Right" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="4" Text="{Binding LastSeenText}" Classes="muted wide" MinWidth="96" Margin="24,0,0,0" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="5" Text="{Binding PairedText}" Classes="muted wide extra" MinWidth="96" Margin="16,0,0,0" VerticalAlignment="Center" />
-                    <Button Grid.Column="6" Classes="danger" HorizontalAlignment="Right" Margin="16,0,0,0" Content="FORGET"
+                    <TextBlock Grid.Column="2" Text="{Binding Profile}" Classes="muted wide" MinWidth="120" MaxWidth="200" Margin="12,0,0,0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="3" Text="{Binding Events}" Classes="readout" FontSize="18" MinWidth="56" Margin="12,0,0,0" TextAlignment="Right" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="4" Text="{Binding LastSeenText}" Classes="muted wide" MinWidth="84" Margin="20,0,0,0" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="5" Text="{Binding PairedText}" Classes="muted wide extra" MinWidth="88" Margin="12,0,0,0" VerticalAlignment="Center" />
+                    <Button Grid.Column="6" Classes="danger" HorizontalAlignment="Right" Margin="12,0,0,0" Content="FORGET"
                             Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).ForgetCommand}" CommandParameter="{Binding}"
                             ToolTip.Tip="Removes this phone. It needs the PIN to connect again." />
                   </Grid>

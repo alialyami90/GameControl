@@ -114,7 +114,8 @@ class InputEngine(
         // A hold the phone drives over HID must let go when the game says off, or the refcount drifts (A21).
         // Only releases are applied: a game-initiated ON must not press a button the user never touched (A29).
         val c = findControl(id) ?: return
-        if (routeOf[id] != Route.HID || !isRelease(c, value)) return
+        // "Off" for a latch, switch or radio is its rest position; isRelease only knows momentary and slider.
+        if (routeOf[id] != Route.HID || value != restValue(c)) return
         when (val a = c.action) {
             is Action.VJoyButton, is Action.VJoyAxis -> applyLevel(c, a, previous, value)
             is Action.Key -> if (a.trigger == KeyTrigger.HOLD) applyLevel(c, a, previous, value)

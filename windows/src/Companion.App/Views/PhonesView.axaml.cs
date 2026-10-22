@@ -9,8 +9,9 @@ public partial class PhonesView : UserControl
         InitializeComponent();
         SizeChanged += (_, e) =>
         {
-            Classes.Set("compact", e.NewSize.Width < 760);
-            Classes.Set("medium", e.NewSize.Width < 960);
+            // Content width (window minus the 236 px rail): a 1120 px window keeps every column.
+            Classes.Set("compact", e.NewSize.Width < 640);
+            Classes.Set("medium", e.NewSize.Width < 860);
         };
     }
 }

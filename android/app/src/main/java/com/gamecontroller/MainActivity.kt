@@ -124,7 +124,8 @@ private fun AppRoot(vm: AppViewModel) {
         }
     }
 
-    BackHandler(enabled = screen != Screen.Profiles) { vm.back() }
+    // The editor composes its own BackHandler (discard confirm), so the outer one stays out of its way.
+    BackHandler(enabled = screen != Screen.Profiles && screen !is Screen.Editor) { vm.back() }
 
     Box(Modifier.fillMaxSize()) {
         when (val s = screen) {

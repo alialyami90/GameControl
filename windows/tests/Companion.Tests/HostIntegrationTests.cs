@@ -230,6 +230,34 @@ public sealed class HostIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task Pairing_with_an_unwritable_config_replies_an_error()
+    {
+        Directory.CreateDirectory(_store.Path);
+        var p = new Phone();
+        await using var _p = p;
+        await p.Connect(_store.Config.WsPort);
+        await p.Send($$"""{"v":1,"type":"hello","deviceId":"dev9","deviceName":"T","appVersion":"1","pin":"{{_host.Pairing.Pin}}"}""");
+        Assert.Equal("config_write_failed", (string?)(await p.Expect("error"))["code"]);
+        Assert.Empty(_host.Config.Devices);
+        Assert.Empty(_host.Sessions);
+    }
+
+    [Fact]
+    public async Task Forget_stops_the_phone_even_when_the_save_fails()
+    {
+        var (p, _, _) = await Pair();
+        await using var _p = p;
+        await p.Send(Sync);
+        await p.Expect("profile.ack");
+        await p.Send("""{"v":1,"type":"input","s":1,"id":"horn","val":1}""");
+        await WaitFor(() => _out.Log.Contains("key H down"));
+        Directory.CreateDirectory(_store.Path + ".tmp"); // the save cannot write its temp file
+        Assert.ThrowsAny<Exception>(() => _host.ForgetDevice("dev1"));
+        Assert.Empty(_host.Sessions);
+        Assert.Contains("key H up", _out.Log);
+    }
+
+    [Fact]
     public async Task Browser_origin_is_refused()
     {
         using var ws = new ClientWebSocket();

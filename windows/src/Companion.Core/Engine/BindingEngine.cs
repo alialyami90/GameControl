@@ -30,6 +30,8 @@ public sealed class BindingEngine
         /// <summary>The axis this control last moved, so a session end can park it.</summary>
         public ActionSpec? Axis;
         public bool MacroRunning;
+        /// <summary>The binding changed while the control was pressed (see <see cref="IsOneShot"/>).</summary>
+        public bool Rebound;
 
         public bool Holding => Holds.Count > 0 || HeldCommands.Count > 0;
     }
@@ -68,6 +70,7 @@ public sealed class BindingEngine
                 if (same) continue;
                 // Park the axis too: a slider rebound to another axis must not leave the old one deflected.
                 ReleaseControl(id, st, "released (binding changed)", parkAxis: true);
+                st.Rebound = st.LastApplied is > 0;
                 st.LastApplied = null;
             }
             // New or changed axis bindings start at rest (unipolar 0, bipolar centre), so a throttle does
@@ -108,6 +111,13 @@ public sealed class BindingEngine
                 case ControlKind.Slider:
                 {
                     // Continuous inputs are re-sent while held, so their edges come from the last value.
+                    if (st.Rebound)
+                    {
+                        // The first event after a binding edit is the phone's 250 ms resend of a press the
+                        // user already made: holds follow it, but a one-shot must not fire for it.
+                        st.Rebound = false;
+                        if (IsOneShot(b.Action)) { st.LastApplied = value; return ApplyResult.Applied; }
+                    }
                     bool first = st.LastApplied is null;
                     double prev = st.LastApplied ?? 0;
                     st.LastApplied = value;
@@ -150,10 +160,12 @@ public sealed class BindingEngine
         {
             foreach (var (id, st) in _state)
             {
-                if (!st.Holding || nowMs - st.LastUpdateMs < AutoReleaseMs) continue;
+                if (nowMs - st.LastUpdateMs < AutoReleaseMs) continue;
                 if (!_bindings.TryGetValue(id, out var b) || b.Kind != ControlKind.Momentary) continue;
-                ReleaseControl(id, st, "auto-released (no update for 1 s)", parkAxis: false);
-                st.LastApplied = 0;
+                // Also when nothing is held: a one-shot (toggle, press key, macro) whose release was lost
+                // must see the next press as a new rising edge.
+                if (st.Holding) ReleaseControl(id, st, "auto-released (no update for 1 s)", parkAxis: false);
+                if (st.LastApplied is > 0) st.LastApplied = 0;
             }
         }
     }
@@ -198,6 +210,15 @@ public sealed class BindingEngine
     }
 
     static bool On(double v) => v >= 0.5;
+
+    /// <summary>Actions that fire once on a press rather than following the control's level.</summary>
+    bool IsOneShot(ActionSpec a) => a.Type switch
+    {
+        ActionType.Key => a.Trigger != KeyTrigger.Hold,
+        ActionType.Macro => true,
+        ActionType.BeamNG => BeamNgCommands.Classify(a.Command, _commands.KnownCommands) == CommandStyle.Edge,
+        _ => false,
+    };
 
     /// <summary>momentary, latching and slider: the action follows the control's value.</summary>
     void ApplyLevel(Binding b, ActionSpec a, ControlState st, double prev, double cur, bool first)

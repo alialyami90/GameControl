@@ -79,8 +79,8 @@ public sealed class BeamNgLink : ICommandSink, IDisposable
             _pump = pump;
         }
         old?.Dispose();
-        Log?.Invoke("BeamNG mod connected");
-        ConnectionChanged?.Invoke(true);
+        try { Log?.Invoke("BeamNG mod connected"); ConnectionChanged?.Invoke(true); }
+        catch (Exception) { /* a failing subscriber must not drop the mod */ }
         Send(JsonExt.Msg("state.request"));
 
         try
@@ -110,8 +110,8 @@ public sealed class BeamNgLink : ICommandSink, IDisposable
             try { await pump.ConfigureAwait(false); } catch { }
             if (wasCurrent)
             {
-                Log?.Invoke("BeamNG mod disconnected");
-                ConnectionChanged?.Invoke(false);
+                try { Log?.Invoke("BeamNG mod disconnected"); ConnectionChanged?.Invoke(false); }
+                catch (Exception) { }
             }
         }
     }
