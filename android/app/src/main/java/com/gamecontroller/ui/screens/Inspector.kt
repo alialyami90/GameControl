@@ -1,5 +1,6 @@
 package com.gamecontroller.ui.screens
 
+import com.gamecontroller.ui.components.KeyField
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -72,6 +73,7 @@ fun Inspector(
     onResize: (String, Int, Int) -> Unit,
     onDelete: (String) -> Unit,
     onClose: () -> Unit,
+    stateKeys: List<String> = emptyList(),
 ) {
     var picking by remember { mutableStateOf(false) }
     val c = control
@@ -166,11 +168,11 @@ fun Inspector(
     Hint("Optional. Lets the game drive this control's light and availability through the BeamNG mod or telemetry.")
     Gap(4)
     if (c.type == ControlType.SWITCH || c.type == ControlType.RADIO) {
-        Field(c.positionKey.orEmpty(), { onUpdate(c.copy(positionKey = it.trim().ifBlank { null })) }, "Position state key", hint = "e.g. gearbox.mode", mono = true)
+        KeyField(c.positionKey.orEmpty(), { onUpdate(c.copy(positionKey = it.trim().ifBlank { null })) }, "Position state key", stateKeys, "gearbox.mode")
     } else {
-        Field(c.feedbackKey.orEmpty(), { onUpdate(c.copy(feedbackKey = it.trim().ifBlank { null })) }, "Light state key", hint = "e.g. lights.low", mono = true)
+        KeyField(c.feedbackKey.orEmpty(), { onUpdate(c.copy(feedbackKey = it.trim().ifBlank { null })) }, "Light state key", stateKeys, "lights.low")
     }
-    Field(c.visibleWhen.orEmpty(), { onUpdate(c.copy(visibleWhen = it.trim().ifBlank { null })) }, "Only available when", hint = "e.g. has.diff.front", mono = true)
+    KeyField(c.visibleWhen.orEmpty(), { onUpdate(c.copy(visibleWhen = it.trim().ifBlank { null })) }, "Only available when", stateKeys.filter { it.startsWith("has.") }.ifEmpty { stateKeys }, "has.diff.front")
     if (game == GameId.BEAMNG && c.action is Action.VJoyButton) {
         Field(c.bindTo.orEmpty(), { onUpdate(c.copy(bindTo = it.trim().ifBlank { null })) }, "Bind in game to", hint = "BeamNG action name, used by Bind in game", mono = true)
     }

@@ -1,5 +1,6 @@
 package com.gamecontroller.ui.screens
 
+import com.gamecontroller.ui.components.rememberPressHaptic
 import androidx.compose.foundation.layout.heightIn
 import com.gamecontroller.model.HidStatus
 import com.gamecontroller.model.ConnectionStatus
@@ -161,6 +162,19 @@ private fun PlayHud(
     val live = state.game.isNotEmpty() || state.connection.status == ConnectionStatus.CONNECTED ||
         state.hid.status == HidStatus.CONNECTED
     var holdHint by remember { mutableStateOf(false) }
+    // A dropped press (no link could carry it) flashes both badges red for 600ms with a double tick.
+    var noLink by remember { mutableStateOf(false) }
+    var seenDrops by remember { mutableStateOf(state.linkDrops) }
+    val haptic = rememberPressHaptic()
+    LaunchedEffect(state.linkDrops) {
+        if (state.linkDrops != seenDrops) {
+            seenDrops = state.linkDrops
+            noLink = true
+            haptic(); delay(90); haptic()
+            delay(510)
+            noLink = false
+        }
+    }
     LaunchedEffect(holdHint) { if (holdHint) { delay(1600); holdHint = false } }
     BoxWithConstraints(Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
         // Link badges drop their "BT"/"PC" names only when the strip would otherwise overflow;
@@ -207,8 +221,8 @@ private fun PlayHud(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                BluetoothLinkBadge(state.hid, compact = compact, lampOnly = tight)
-                PcLinkBadge(state.connection, compact = compact, lampOnly = tight)
+                BluetoothLinkBadge(state.hid, compact = compact, lampOnly = tight, alert = noLink)
+                PcLinkBadge(state.connection, compact = compact, lampOnly = tight, alert = noLink)
             }
             Spacer(Modifier.width(10.dp))
             SlantButton(

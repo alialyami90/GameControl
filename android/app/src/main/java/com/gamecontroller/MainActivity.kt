@@ -187,6 +187,7 @@ private fun AppRoot(vm: AppViewModel) {
                     onGridChange = vm::editorGrid,
                     onProfileChange = vm::editorProfile,
                     onApplyGameBindings = { vm.applyGameBindings(state.profile.id) },
+                    onPreviewGameBindings = { vm.previewGameBindings(state.profile.id) },
                     onDiscard = vm::discardEditing,
                     onDone = vm::doneEditing,
                 )

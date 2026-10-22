@@ -1,5 +1,7 @@
 package com.gamecontroller.ui.screens
 
+import com.gamecontroller.ui.components.StatusLamp
+import com.gamecontroller.model.BindResult
 import kotlinx.coroutines.launch
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.runtime.rememberCoroutineScope
@@ -172,6 +174,7 @@ fun EditorScreen(
     onApplyGameBindings: () -> Unit,
     onDiscard: () -> Unit,
     onDone: () -> Unit,
+    onPreviewGameBindings: (() -> Pair<String, List<Pair<String, Int>>>)? = null,
 ) {
     val profile = state.profile
     val pageIndex = state.pageIndex.coerceIn(0, (profile.pages.size - 1).coerceAtLeast(0))
@@ -202,6 +205,9 @@ fun EditorScreen(
     val deletePage: (Int) -> Unit = { i ->
         undoable("Page ${profile.pages.getOrNull(i)?.name.orEmpty()} deleted") { onDeletePage(i) }
     }
+
+    // System Back is the X: it asks before throwing edits away and never saves. Done is the only save.
+    EditorBackHandler { if (state.dirty) confirmDiscard = true else onDiscard() }
 
     BoxWithConstraints(
         Modifier
@@ -282,7 +288,7 @@ fun EditorScreen(
                             .verticalScroll(rememberScrollState())
                             .padding(horizontal = 20.dp, vertical = 8.dp),
                     ) {
-                        SidePanel(selected, page, pageIndex, state, beamngCommands, onUpdate, onResize, deleteControl, onSelect, onRenamePage, deletePage, onGridChange, onProfileChange, onApplyGameBindings)
+                        SidePanel(selected, page, pageIndex, state, beamngCommands, onUpdate, onResize, deleteControl, onSelect, onRenamePage, deletePage, onGridChange, onProfileChange, onApplyGameBindings, onPreviewGameBindings)
                     }
                 }
             }
@@ -320,7 +326,7 @@ fun EditorScreen(
                             }
                         }
                     }
-                    SidePanel(selected, page, pageIndex, state, beamngCommands, onUpdate, onResize, deleteControl, onSelect, onRenamePage, deletePage, onGridChange, onProfileChange, onApplyGameBindings)
+                    SidePanel(selected, page, pageIndex, state, beamngCommands, onUpdate, onResize, deleteControl, onSelect, onRenamePage, deletePage, onGridChange, onProfileChange, onApplyGameBindings, onPreviewGameBindings)
                 }
             }
         }
@@ -364,11 +370,16 @@ private fun SidePanel(
     onGridChange: (Int, Int) -> Unit,
     onProfileChange: ((Profile) -> Profile) -> Unit,
     onApplyGameBindings: () -> Unit,
+    onPreviewGameBindings: (() -> Pair<String, List<Pair<String, Int>>>)?,
 ) {
     if (selected != null) {
-        Inspector(selected, page, state.profile.game, beamngCommands, onUpdate, onResize, onDelete, onClose = { onSelect(null) })
+        Inspector(selected, page, state.profile.game, beamngCommands, onUpdate, onResize, onDelete, onClose = { onSelect(null) }, stateKeys = state.stateKeys)
     } else {
         PageAndProfile(state.profile, page, pageIndex, onRenamePage, onDeletePage, onGridChange, onProfileChange, onApplyGameBindings)
+        if (state.profile.game == GameId.BEAMNG) {
+            BindInGame(state.canBindInGame, state.bindResult, onApplyGameBindings, onPreviewGameBindings)
+        }
+        Gap(24)
     }
 }
 
@@ -590,11 +601,86 @@ private fun PageAndProfile(
             OutputRoute.COMPANION -> "Everything goes through the PC companion over Wi-Fi."
         },
     )
-    if (profile.game == GameId.BEAMNG) {
-        SectionHeader("BeamNG")
-        Hint("Writes this profile's gamepad buttons into BeamNG's input bindings, so each control works in game without setup.")
+}
+
+/**
+ * Bind in game: shows what will be written before it happens, then keeps the last result on
+ * screen (with its time) instead of a passing snackbar.
+ */
+@Composable
+private fun BindInGame(
+    canBind: Boolean,
+    result: BindResult?,
+    onApply: () -> Unit,
+    onPreview: (() -> Pair<String, List<Pair<String, Int>>>)?,
+) {
+    var preview by remember { mutableStateOf<Pair<String, List<Pair<String, Int>>>?>(null) }
+    SectionHeader("BeamNG")
+    Hint("Writes this profile's gamepad buttons into BeamNG's input bindings, so each control works in game without setup.")
+    Gap(8)
+    val busy = result?.busy == true
+    SlantButton(
+        if (busy) "Binding…" else "Bind in game",
+        { val p = onPreview?.invoke(); if (p != null) preview = p else onApply() },
+        icon = Icons.Rounded.Link,
+        style = SlantStyle.OUTLINE,
+        enabled = canBind && !busy,
+    )
+    if (!canBind) Hint("Needs the PC companion linked and BeamNG running with the GameCtl mod.")
+    if (result != null && !result.busy) {
         Gap(8)
-        SlantButton("Bind in game", onApplyGameBindings, icon = Icons.Rounded.Link, style = SlantStyle.OUTLINE)
+        val tone = when {
+            result.ok && result.unknown.isEmpty() -> Race.Green
+            result.ok || result.written -> Race.Amber
+            else -> Race.Red
+        }
+        val time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(result.atMillis))
+        val headline = when {
+            result.alreadyBound -> "Already bound · $time"
+            result.ok -> "Bound ${result.count} of ${result.requested} · $time"
+            else -> "Not bound · $time"
+        }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(SlantShape(lean = 8.dp))
+                .background(Race.Ground)
+                .padding(horizontal = 14.dp, vertical = 10.dp)
+                .semantics(mergeDescendants = true) {},
+            verticalAlignment = Alignment.Top,
+        ) {
+            StatusLamp(tone, lit = true, size = 10, modifier = Modifier.padding(top = 5.dp))
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text(headline, style = MaterialTheme.typography.bodyMedium, color = Race.Ink)
+                Text("on ${result.device}", style = MaterialTheme.typography.bodySmall, color = Race.InkMuted)
+                if (result.message.isNotBlank() && !result.ok) Text(result.message, style = MaterialTheme.typography.bodySmall, color = Race.Red)
+                if (result.unknown.isNotEmpty()) {
+                    Text("BeamNG didn't recognise: " + result.unknown.joinToString(), style = MaterialTheme.typography.bodySmall, color = Race.Amber)
+                }
+                if (!result.ok && result.written) Text("The bindings file was written; restart BeamNG to load it.", style = MaterialTheme.typography.bodySmall, color = Race.InkMuted)
+            }
+        }
     }
-    Gap(24)
+    preview?.let { (device, pairs) ->
+        AlertDialog(
+            onDismissRequest = { preview = null },
+            containerColor = Race.PanelRaised,
+            title = { Text("Bind ${pairs.size} controls in BeamNG?") },
+            text = {
+                Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
+                    Text("Writes to BeamNG's bindings for $device. Existing bindings for these buttons are replaced.", style = MaterialTheme.typography.bodyMedium, color = Race.InkMuted)
+                    Gap(10)
+                    pairs.forEach { (action, button) ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("B$button", style = RaceType.readout, color = Race.Ink, modifier = Modifier.width(56.dp))
+                            Text(action, style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"), color = Race.Ink)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { preview = null; onApply() }) { Text("Bind", color = Race.Electric) } },
+            dismissButton = { TextButton(onClick = { preview = null }) { Text("Cancel") } },
+        )
+    }
 }

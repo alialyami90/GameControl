@@ -534,7 +534,8 @@ local function handleCommand(command, value)
 
   if vehicleToggleSet[base] then
     if isToggle then
-      if value >= 0.5 then vehicleCommand(base, "toggle", 1) end
+      -- every .toggle the companion forwards flips the feature (latching controls send one per change)
+      vehicleCommand(base, "toggle", 1)
     else
       vehicleCommand(base, "set", value)
     end
@@ -543,7 +544,6 @@ local function handleCommand(command, value)
 
   local g = geToggles[base]
   if g then
-    if isToggle and value < 0.5 then return end
     local ok, current = pcall(g.get)
     current = ok and current == true
     local want = isToggle and not current or (not isToggle and value >= 0.5)

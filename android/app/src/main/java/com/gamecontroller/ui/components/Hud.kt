@@ -79,28 +79,31 @@ fun LinkBadge(
     modifier: Modifier = Modifier,
     compact: Boolean = false,
     lampOnly: Boolean = false,
+    alert: Boolean = false,
 ) {
+    // alert: a press was just dropped because nothing could carry it. The badge goes red and says so.
+    val shown = if (alert) LinkSummary(LinkTone.PROBLEM, "No link", "Press not sent: no link") else summary
     Row(
         modifier
             .heightIn(min = 32.dp)
             .clip(SlantShape())
             .background(Race.Panel)
-            .border(1.dp, Race.Line, SlantShape())
+            .border(if (alert) 1.5.dp else 1.dp, if (alert) Race.Red else Race.Line, SlantShape())
             .padding(horizontal = if (lampOnly) 12.dp else 14.dp)
-            .semantics(mergeDescendants = true) { contentDescription = summary.long },
+            .semantics(mergeDescendants = true) { contentDescription = shown.long },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, tint = if (summary.tone == LinkTone.OFF) Race.InkFaint else Race.Ink, modifier = Modifier.size(16.dp))
+        Icon(icon, contentDescription = null, tint = if (shown.tone == LinkTone.OFF) Race.InkFaint else Race.Ink, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
         // Lamp-only (narrowest phones): the lamp's fill still says linked / connecting / off.
-        StatusLamp(summary.tone.color(), lit = summary.tone != LinkTone.OFF, half = summary.tone == LinkTone.BUSY, size = if (lampOnly) 10 else 8)
+        StatusLamp(shown.tone.color(), lit = shown.tone != LinkTone.OFF, half = shown.tone == LinkTone.BUSY, size = if (lampOnly) 10 else 8)
         if (lampOnly) return@Row
         Spacer(Modifier.width(6.dp))
         if (!compact) {
             Text(name, style = RaceType.unit, color = Race.InkMuted)
             Spacer(Modifier.width(4.dp))
         }
-        Text(summary.short.uppercase(), style = RaceType.unit, color = if (summary.tone == LinkTone.OFF) Race.InkFaint else Race.Ink, maxLines = 1)
+        Text(shown.short.uppercase(), style = RaceType.unit, color = when { alert -> Race.Red; shown.tone == LinkTone.OFF -> Race.InkFaint; else -> Race.Ink }, maxLines = 1)
     }
 }
 
@@ -123,14 +126,14 @@ fun StatusLamp(color: Color, lit: Boolean, modifier: Modifier = Modifier, size: 
 }
 
 @Composable
-fun BluetoothLinkBadge(hid: HidUi, modifier: Modifier = Modifier, compact: Boolean = false, lampOnly: Boolean = false) = LinkBadge(
+fun BluetoothLinkBadge(hid: HidUi, modifier: Modifier = Modifier, compact: Boolean = false, lampOnly: Boolean = false, alert: Boolean = false) = LinkBadge(
     if (hid.status == HidStatus.UNSUPPORTED) Icons.Rounded.BluetoothDisabled else Icons.Rounded.Bluetooth,
-    "BT", hid.summary(), modifier, compact, lampOnly,
+    "BT", hid.summary(), modifier, compact, lampOnly, alert,
 )
 
 @Composable
-fun PcLinkBadge(connection: ConnectionUi, modifier: Modifier = Modifier, compact: Boolean = false, lampOnly: Boolean = false) =
-    LinkBadge(Icons.Rounded.Computer, "PC", connection.summary(), modifier, compact, lampOnly)
+fun PcLinkBadge(connection: ConnectionUi, modifier: Modifier = Modifier, compact: Boolean = false, lampOnly: Boolean = false, alert: Boolean = false) =
+    LinkBadge(Icons.Rounded.Computer, "PC", connection.summary(), modifier, compact, lampOnly, alert)
 
 /**
  * Game readouts from telemetry. Draws nothing for games that report no state. Speed arrives in
