@@ -1,11 +1,6 @@
 package com.gamecontroller.ui.icons
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Chat
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.rounded.VolumeDown
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -103,11 +98,11 @@ object IconLibrary {
         IconEntry("timer", "Timer", "General", Icons.Rounded.Timer),
         IconEntry("place", "Waypoint", "General", Icons.Rounded.Place),
         IconEntry("navigation", "Navigation", "General", Icons.Rounded.Navigation),
-        IconEntry("chat", "Chat", "General", Icons.AutoMirrored.Rounded.Chat),
+        IconEntry("chat", "Chat", "General", Icons.Rounded.Chat),
         IconEntry("mic", "Mic", "General", Icons.Rounded.Mic),
         IconEntry("mic_off", "Mic off", "General", Icons.Rounded.MicOff),
-        IconEntry("volume_up", "Volume up", "General", Icons.AutoMirrored.Rounded.VolumeUp),
-        IconEntry("volume_down", "Volume down", "General", Icons.AutoMirrored.Rounded.VolumeDown),
+        IconEntry("volume_up", "Volume up", "General", Icons.Rounded.VolumeUp),
+        IconEntry("volume_down", "Volume down", "General", Icons.Rounded.VolumeDown),
         IconEntry("music", "Music", "General", Icons.Rounded.MusicNote),
         IconEntry("screenshot", "Screenshot", "General", Icons.Rounded.Screenshot),
         IconEntry("menu", "Menu", "General", Icons.Rounded.Menu),
@@ -130,8 +125,8 @@ object IconLibrary {
         IconEntry("radio", "Radio", "General", Icons.Rounded.Radio),
         IconEntry("arrow_up", "Up", "General", Icons.Rounded.KeyboardArrowUp),
         IconEntry("arrow_down", "Down", "General", Icons.Rounded.KeyboardArrowDown),
-        IconEntry("arrow_left", "Left", "General", Icons.AutoMirrored.Rounded.KeyboardArrowLeft),
-        IconEntry("arrow_right", "Right", "General", Icons.AutoMirrored.Rounded.KeyboardArrowRight),
+        IconEntry("arrow_left", "Left", "General", Icons.Rounded.KeyboardArrowLeft),
+        IconEntry("arrow_right", "Right", "General", Icons.Rounded.KeyboardArrowRight),
         IconEntry("plus", "Plus", "General", Icons.Rounded.Add),
         IconEntry("minus", "Minus", "General", Icons.Rounded.Remove),
     )

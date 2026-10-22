@@ -22,7 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -134,7 +134,7 @@ private fun PlayHud(state: PlayState, pageIndex: Int, onPageChange: (Int) -> Uni
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back to profiles", tint = Rig.BoneMuted)
+            Icon(Icons.Rounded.ArrowBack, contentDescription = "Back to profiles", tint = Rig.BoneMuted)
         }
         Column(Modifier.weight(1f, fill = false).padding(end = 16.dp)) {
             Text(
