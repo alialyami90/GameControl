@@ -138,8 +138,12 @@ fun ControlGrid(page: Page, modifier: Modifier = Modifier, content: @Composable 
 @Composable
 private fun PlayHud(state: PlayState, pageIndex: Int, onPageChange: (Int) -> Unit, onEdit: () -> Unit, onBack: () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxWidth().height(56.dp)) {
-        // Below ~840dp the link badges drop their words; Edit and Back never shrink.
-        val compact = maxWidth < 840.dp
+        // Link badges drop their "BT"/"PC" names only when the strip would otherwise overflow;
+        // their status words, lamps, Edit and Back always stay.
+        val pages = state.profile.pages.size
+        val needed = 48.dp + 200.dp + (if (pages > 1) 112.dp * pages else 0.dp) +
+            (if (state.game.isNotEmpty()) 280.dp else 0.dp) + 300.dp + 130.dp
+        val compact = maxWidth < needed
         Row(
             Modifier.fillMaxSize().padding(start = 4.dp, end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,

@@ -102,7 +102,7 @@ fun ControlView(
         ControlType.SWITCH -> SelectorSwitch(control, value, indicator, enabled && interactive, enabled, onValue, modifier)
         ControlType.RADIO -> RadioKeys(control, value, indicator, enabled && interactive, enabled, onValue, modifier)
         ControlType.SLIDER -> AxisSlider(control, value, enabled && interactive, enabled, onValue, modifier)
-        ControlType.ROTARY -> RotaryKnob(control, indicator, enabled && interactive, enabled, onStep, modifier)
+        ControlType.ROTARY -> RotaryKnob(control, indicator, enabled && interactive, enabled, onStep, modifier, labelMinHeight = if (interactive) 0.dp else 96.dp)
     }
 }
 
@@ -546,6 +546,7 @@ private fun RotaryKnob(
     enabled: Boolean,
     onStep: (Int) -> Unit,
     modifier: Modifier,
+    labelMinHeight: androidx.compose.ui.unit.Dp,
 ) {
     val accent = control.accent.lit()
     val haptics = LocalHapticFeedback.current
@@ -567,8 +568,8 @@ private fun RotaryKnob(
 
     Column(
         modifier
-            // Same rule as CapFace: no label on controls too short to print it.
-            .onSizeChanged { showLabel = it.height >= 0 && with(density) { it.height.toDp() } >= 72.dp }
+            // The play surface always labels a knob; the editor's compact grid drops it like CapFace does.
+            .onSizeChanged { showLabel = with(density) { it.height.toDp() } >= labelMinHeight }
             .semantics {
                 contentDescription = control.label
                 if (!enabled) stateDescription = "Not available on this vehicle"

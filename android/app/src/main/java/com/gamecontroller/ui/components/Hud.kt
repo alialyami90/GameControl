@@ -84,24 +84,32 @@ fun LinkBadge(icon: ImageVector, name: String, summary: LinkSummary, modifier: M
     ) {
         Icon(icon, contentDescription = null, tint = if (summary.tone == LinkTone.OFF) Race.InkFaint else Race.Ink, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
-        StatusLamp(summary.tone.color(), lit = summary.tone != LinkTone.OFF)
-        if (compact) return@Row
+        StatusLamp(summary.tone.color(), lit = summary.tone != LinkTone.OFF, half = summary.tone == LinkTone.BUSY)
         Spacer(Modifier.width(6.dp))
-        Text(name, style = RaceType.unit, color = Race.InkMuted)
-        Spacer(Modifier.width(4.dp))
+        if (!compact) {
+            Text(name, style = RaceType.unit, color = Race.InkMuted)
+            Spacer(Modifier.width(4.dp))
+        }
         Text(summary.short.uppercase(), style = RaceType.unit, color = if (summary.tone == LinkTone.OFF) Race.InkFaint else Race.Ink, maxLines = 1)
     }
 }
 
+/**
+ * Status lamp. Shape carries the state as well as colour: filled is linked, half-filled is
+ * working on it, hollow is off.
+ */
 @Composable
-fun StatusLamp(color: Color, lit: Boolean, modifier: Modifier = Modifier, size: Int = 8) {
-    Box(
-        modifier
-            .size(size.dp)
-            .clip(CircleShape)
-            .background(if (lit) color else Color.Transparent)
-            .border(1.5.dp, color, CircleShape),
-    )
+fun StatusLamp(color: Color, lit: Boolean, modifier: Modifier = Modifier, size: Int = 8, half: Boolean = false) {
+    androidx.compose.foundation.Canvas(modifier.size(size.dp)) {
+        val r = this.size.minDimension / 2
+        val sw = 1.5.dp.toPx()
+        if (lit && half) {
+            drawArc(color, 90f, 180f, useCenter = true)
+        } else if (lit) {
+            drawCircle(color, r)
+        }
+        drawCircle(color, r - sw / 2, style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
+    }
 }
 
 @Composable

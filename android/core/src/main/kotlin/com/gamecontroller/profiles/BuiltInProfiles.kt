@@ -90,7 +90,7 @@ object BuiltInProfiles {
                 momentary("kb_down", "Down", "arrow_down", 1, 3, key("DOWN")),
                 momentary("kb_right", "Right", "arrow_right", 2, 3, key("RIGHT")),
                 momentary("kb_screenshot", "Screenshot", "screenshot", 4, 2, key("PRINTSCREEN", trigger = KeyTrigger.PRESS)),
-                momentary("kb_mute", "Push to talk", "mic", 5, 2, key("CAPSLOCK"), Accent.AMBER),
+                momentary("kb_mute", "Push to talk", "mic", 5, 2, key("F13"), Accent.AMBER),
                 Control("kb_volume", ControlType.ROTARY, "Volume", "volume_up", 4, 3, 2, 1, Accent.CYAN,
                     cw = key("EQUALS", trigger = KeyTrigger.PRESS), ccw = key("MINUS", trigger = KeyTrigger.PRESS)),
                 momentary("kb_copy", "Copy", null, 6, 2, key("LCTRL", "C", trigger = KeyTrigger.PRESS)),
@@ -238,29 +238,31 @@ object BuiltInProfiles {
     // ---- MudRunner: default keyboard layout -------------------------------------------------
 
     fun mudrunner(): Profile {
+        // Fills the whole 8x4 grid: pedals and steering on the left, the three big lit toggles on top,
+        // gear / handbrake / lights / horn in the middle row, map / camera / menu along the bottom.
         val page = Page(
             id = "mr_main", name = "Truck", columns = 8, rows = 4,
             controls = listOf(
-                latching("mr_diff", "Diff lock", "diff_lock", 0, 0, key("Q", trigger = KeyTrigger.TAP), Accent.AMBER, h = 2),
-                latching("mr_awd", "AWD", "awd", 1, 0, key("E", trigger = KeyTrigger.TAP), Accent.GREEN, h = 2),
-                momentary("mr_gear", "Gear (hold)", "gearbox", 2, 0, key("R"), Accent.CYAN, h = 2),
-                momentary("mr_winch", "Winch", "winch", 3, 0, key("F"), Accent.AMBER, h = 2),
-                latching("mr_handbrake", "Handbrake", "parking_brake", 4, 0, key("T", trigger = KeyTrigger.TAP), Accent.RED, h = 2),
-                latching("mr_lights", "Headlights", "low_beam", 5, 0, key("H", trigger = KeyTrigger.TAP), Accent.GREEN),
-                momentary("mr_horn", "Horn", "horn", 5, 1, key("G")),
-                momentary("mr_map", "Map", "map", 6, 0, key("M", trigger = KeyTrigger.PRESS), Accent.CYAN, w = 2),
-                momentary("mr_camera", "Camera", "camera_cycle", 6, 1, key("C", trigger = KeyTrigger.PRESS), w = 2),
-                momentary("mr_up", "Gas", "arrow_up", 1, 2, key("W"), Accent.GREEN),
-                momentary("mr_left", "Left", "arrow_left", 0, 3, key("A")),
-                momentary("mr_down", "Brake", "arrow_down", 1, 3, key("S"), Accent.RED),
-                momentary("mr_right", "Right", "arrow_right", 2, 3, key("D")),
-                momentary("mr_escape", "Menu", "menu", 7, 3, key("ESC", trigger = KeyTrigger.PRESS)),
+                momentary("mr_up", "Gas", "arrow_up", 0, 0, key("W"), Accent.GREEN, h = 2),
+                momentary("mr_down", "Brake", "arrow_down", 0, 2, key("S"), Accent.RED, h = 2),
+                momentary("mr_left", "Left", "arrow_left", 1, 0, key("A"), h = 2),
+                momentary("mr_right", "Right", "arrow_right", 1, 2, key("D"), h = 2),
+                latching("mr_diff", "Diff lock", "diff_lock", 2, 0, key("Q", trigger = KeyTrigger.TAP), Accent.AMBER, w = 2, h = 2),
+                latching("mr_awd", "AWD", "awd", 4, 0, key("E", trigger = KeyTrigger.TAP), Accent.GREEN, w = 2, h = 2),
+                momentary("mr_winch", "Winch (hold)", "winch", 6, 0, key("F"), Accent.AMBER, w = 2, h = 2),
+                momentary("mr_gear", "Gear (hold)", "gearbox", 2, 2, key("R"), Accent.CYAN, w = 2),
+                latching("mr_handbrake", "Handbrake", "parking_brake", 4, 2, key("T", trigger = KeyTrigger.TAP), Accent.RED, w = 2),
+                latching("mr_lights", "Lights", "low_beam", 6, 2, key("H", trigger = KeyTrigger.TAP), Accent.GREEN),
+                momentary("mr_horn", "Horn", "horn", 7, 2, key("G")),
+                momentary("mr_map", "Map", "map", 2, 3, key("M", trigger = KeyTrigger.PRESS), Accent.CYAN, w = 2),
+                momentary("mr_camera", "Camera", "camera_cycle", 4, 3, key("C", trigger = KeyTrigger.PRESS), w = 2),
+                momentary("mr_escape", "Menu", "menu", 6, 3, key("ESC", trigger = KeyTrigger.PRESS), w = 2),
             ),
         )
         return Profile(
             id = MUDRUNNER_ID, name = "MudRunner", game = GameId.MUDRUNNER, builtIn = true,
             pages = listOf(page), output = OutputRoute.AUTO,
-            description = "Diff lock, AWD, gears, winch, map and camera on MudRunner's default keys. Edit any key to match your bindings.",
+            description = "Diff lock, AWD, winch, gears, handbrake, map and camera on MudRunner's default keys. Edit any key to match your bindings.",
         )
     }
 }

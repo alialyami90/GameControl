@@ -178,7 +178,7 @@ fun EditorScreen(
             Row(Modifier.widthIn(max = 300.dp).padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(profile.name, style = RaceType.title, color = Race.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 Spacer(Modifier.width(10.dp))
-                StateTag("Editing")
+                StateTag("Editing", quiet = true)
             }
             Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
                 SlantTabs(profile.pages.map { it.name }, pageIndex, onPageChange)
