@@ -609,11 +609,12 @@ private fun RotaryKnob(
                 Canvas(Modifier.fillMaxSize()) {
                     val r = size.minDimension / 2
                     val c = center
+                    val ring = (r * 0.18f).coerceIn(6.dp.toPx(), 14.dp.toPx())
                     // Tick ring.
                     for (i in 0 until 24) {
                         val a = (i * stepDeg - 90f) * PI.toFloat() / 180f
                         val major = i % 6 == 0
-                        val r1 = r - 2.dp.toPx(); val r0 = r1 - (if (major) 9.dp else 5.dp).toPx()
+                        val r1 = r - 1.dp.toPx(); val r0 = r1 - (if (major) ring * 0.7f else ring * 0.4f)
                         drawLine(
                             if (major) Race.LineStrong else Race.Line,
                             Offset(c.x + cos(a) * r0, c.y + sin(a) * r0),
@@ -621,7 +622,7 @@ private fun RotaryKnob(
                             (if (major) 2.dp else 1.dp).toPx(), StrokeCap.Round,
                         )
                     }
-                    val kr = r - 14.dp.toPx()
+                    val kr = r - ring - 2.dp.toPx()
                     drawCircle(Color.Black.copy(alpha = 0.5f), kr, c + Offset(0f, 4.dp.toPx()))
                     drawCircle(Brush.verticalGradient(listOf(Race.CapHigh, Race.Cap), startY = c.y - kr, endY = c.y + kr), kr, c)
                     drawCircle(if (turning) accent else Race.Line, kr, c, style = Stroke(1.5.dp.toPx()))

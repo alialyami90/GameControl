@@ -72,6 +72,7 @@ class CompanionClient(
     private var lastPong = 0L
     private var userDisconnected = false
     private var generation = 0
+    private var reconnectTask: Runnable? = null
 
     val isConnected: Boolean get() = _state.value.status == ConnectionStatus.CONNECTED
 
@@ -79,11 +80,10 @@ class CompanionClient(
 
     /** Connects to [hostSpec] ("192.168.1.20" or "192.168.1.20:47800"). Uses a saved token when there is one. */
     fun connect(hostSpec: String) {
-        val spec = hostSpec.trim()
+        val spec = hostSpec.trim().removePrefix("ws://").removeSuffix("/")
         if (spec.isEmpty()) return
-        val parts = spec.split(":")
-        val h = parts[0]
-        val port = parts.getOrNull(1)?.toIntOrNull() ?: Protocol.WS_PORT
+        // "host", "host:port", "[v6]" or "[v6]:port" (A12).
+        val (h, port) = parseHostPort(spec)
         closeSocket()
         userDisconnected = false
         host = h
@@ -113,6 +113,8 @@ class CompanionClient(
             _state.update { it.copy(status = ConnectionStatus.PAIRING, host = h, message = "Enter the PIN shown on your PC.") }
             return
         }
+        cancelReconnect()
+        ws?.close(1000, null)
         val gen = ++generation
         _state.update { it.copy(status = ConnectionStatus.CONNECTING, host = h, message = null) }
         val request = Request.Builder().url("ws://$h:$wsPort${Protocol.WS_PATH}").build()
@@ -178,7 +180,12 @@ class CompanionClient(
             is Incoming.State -> listener?.onState(msg.values, msg.full)
             is Incoming.BeamNGCommands -> listener?.onBeamNGCommands(msg.list)
             is Incoming.BindingsResult -> listener?.onBindingsResult(msg.ok, msg.message)
-            is Incoming.VersionMismatch -> _state.update { it.copy(status = ConnectionStatus.ERROR, message = "The companion uses a newer protocol (v${msg.remoteVersion}). Update the app.") }
+            is Incoming.VersionMismatch -> {
+                ws?.send("""{"v":1,"type":"error","code":"version_mismatch","message":"phone supports v${Protocol.VERSION}"}""")
+                userDisconnected = true // do not reconnect into the same mismatch
+                closeSocket()
+                _state.update { it.copy(status = ConnectionStatus.ERROR, message = "The companion uses a newer protocol (v${msg.remoteVersion}). Update the app.", latencyMs = null) }
+            }
             else -> Unit
         }
     }
@@ -208,10 +215,18 @@ class CompanionClient(
         if (wasConnected) listener?.onDisconnected()
         if (h != null && settings.token(h) != null) {
             _state.update { it.copy(status = ConnectionStatus.CONNECTING, message = message ?: "Reconnecting…", latencyMs = null) }
-            main.postDelayed({ if (!userDisconnected && host == h && !isConnected) open(pin = null) }, RECONNECT_MS)
+            cancelReconnect()
+            val task = Runnable { if (!userDisconnected && host == h && !isConnected) open(pin = null) }
+            reconnectTask = task
+            main.postDelayed(task, RECONNECT_MS)
         } else if (_state.value.status != ConnectionStatus.PAIRING) {
             _state.update { it.copy(status = ConnectionStatus.ERROR, message = message, latencyMs = null) }
         }
+    }
+
+    private fun cancelReconnect() {
+        reconnectTask?.let { main.removeCallbacks(it) }
+        reconnectTask = null
     }
 
     private fun closeSocket() {
@@ -225,15 +240,24 @@ class CompanionClient(
         io.execute { u?.close() }
     }
 
+    /** Opens the UDP socket for this session; a session closed meanwhile (generation moved on) is ignored (A10). */
     private fun openUdp() {
         val h = host ?: return
+        val gen = generation
         io.execute {
             try {
-                udpTarget = InetAddress.getByName(h)
-                udp = DatagramSocket()
+                val target = InetAddress.getByName(h.removePrefix("[").removeSuffix("]"))
+                val socket = DatagramSocket()
+                main.post {
+                    if (gen == generation && isConnected) {
+                        udpTarget = target
+                        udp = socket
+                    } else {
+                        socket.close()
+                    }
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "UDP unavailable, using WebSocket for all inputs", e)
-                udp = null
             }
         }
     }
@@ -292,7 +316,9 @@ class CompanionClient(
                     override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {}
                     override fun onServiceResolved(info: NsdServiceInfo) {
                         @Suppress("DEPRECATION")
-                        val addr = info.host?.hostAddress ?: return
+                        val host = info.host ?: return
+                        val raw = host.hostAddress ?: return
+                        val addr = if (host is java.net.Inet6Address) "[${raw.substringBefore('%')}]" else raw
                         main.post { addServer(DiscoveredServer(info.serviceName, addr, info.port)) }
                     }
                 })
@@ -301,7 +327,8 @@ class CompanionClient(
         nsdListener = l
         runCatching { manager?.discoverServices(Protocol.SERVICE_TYPE.removeSuffix("."), NsdManager.PROTOCOL_DNS_SD, l) }
         io.execute { broadcastDiscover() }
-        main.postDelayed({ stopDiscovery() }, durationMs)
+        val myListener = l
+        main.postDelayed({ if (nsdListener === myListener) stopDiscovery() }, durationMs)
     }
 
     fun stopDiscovery() {
@@ -352,6 +379,22 @@ class CompanionClient(
 
     companion object {
         private const val TAG = "CompanionClient"
+
+        fun parseHostPort(spec: String): Pair<String, Int> {
+            if (spec.startsWith("[")) {
+                val end = spec.indexOf(']')
+                if (end > 0) {
+                    val port = spec.substring(end + 1).removePrefix(":").toIntOrNull() ?: Protocol.WS_PORT
+                    return spec.substring(0, end + 1) to port
+                }
+            }
+            val colons = spec.count { it == ':' }
+            return when {
+                colons == 0 -> spec to Protocol.WS_PORT
+                colons == 1 -> spec.substringBefore(':') to (spec.substringAfter(':').toIntOrNull() ?: Protocol.WS_PORT)
+                else -> "[$spec]" to Protocol.WS_PORT // bare IPv6
+            }
+        }
         private const val PING_MS = 2000L
         private const val PING_TIMEOUT_MS = 6000L
         private const val RECONNECT_MS = 3000L

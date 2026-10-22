@@ -104,7 +104,7 @@ fun Field(
         isError = error != null,
         supportingText = (error ?: hint)?.let { { Text(it) } },
         keyboardOptions = if (number) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
-        textStyle = if (mono) RaceType.readout.copy(fontSize = MaterialTheme.typography.bodyLarge.fontSize) else MaterialTheme.typography.bodyLarge,
+        textStyle = if (mono) MaterialTheme.typography.bodyLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, fontFeatureSettings = "tnum", letterSpacing = androidx.compose.ui.unit.TextUnit(0.02f, androidx.compose.ui.unit.TextUnitType.Em)) else MaterialTheme.typography.bodyLarge,
         colors = raceFieldColors(),
         trailingIcon = trailing,
         modifier = modifier.fillMaxWidth(),

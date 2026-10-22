@@ -86,10 +86,12 @@ class BluetoothHidLink(private val context: Context) {
             }
 
             override fun onServiceDisconnected(profile: Int) {
+                val wasConnected = host != null
                 hid = null
                 registered = false
                 host = null
-                setStatus(HidStatus.OFF, null)
+                setStatus(HidStatus.OFF, "Bluetooth stopped. Tap Enable to register the controller again.")
+                if (wasConnected) onConnectionChanged?.invoke(false)
             }
         }, BluetoothProfile.HID_DEVICE)
         if (!ok) setStatus(HidStatus.UNSUPPORTED, "This phone does not support Bluetooth HID.")

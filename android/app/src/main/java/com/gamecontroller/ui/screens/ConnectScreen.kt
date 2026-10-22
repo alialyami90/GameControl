@@ -145,7 +145,7 @@ private fun PanelTitle(icon: ImageVector, title: String, subtitle: String, tone:
     ) {
         StatusLamp(tone.color(), lit = tone != LinkTone.OFF, size = 10)
         Spacer(Modifier.width(10.dp))
-        Text(status, style = MaterialTheme.typography.bodyLarge, color = Race.Ink)
+        Text(status, style = MaterialTheme.typography.bodyMedium, color = Race.Ink)
     }
 }
 

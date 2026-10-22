@@ -88,17 +88,23 @@ object LayoutOps {
         return c.copy(w = w, h = h, x = c.x.coerceIn(0, page.columns - w), y = c.y.coerceIn(0, page.rows - h))
     }
 
-    fun sanitize(p: Profile): Profile = p.copy(pages = p.pages.map { page ->
-        val pg = page.copy(
-            columns = page.columns.coerceIn(MIN_COLUMNS, MAX_COLUMNS),
-            rows = page.rows.coerceIn(MIN_ROWS, MAX_ROWS),
-        )
-        val seen = HashSet<String>()
-        pg.copy(controls = pg.controls.map { c ->
-            val id = if (c.id.isBlank() || !seen.add(c.id)) newControlId().also { seen += it } else c.id
-            clamp(c.copy(id = id), pg)
+    /** Clamps grids and layouts and makes every page id and control id unique across the whole profile. */
+    fun sanitize(p: Profile): Profile {
+        val seenControls = HashSet<String>()
+        val seenPages = HashSet<String>()
+        return p.copy(pages = p.pages.map { page ->
+            val pageId = if (page.id.isBlank() || !seenPages.add(page.id)) newPageId().also { seenPages += it } else page.id
+            val pg = page.copy(
+                id = pageId,
+                columns = page.columns.coerceIn(MIN_COLUMNS, MAX_COLUMNS),
+                rows = page.rows.coerceIn(MIN_ROWS, MAX_ROWS),
+            )
+            pg.copy(controls = pg.controls.map { c ->
+                val id = if (c.id.isBlank() || !seenControls.add(c.id)) newControlId().also { seenControls += it } else c.id
+                clamp(c.copy(id = id), pg)
+            })
         })
-    })
+    }
 
     private fun updatePage(p: Profile, pageIndex: Int, f: (Page) -> Page): Profile =
         p.copy(pages = p.pages.mapIndexed { i, pg -> if (i == pageIndex) f(pg) else pg })

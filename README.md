@@ -11,4 +11,4 @@ both ways (live vehicle state on the phone, game commands, in-game auto-binding)
 | BeamNG mod | `beamng-mod/` | Reports vehicle state, runs commands, writes in-game bindings. |
 | Protocol | `protocol/PROTOCOL.md` | The shared, versioned phone / PC / mod protocol. |
 
-Full install and build steps: see `docs/INSTALL.md` (added with the first release).
+Install and usage: `docs/INSTALL.md`. Companion build details: `windows/README.md`.

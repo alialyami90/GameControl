@@ -127,14 +127,18 @@ class HidState {
         val out = ByteArray(8)
         var mods = 0
         var slot = 2
+        var overflow = false
         for (name in keyCounts.keys) {
             val bit = HidKeys.MODIFIERS[name]
             if (bit != null) {
                 mods = mods or (1 shl bit)
-            } else if (slot < 8) {
-                out[slot++] = (HidKeys.USAGES[name] ?: continue).toByte()
+            } else {
+                val usage = HidKeys.USAGES[name] ?: continue
+                if (slot < 8) out[slot++] = usage.toByte() else overflow = true
             }
         }
+        // More than 6 keys: the HID boot protocol reports ErrorRollOver in every slot.
+        if (overflow) for (i in 2 until 8) out[i] = 0x01
         out[0] = mods.toByte()
         return out
     }

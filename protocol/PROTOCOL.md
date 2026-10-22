@@ -55,6 +55,8 @@ or `{"v":1,"type":"error","code":"bad_pin"|"bad_token"|"version_mismatch","messa
 
 PIN attempts are rate-limited: after 5 wrong PINs the companion refuses new pairing for 60 s (`error` code `rate_limited`). Several phones may be connected at once; each has its own session key, its own held-input table, and its own active bindings. When a phone disconnects, the companion releases only the inputs that phone was holding.
 
+When a phone's session ends for any reason (close, 6 s of silence, error), the companion releases every input that phone holds: keys and buttons go up, every BeamNG level command it holds is sent with value 0, bipolar axes return to centre and unipolar axes to 0.
+
 Keep-alive: either side may send `{"v":1,"type":"ping","t":<ms>}`; the other replies `{"v":1,"type":"pong","t":<same>}`. The phone pings every 2 s and treats 6 s of silence as disconnected. The companion releases that phone's held inputs when its WebSocket closes.
 
 When `capabilities` change (BeamNG mod connects or disconnects, vJoy appears), the companion sends a fresh `{"v":1,"type":"capabilities","capabilities":{...}}`.
@@ -124,7 +126,7 @@ Companion replies `{"v":1,"type":"profile.ack","profileId":"beamng-default","cou
 
 A `switch`/`radio` position bound to `vjoy_axis` sets that axis to index/(n-1) of its full range (n = number of positions).
 
-Idempotency: for `latching`, `switch` and `radio`, the companion applies an event only when `val` differs from the last value it applied for that control id in this session, so a repeated event is harmless.
+Duplicates: an event is a duplicate only when its sequence number `s` is not greater than the last one applied for that control id (see Control events). The companion must **not** compare values: after the game changes state on its own (a signal self-cancels, the gearbox goes back to P) the phone legitimately sends the same value again. Repeated `latching`/`switch`/`radio` events with new sequence numbers are applied again; the built-in profiles use idempotent setters so that is harmless.
 
 ### Which channel carries which event
 

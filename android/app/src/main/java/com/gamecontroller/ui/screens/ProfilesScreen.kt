@@ -129,7 +129,7 @@ fun ProfilesScreen(
                 }
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 280.dp),
+                    columns = GridCells.Adaptive(minSize = 300.dp),
                     contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 96.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -194,7 +194,7 @@ private fun ProfileCard(
     ) {
         LayoutMiniature(
             profile.pages.firstOrNull(),
-            Modifier.fillMaxWidth().aspectRatio(2.4f).background(Race.Ground.copy(alpha = 0.6f)).padding(14.dp),
+            Modifier.fillMaxWidth().aspectRatio(3.2f).background(Race.Ground.copy(alpha = 0.6f)).padding(14.dp),
         )
         Column(Modifier.padding(start = 18.dp, end = 4.dp, top = 12.dp, bottom = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

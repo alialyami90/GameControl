@@ -281,6 +281,8 @@ private fun EditCanvas(
         Canvas(Modifier.fillMaxSize()) {
             val shape = CapShape(cut = 10.dp, radius = 4.dp)
             for (x in 0 until page.columns) for (y in 0 until page.rows) {
+                val covered = page.controls.any { x >= it.x && x < it.x + it.w && y >= it.y && y < it.y + it.h }
+                if (covered) continue
                 val left = x * pitchX; val top = y * pitchY
                 val w = m.cellW.toPx(); val h = m.cellH.toPx()
                 translate(left, top) {
@@ -316,11 +318,7 @@ private fun EditableControl(
     var grow by remember { mutableStateOf(Offset.Zero) }
     val current by rememberUpdatedState(c)
     val dragging = drag != Offset.Zero
-    // Snap previews to the grid so you see where it will land.
-    val snapDx = (drag.x / pitchX).roundToInt()
-    val snapDy = (drag.y / pitchY).roundToInt()
-    val nx = (c.x + snapDx).coerceIn(0, page.columns - c.w)
-    val ny = (c.y + snapDy).coerceIn(0, page.rows - c.h)
+    // Resize previews snap to whole cells.
     val nw = (c.w + (grow.x / pitchX).roundToInt()).coerceIn(1, page.columns - c.x)
     val nh = (c.h + (grow.y / pitchY).roundToInt()).coerceIn(1, page.rows - c.y)
 

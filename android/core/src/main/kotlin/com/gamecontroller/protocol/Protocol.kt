@@ -1,11 +1,15 @@
 package com.gamecontroller.protocol
 
 import com.gamecontroller.model.Action
+import com.gamecontroller.model.AxisRange
 import com.gamecontroller.model.Capabilities
 import com.gamecontroller.model.Control
 import com.gamecontroller.model.ControlType
 import com.gamecontroller.model.Profile
+import com.gamecontroller.model.Action as ModelAction
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -33,6 +37,12 @@ object Protocol {
 
     /** Shared JSON config: actions use "type" as discriminator, unknown fields are ignored. */
     val json = Json {
+        serializersModule = SerializersModule {
+            // Unknown action types (from a newer app or a hand-edited file) decode as "none".
+            polymorphic(ModelAction::class) {
+                defaultDeserializer { ModelAction.None.serializer() }
+            }
+        }
         ignoreUnknownKeys = true
         encodeDefaults = true
         explicitNulls = false
@@ -93,9 +103,17 @@ object Protocol {
                 put("cw", action(control.cw))
                 put("ccw", action(control.ccw))
             }
-            else -> put("action", action(control.action))
+            else -> put("action", action(effectiveAction(control)))
         }
         if (hid) put("route", "hid")
+    }
+
+    /** A slider that is unipolar on the control is reported unipolar on its axis action too (A7). */
+    fun effectiveAction(control: Control): Action {
+        val a = control.action
+        return if (control.type == ControlType.SLIDER && a is Action.VJoyAxis && control.range == AxisRange.UNIPOLAR) {
+            a.copy(range = AxisRange.UNIPOLAR)
+        } else a
     }
 
     fun action(action: Action): JsonElement = json.encodeToJsonElement(Action.serializer(), action)

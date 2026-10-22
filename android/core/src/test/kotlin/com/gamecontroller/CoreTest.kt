@@ -197,6 +197,75 @@ class CoreTest {
         assertEquals("D", gear.text)
     }
 
+    @Test fun unknownActionTypeImportsAsNone() {
+        val text = """{"id":"x","name":"X","pages":[{"id":"p","name":"P","controls":[{"id":"c1","type":"momentary","label":"A","action":{"type":"teleport","to":"mars"}}]}]}"""
+        val p = ProfileJson.import(text, "x")
+        assertEquals(Action.None, p.pages[0].controls[0].action)
+    }
+
+    @Test fun importDedupesIdsAcrossPages() {
+        val text = """{"id":"x","name":"X","pages":[
+            {"id":"p","name":"P","controls":[{"id":"c1","type":"momentary","label":"A"}]},
+            {"id":"p","name":"Q","controls":[{"id":"c1","type":"momentary","label":"B"}]}]}"""
+        val p = ProfileJson.import(text, "x")
+        assertEquals(2, p.pages.map { it.id }.toSet().size)
+        assertEquals(2, p.pages.flatMap { it.controls }.map { it.id }.toSet().size)
+    }
+
+    @Test fun unipolarAxesRestAtMinimumOverHid() = runTest {
+        val links = FakeLinks(hidConnected = true)
+        val e = InputEngine(this, links) { testScheduler.currentTime }
+        e.profile = BuiltInProfiles.gamepad()
+        val r = links.hid.last { it.first == HidDescriptor.GAMEPAD_REPORT_ID }.second
+        // SL0 is axis index 6: bytes 8 + 6*2 = 20..21 -> -32767
+        assertEquals(-32767, ((r[20].toInt() and 0xFF) or (r[21].toInt() shl 8)).toShort().toInt())
+        // Z (bipolar, index 2) rests at centre
+        assertEquals(0, ((r[12].toInt() and 0xFF) or (r[13].toInt() shl 8)).toShort().toInt())
+        advanceUntilIdle()
+    }
+
+    @Test fun latchRepeatsAfterGameChangedState() = runTest {
+        val links = FakeLinks(companionConnected = true)
+        val e = InputEngine(this, links) { testScheduler.currentTime }
+        e.profile = BuiltInProfiles.beamng()
+        val sig = e.profile!!.pages[0].controls.first { it.id == "bng_sig_l" }
+        e.onValue(sig, 1f)
+        e.syncValue(sig.id, 0f) // signal self-cancelled in game
+        e.onValue(sig, 1f)
+        assertEquals(2, links.companion.count { it.id == sig.id && it.value == 1f })
+        advanceUntilIdle()
+    }
+
+    @Test fun releaseFollowsTheRouteOfItsPressAndLinkLossClearsHid() = runTest {
+        val links = FakeLinks(hidConnected = true, companionConnected = true)
+        val e = InputEngine(this, links) { testScheduler.currentTime }
+        e.profile = BuiltInProfiles.mudrunner()
+        val gas = e.profile!!.pages[0].controls.first { it.id == "mr_up" }
+        e.onValue(gas, 1f)
+        assertEquals(Route.HID, e.routeFor(gas))
+        links.hidConnected = false
+        e.onLinkChanged()
+        // Release after the HID link dropped: nothing may go to the companion for a press it never saw.
+        e.onValue(gas, 0f)
+        assertTrue(links.companion.none { it.id == gas.id }, "release must not leak to the other route")
+        links.hidConnected = true
+        e.onLinkChanged()
+        val kb = links.hid.last { it.first == HidDescriptor.KEYBOARD_REPORT_ID }.second
+        assertTrue(kb.all { it.toInt() == 0 }, "fresh HID link starts with nothing held")
+        advanceUntilIdle()
+    }
+
+    @Test fun releaseAllCancelsMacrosAndReleasesHeldCompanionInputs() = runTest {
+        val links = FakeLinks(companionConnected = true)
+        val e = InputEngine(this, links) { testScheduler.currentTime }
+        e.profile = BuiltInProfiles.beamng()
+        val horn = e.profile!!.pages[0].controls.first { it.id == "bng_horn" }
+        e.onValue(horn, 1f)
+        e.releaseAll()
+        assertEquals(0f, links.companion.last { it.id == horn.id }.value)
+        advanceUntilIdle()
+    }
+
     @Test fun layoutOpsClampAndPages() {
         var p = LayoutOps.newProfile("Test", GameId.CUSTOM)
         val (p2, id) = LayoutOps.addControl(p, 0, ControlType.SLIDER, 100, 100)

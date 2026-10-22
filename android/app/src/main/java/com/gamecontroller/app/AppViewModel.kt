@@ -119,11 +119,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             override fun onBeamNGCommands(list: List<String>) { _beamngCommands.value = list }
             override fun onBindingsResult(ok: Boolean, message: String) = notify(message.ifEmpty { if (ok) "Bindings applied" else "Bindings failed" })
             override fun onDisconnected() {
+                engine.onLinkChanged()
                 game.value = emptyMap()
                 pending.value = emptyMap()
             }
         }
         hid.onConnectionChanged = {
+            engine.onLinkChanged()
             // Routes depend on which links are up: tell the companion which ids now go over HID.
             syncProfile()
         }
@@ -138,7 +140,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     val now = System.currentTimeMillis()
                     if (p != null) {
                         pending.value = Feedback.prunePending(p, values.value, game.value, pending.value, now)
-                        values.value = Feedback.syncValues(p, values.value, game.value, pending.value, now)
+                        syncValuesFromGame(p, now)
                     }
                     clock.value = now
                 }
@@ -197,7 +199,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Releases held inputs when the app goes to the background. */
     fun onPause() {
         engine.releaseAll()
-        values.update { v -> v.filterKeys { id -> activeProfile.value?.let { p -> LayoutOps.findControl(p, id)?.second?.type != ControlType.MOMENTARY } ?: true } }
+        // Momentary buttons and sliders are physically let go when the app leaves the screen.
+        values.update { v ->
+            v.filterKeys { id ->
+                val t = activeProfile.value?.let { p -> LayoutOps.findControl(p, id)?.second?.type }
+                t != ControlType.MOMENTARY && t != ControlType.SLIDER
+            }
+        }
     }
 
     // ---- play ------------------------------------------------------------------------------
@@ -206,7 +214,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onControlValue(id: String, value: Float) {
         val c = control(id) ?: return
-        if (id in (playState.value?.unavailable ?: emptySet())) return
+        // An unavailable control ignores presses but a release must always get through (A2).
+        if (id in (playState.value?.unavailable ?: emptySet()) && !InputEngine.isRelease(c, value)) return
         values.update { it + (id to value) }
         val tracksGame = (c.type == ControlType.LATCHING && c.feedbackKey != null) ||
             (c.type in setOf(ControlType.SWITCH, ControlType.RADIO) && c.positionKey != null)
@@ -240,7 +249,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val p = activeProfile.value ?: return
         val now = System.currentTimeMillis()
         pending.value = Feedback.prunePending(p, values.value, game.value, pending.value, now)
-        values.value = Feedback.syncValues(p, values.value, game.value, pending.value, now)
+        syncValuesFromGame(p, now)
+    }
+
+    /** Pulls local latch/switch values in line with the game and tells the engine (A1). */
+    private fun syncValuesFromGame(p: Profile, now: Long) {
+        val before = values.value
+        val after = Feedback.syncValues(p, before, game.value, pending.value, now)
+        if (after != before) {
+            values.value = after
+            for ((id, v) in after) if (before[id] != v) engine.syncValue(id, v)
+        }
     }
 
     /** Sends profile.sync for the active profile (or nothing when not playing). */
