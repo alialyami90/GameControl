@@ -10,8 +10,10 @@ import android.bluetooth.BluetoothHidDeviceAppQosSettings
 import android.bluetooth.BluetoothHidDeviceAppSdpSettings
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
@@ -49,11 +51,33 @@ class BluetoothHidLink(private val context: Context) {
     /** Called on the main thread whenever the connected/disconnected state changes. */
     var onConnectionChanged: ((Boolean) -> Unit)? = null
 
+    /** Supplies the current input report for a GET_REPORT request; set by the input engine owner. */
+    var currentReport: ((reportId: Int) -> ByteArray?)? = null
+
+    private val stateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)) {
+                BluetoothAdapter.STATE_ON -> if (wantRegistered) enable()
+                BluetoothAdapter.STATE_TURNING_OFF, BluetoothAdapter.STATE_OFF -> {
+                    val wasConnected = host != null
+                    host = null
+                    registered = false
+                    setStatus(HidStatus.OFF, "Bluetooth is off.")
+                    if (wasConnected) onConnectionChanged?.invoke(false)
+                }
+            }
+        }
+    }
+
+    init {
+        context.registerReceiver(stateReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
+    }
+
     val isConnected: Boolean get() = host != null && _state.value.status == HidStatus.CONNECTED
 
     fun requiredPermissions(): Array<String> =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_SCAN)
+            arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE)
         } else {
             emptyArray()
         }
@@ -157,12 +181,12 @@ class BluetoothHidLink(private val context: Context) {
 
         override fun onGetReport(device: BluetoothDevice, type: Byte, id: Byte, bufferSize: Int) {
             val h = hid ?: return
-            val empty = when (id.toInt()) {
+            val report = currentReport?.invoke(id.toInt()) ?: when (id.toInt()) {
                 HidDescriptor.KEYBOARD_REPORT_ID -> ByteArray(8)
                 HidDescriptor.GAMEPAD_REPORT_ID -> ByteArray(HidDescriptor.BUTTONS / 8 + HidDescriptor.AXES * 2)
                 else -> null
             }
-            if (empty != null) h.replyReport(device, type, id, empty)
+            if (report != null) h.replyReport(device, type, id, report)
             else h.reportError(device, BluetoothHidDevice.ERROR_RSP_INVALID_RPT_ID)
         }
 
@@ -216,6 +240,7 @@ class BluetoothHidLink(private val context: Context) {
 
     fun shutdown() {
         wantRegistered = false
+        runCatching { context.unregisterReceiver(stateReceiver) }
         val h = hid
         if (h != null && hasPermission()) {
             host?.let { h.disconnect(it) }

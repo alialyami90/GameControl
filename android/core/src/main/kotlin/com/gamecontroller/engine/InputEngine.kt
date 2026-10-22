@@ -89,6 +89,13 @@ class InputEngine(
     fun hidRoutedIds(): Set<String> =
         profile?.pages?.flatMap { it.controls }?.filter { routeFor(it) == Route.HID }?.map { it.id }?.toSet() ?: emptySet()
 
+    /** The current HID input report for [reportId] (keyboard or gamepad), for GET_REPORT requests. */
+    fun hidReport(reportId: Int): ByteArray? = when (reportId) {
+        HidDescriptor.KEYBOARD_REPORT_ID -> hid.keyboardReport()
+        HidDescriptor.GAMEPAD_REPORT_ID -> hid.gamepadReport()
+        else -> null
+    }
+
     /** The value the engine believes [id] has right now (what the PC was last told). */
     fun currentValue(id: String): Float? = lastValue[id]
 

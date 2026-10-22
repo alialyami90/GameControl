@@ -112,6 +112,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 engine.resetSequence()
                 game.value = emptyMap()
                 syncProfile()
+                replayHeld()
                 notify("Connected to ${companion.state.value.serverName ?: "PC"}")
             }
 
@@ -124,8 +125,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 pending.value = emptyMap()
             }
         }
-        hid.onConnectionChanged = {
+        hid.currentReport = { id -> engine.hidReport(id) }
+        hid.onConnectionChanged = { connected ->
             engine.onLinkChanged()
+            if (connected) replayHeld()
             // Routes depend on which links are up: tell the companion which ids now go over HID.
             syncProfile()
         }
@@ -211,6 +214,34 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---- play ------------------------------------------------------------------------------
 
     private fun control(id: String): Control? = activeProfile.value?.let { LayoutOps.findControl(it, id)?.second }
+
+    /**
+     * After a link (re)connects the PC holds nothing, so re-drive what the user still holds on screen:
+     * momentary buttons, sliders, and latched controls whose action is a hold (not a tap, which
+     * would toggle the game a second time) (A16).
+     */
+    private fun replayHeld() {
+        val p = activeProfile.value ?: return
+        for ((id, v) in values.value) {
+            val c = LayoutOps.findControl(p, id)?.second ?: continue
+            val rest = InputEngine.restValue(c)
+            if (v == rest) continue
+            val replay = when (c.type) {
+                ControlType.MOMENTARY, ControlType.SLIDER -> true
+                ControlType.LATCHING -> when (val a = c.action) {
+                    is Action.Key -> a.trigger == com.gamecontroller.model.KeyTrigger.HOLD
+                    is Action.VJoyButton, is Action.XInputButton, is Action.VJoyAxis, is Action.XInputAxis -> true
+                    is Action.BeamNG -> !a.command.endsWith(".toggle") // setters are idempotent
+                    else -> false
+                }
+                else -> false
+            }
+            if (replay) {
+                engine.syncValue(id, rest)
+                engine.onValue(c, v)
+            }
+        }
+    }
 
     fun onControlValue(id: String, value: Float) {
         val c = control(id) ?: return

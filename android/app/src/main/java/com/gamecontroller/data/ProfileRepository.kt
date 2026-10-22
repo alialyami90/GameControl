@@ -40,21 +40,36 @@ class ProfileRepository(context: Context) {
 
     fun get(id: String): Profile? = _profiles.value.firstOrNull { it.id == id }
 
+    private val io = java.util.concurrent.Executors.newSingleThreadExecutor()
+
+    /** Updates the in-memory list at once and writes the file on a background thread. */
     fun save(profile: Profile) {
-        val f = file(profile.id)
-        val tmp = File(dir, f.name + ".tmp")
-        tmp.writeText(Protocol.json.encodeToString(Profile.serializer(), profile))
-        if (!tmp.renameTo(f)) {
-            f.delete()
-            tmp.renameTo(f)
+        val text = Protocol.json.encodeToString(Profile.serializer(), profile)
+        _profiles.value = _profiles.value.filterNot { it.id == profile.id } + profile.copy(builtIn = BuiltInProfiles.all.any { it.id == profile.id })
+        _profiles.value = order(_profiles.value)
+        io.execute {
+            val f = file(profile.id)
+            val tmp = File(dir, f.name + ".tmp")
+            tmp.writeText(text)
+            if (!tmp.renameTo(f)) {
+                f.delete()
+                tmp.renameTo(f)
+            }
         }
-        reload()
+    }
+
+    private fun order(list: List<Profile>): List<Profile> {
+        val byId = list.associateBy { it.id }
+        val builtIns = BuiltInProfiles.all.mapNotNull { byId[it.id] }
+        val custom = list.filter { p -> BuiltInProfiles.all.none { it.id == p.id } }.sortedBy { it.name.lowercase() }
+        return builtIns + custom
     }
 
     /** Deletes a custom profile, or resets a built-in one to its shipped layout. */
     fun delete(id: String) {
-        file(id).delete()
-        reload()
+        val builtIn = BuiltInProfiles.all.firstOrNull { it.id == id }
+        _profiles.value = order(_profiles.value.filterNot { it.id == id } + listOfNotNull(builtIn))
+        io.execute { file(id).delete() }
     }
 
     fun isModifiedBuiltIn(id: String) = BuiltInProfiles.all.any { it.id == id } && file(id).exists()

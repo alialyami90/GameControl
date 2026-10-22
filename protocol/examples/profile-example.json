@@ -1,0 +1,46 @@
+{
+  "id": "p-example1",
+  "name": "Example profile",
+  "game": "custom",
+  "builtIn": false,
+  "output": "auto",
+  "description": "A small profile showing every control type and action type.",
+  "schema": 1,
+  "pages": [
+    {
+      "id": "pg-main",
+      "name": "Main",
+      "columns": 8,
+      "rows": 4,
+      "controls": [
+        { "id": "c-horn", "type": "momentary", "label": "Horn", "icon": "horn", "x": 0, "y": 0, "w": 1, "h": 1,
+          "accent": "neutral", "action": { "type": "key", "keys": ["H"], "trigger": "hold" } },
+        { "id": "c-lights", "type": "latching", "label": "Lights", "icon": "low_beam", "x": 1, "y": 0, "w": 1, "h": 1,
+          "accent": "green", "action": { "type": "key", "keys": ["L"], "trigger": "tap" }, "feedbackKey": "lights.low" },
+        { "id": "c-gear", "type": "switch", "label": "Gearbox", "icon": "gearbox", "x": 2, "y": 0, "w": 3, "h": 1, "accent": "cyan",
+          "positions": [
+            { "label": "P", "action": { "type": "beamng", "command": "gearbox.mode" }, "stateValue": "P" },
+            { "label": "N", "action": { "type": "beamng", "command": "gearbox.mode" }, "stateValue": "N" },
+            { "label": "D", "action": { "type": "beamng", "command": "gearbox.mode" }, "stateValue": "D" }
+          ],
+          "positionKey": "gearbox.mode", "visibleWhen": "has.gearbox.modes" },
+        { "id": "c-cam", "type": "radio", "label": "Camera", "icon": "camera", "x": 5, "y": 0, "w": 3, "h": 1, "accent": "neutral",
+          "positions": [
+            { "label": "1", "action": { "type": "vjoy_button", "device": 1, "button": 10 } },
+            { "label": "2", "action": { "type": "vjoy_button", "device": 1, "button": 11 } },
+            { "label": "3", "action": { "type": "vjoy_button", "device": 1, "button": 12 } }
+          ] },
+        { "id": "c-throttle", "type": "slider", "label": "Throttle", "icon": "speed", "x": 0, "y": 1, "w": 1, "h": 3, "accent": "green",
+          "action": { "type": "vjoy_axis", "device": 1, "axis": "SL0", "range": "unipolar" }, "range": "unipolar", "springReturn": false, "vertical": true },
+        { "id": "c-zoom", "type": "rotary", "label": "Zoom", "icon": "zoom_in", "x": 1, "y": 1, "w": 2, "h": 2, "accent": "cyan",
+          "cw": { "type": "key", "keys": ["EQUALS"], "trigger": "press" }, "ccw": { "type": "key", "keys": ["MINUS"], "trigger": "press" } },
+        { "id": "c-macro", "type": "momentary", "label": "Pit stop", "icon": "build", "x": 3, "y": 1, "w": 2, "h": 1, "accent": "amber",
+          "action": { "type": "macro", "steps": [ { "keys": ["ESC"], "holdMs": 50 }, { "delayMs": 150 }, { "keys": ["P"], "holdMs": 50 } ] } },
+        { "id": "c-xa", "type": "momentary", "label": "A", "x": 5, "y": 1, "w": 1, "h": 1, "accent": "green",
+          "action": { "type": "xinput_button", "button": "A" } },
+        { "id": "c-bind", "type": "momentary", "label": "Headlights", "icon": "low_beam", "x": 6, "y": 1, "w": 2, "h": 1, "accent": "green",
+          "action": { "type": "vjoy_button", "device": 1, "button": 5 }, "feedbackKey": "lights.low", "bindTo": "toggle_headlights" }
+      ]
+    }
+  ]
+}
