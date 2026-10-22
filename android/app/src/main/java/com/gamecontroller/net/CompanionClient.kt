@@ -110,7 +110,7 @@ class CompanionClient(
         val h = host ?: return
         val token = settings.token(h)
         if (token == null && pin == null) {
-            _state.update { it.copy(status = ConnectionStatus.PAIRING, host = h, message = "Enter the PIN shown on your PC.") }
+            _state.update { it.copy(status = ConnectionStatus.PAIRING, host = h, message = null) }
             return
         }
         cancelReconnect()
