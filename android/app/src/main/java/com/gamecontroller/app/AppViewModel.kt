@@ -91,6 +91,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val knownStateKeys = MutableStateFlow<Set<String>>(emptySet())
     private var lastBindRequest: Pair<String, Int>? = null // device, requested count
     private var bindTimeout: Job? = null
+    /** The user tapped Disconnect on the companion: a Bluetooth connect must not bring it back. */
+    private var userDisconnected = false
 
     val playState: StateFlow<PlayState?> = combine(
         combine(activeProfile, pageIndex, values) { p, i, v -> Triple(p, i, v) },
@@ -161,7 +163,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (connected) engine.rehomeLatches()
             // Bluetooth up usually means the PC is in use: bring the Wi-Fi link up too, so the companion
             // shows the phone and game lamps keep working alongside the HID route.
-            if (connected && companion.state.value.status in setOf(ConnectionStatus.DISCONNECTED, ConnectionStatus.ERROR)) {
+            if (connected && !userDisconnected && companion.state.value.status in setOf(ConnectionStatus.DISCONNECTED, ConnectionStatus.ERROR)) {
                 settings.lastHost?.let { host -> if (settings.token(host.substringBefore(":")) != null) companion.connect(host) }
             }
         }
@@ -389,9 +391,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- connection ------------------------------------------------------------------------
 
-    fun connect(host: String) = companion.connect(host)
+    fun connect(host: String) { userDisconnected = false; companion.connect(host) }
     fun submitPin(pin: String) = companion.submitPin(pin)
-    fun disconnect() = companion.disconnect()
+    fun disconnect() { userDisconnected = true; companion.disconnect() }
     fun rescan() = companion.startDiscovery()
     fun enableHid() = hid.enable()
     fun connectHid(address: String) = hid.connect(address)
