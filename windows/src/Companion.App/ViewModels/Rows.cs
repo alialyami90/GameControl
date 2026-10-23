@@ -54,6 +54,8 @@ public sealed partial class OutputRow : ObservableObject
     /// <summary>Set-up steps shown when the output is not ready.</summary>
     [ObservableProperty] private string _setup = "";
     [ObservableProperty] private string? _setupLink;
+    /// <summary>Show <see cref="Setup"/> even while the output is ready (a how-to rather than a fault).</summary>
+    [ObservableProperty] private bool _setupIsHint;
 
     public string StateWord => State switch
     {
@@ -64,7 +66,7 @@ public sealed partial class OutputRow : ObservableObject
         _ => "Off",
     };
 
-    public bool NeedsSetup => State is NodeState.Attention or NodeState.Failed or NodeState.Off && !string.IsNullOrEmpty(Setup);
+    public bool NeedsSetup => (SetupIsHint || State is NodeState.Attention or NodeState.Failed or NodeState.Off) && !string.IsNullOrEmpty(Setup);
 
     partial void OnStateChanged(NodeState value)
     {
@@ -74,6 +76,7 @@ public sealed partial class OutputRow : ObservableObject
     }
 
     partial void OnSetupChanged(string value) => OnPropertyChanged(nameof(NeedsSetup));
+    partial void OnSetupIsHintChanged(bool value) => OnPropertyChanged(nameof(NeedsSetup));
 
     public IBrush LampBrush => State switch
     {

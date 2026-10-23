@@ -337,4 +337,47 @@ public sealed class HostIntegrationTests : IDisposable
         await p.Send("""{"v":1,"type":"beamng.bindings.apply","device":"vjoy1","bindings":[]}""");
         Assert.Equal("no_beamng", (string?)(await p.Expect("error"))["code"]);
     }
+
+    [Fact]
+    public void OutGauge_ignored_packets_are_logged_once_per_reason()
+    {
+        var log = new List<string>();
+        _host.Logged += e => { lock (log) log.Add(e.Message); };
+        Assert.Null(_host.OutGaugeLastPacket);
+
+        var foreign = new IPEndPoint(IPAddress.Parse("203.0.113.9"), 5000);
+        _host.OnOutGauge(new byte[96], foreign);
+        _host.OnOutGauge(new byte[96], foreign);
+        var local = new IPEndPoint(IPAddress.Loopback, 5000);
+        _host.OnOutGauge(new byte[40], local);
+        _host.OnOutGauge(new byte[12], local);
+
+        lock (log)
+        {
+            Assert.Single(log, m => m == "OutGauge packet from 203.0.113.9 ignored (not this PC)");
+            Assert.Single(log, m => m == "OutGauge packet too short (40 bytes)");
+            Assert.DoesNotContain(log, m => m.Contains("(12 bytes)"));
+        }
+        Assert.False(_host.OutGaugeActive);
+        var last = _host.OutGaugeLastPacket!.Value;
+        Assert.Equal(IPAddress.Loopback, last.From);
+        Assert.True(last.Ago < TimeSpan.FromSeconds(5));
+
+        _host.OnOutGauge(new byte[96], local);
+        Assert.True(_host.OutGaugeActive);
+    }
+
+    [Fact]
+    public void OutGauge_port_in_use_is_reported_as_failed()
+    {
+        Assert.False(_host.OutGaugeFailed);
+        var store = new ConfigStore(Path.Combine(Path.GetTempPath(), $"gc-host-{Guid.NewGuid():N}.json"));
+        var c = store.Config;
+        c.WsPort = FreeTcp(); c.UdpPort = FreeUdp(); c.DiscoveryPort = FreeUdp(); c.BeamNgPort = FreeTcp();
+        c.OutGaugePort = _store.Config.OutGaugePort; // held by the fixture's host, as SimHub would hold 4444
+        c.EnableMdns = false;
+        using var other = new CompanionHost(store, new InputRouter(_out, _out, _out), new HostOptions { Bind = IPAddress.Loopback });
+        other.Start();
+        Assert.True(other.OutGaugeFailed);
+    }
 }

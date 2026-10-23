@@ -30,7 +30,7 @@
                       <TextBlock Text="{Binding StateWord}" FontFamily="{StaticResource CondBold}" FontWeight="Bold" FontStyle="Italic" FontSize="17"
                                  Foreground="{Binding LampBrush}" />
                     </StackPanel>
-                    <TextBlock Text="{Binding Status}" />
+                    <TextBlock Text="{Binding Status}" Classes="wrap" />
                     <TextBlock Text="{Binding Detail}" Classes="small muted wrap" />
                   </StackPanel>
                   <Border Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="18,14,0,0" Classes="inset" Padding="16,12"

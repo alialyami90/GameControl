@@ -276,11 +276,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         bn.Setup = modOk ? "" : "Copy gamecontroller.zip into Documents\\BeamNG.drive\\current\\mods (or BeamNG's user folder \\mods), start the game and load a vehicle. It connects to this PC by itself.";
 
         var tm = Outputs[4];
-        bool ogOn = Host.Config.EnableOutGauge, ogLive = Host.OutGaugeActive;
-        tm.State = !ogOn ? NodeState.Off : ogLive ? NodeState.Live : NodeState.Ready;
-        tm.Status = !ogOn ? "Turned off" : ogLive ? "Receiving" : $"Listening on UDP {Host.Config.OutGaugePort}";
-        tm.Detail = ogLive ? (modOk ? "Paused while the mod is connected" : "Speed, gear and lamps") : "No telemetry arriving";
-        tm.Setup = ogOn && !ogLive && !modOk ? $"Optional. In BeamNG open Options > Other, turn on OutGauge, set IP 127.0.0.1 and port {Host.Config.OutGaugePort}." : "";
+        bool ogOn = Host.Config.EnableOutGauge, ogLive = Host.OutGaugeActive, ogFailed = ogOn && Host.OutGaugeFailed;
+        int ogPort = Host.Config.OutGaugePort;
+        const string modWins = "While the mod is connected, the mod's data is used instead.";
+        tm.State = !ogOn ? NodeState.Off : ogFailed ? NodeState.Attention : ogLive ? NodeState.Live : NodeState.Ready;
+        tm.Status = !ogOn ? "Turned off" : ogFailed ? $"Port {ogPort} is in use by another program (for example SimHub)"
+            : ogLive ? "Receiving" : $"Listening on UDP {ogPort}";
+        tm.Detail = Host.OutGaugeLastPacket is { } last
+            ? $"Last packet: {(int)last.Ago.TotalSeconds}s ago, from {last.From}"
+            : ogFailed ? "Close the other program or change the OutGauge port in Settings, then restart the companion" : "No packet yet";
+        tm.Setup = !ogOn ? "" : modOk ? modWins : ogLive && !ogFailed ? ""
+            : $"In BeamNG open Options > Other, tick OutGauge, IP 127.0.0.1, port {ogPort}, then drive a car (press Ctrl+R once if it was already loaded). It only sends while you're in a vehicle, not in menus. {modWins}";
+        tm.SetupIsHint = true;
 
         OutputNodes = Outputs.Select(o => new SignalNode(o.Key, o.Title, o.Status, o.Icon, o.State)).ToList();
 

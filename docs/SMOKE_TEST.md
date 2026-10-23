@@ -172,9 +172,11 @@ C12 **Low frame rate.** Press **Ctrl+F** to show the frame rate and get it under
     settings). Drive for two minutes. The phone's speed and lamps keep updating, and the console does not show
     "vehicle Lua went quiet, reloading the vehicle part".
 
-C13 **OutGauge fallback (no mod).** Disable the mod in BeamNG's mod manager, enable **Options > Other > OutGauge** (IP 127.0.0.1,
-    port 4444) and restart BeamNG. In the **BeamNG.drive** profile the high beam, signal, handbrake and gear lamps still follow the
-    game; the game-command buttons are dimmed. Enable the mod again afterwards.
+C13 **OutGauge fallback (no mod).** Disable the mod in BeamNG's mod manager and restart BeamNG. Open **Options > Other**, tick
+    **OutGauge**, IP **127.0.0.1**, port **4444**. Get into a car and drive (press **Ctrl+R** once if it was already loaded):
+    OutGauge only sends while you are in a vehicle, not in menus. The companion's Telemetry row shows "Last packet: … from
+    127.0.0.1". In the **BeamNG.drive** profile the high beam, signal, handbrake and gear lamps follow the game; the game-command
+    buttons are dimmed. If the Telemetry row says port 4444 is in use, note which program and close it. Enable the mod again afterwards.
 
 ---
 

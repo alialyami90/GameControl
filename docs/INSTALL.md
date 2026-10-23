@@ -71,8 +71,11 @@ panel comes first: use the companion.
    mod, and the pad known to the companion (phone paired over Bluetooth, or vJoy installed), open the profile, tap **Edit**,
    then on a phone the **gear icon** in the top bar (on a tablet the right-hand panel), scroll to **BEAMNG** and tap
    **Bind in game**. BeamNG maps every button to its function. You can also bind them by hand in BeamNG's *Options > Controls*.
-5. No mod? BeamNG's **OutGauge** (Options > Other > OutGauge, IP 127.0.0.1, port 4444) gives basic lamps
-   (high beam, signals, handbrake, TC, ABS, gear, speed) through the companion.
+5. No mod? BeamNG's **OutGauge** gives basic lamps (high beam, signals, handbrake, TC, ABS, gear, speed) through the
+   companion. In BeamNG open **Options > Other**, tick **OutGauge**, set IP **127.0.0.1** and port **4444**, then drive a car
+   (press **Ctrl+R** once if it was already loaded). It only sends while you are in a vehicle, not in menus. While the mod is
+   connected, the mod's data is used instead. If the companion's Telemetry row says port 4444 is in use, close the other program
+   using it (for example SimHub).
 
 ## 4. Other games
 

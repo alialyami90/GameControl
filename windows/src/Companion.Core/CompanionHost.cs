@@ -55,6 +55,9 @@ public sealed class CompanionHost : IDisposable
     IReadOnlyList<string> _beamngCommands = Array.Empty<string>();
     long _lastOutGaugeMs = long.MinValue / 2, _lastOutGaugeFlushMs;
     bool _outgaugeWasActive;
+    long _lastOutGaugeAnyMs = long.MinValue / 2;
+    IPAddress? _lastOutGaugeFrom;
+    int _loggedForeignOutGauge, _loggedShortOutGauge;
     string _lastCapabilities = "";
     Timer? _timer;
     int _tickCount;
@@ -79,6 +82,17 @@ public sealed class CompanionHost : IDisposable
     /// <summary>A Bluetooth pad connected or disconnected.</summary>
     public event Action? BluetoothChanged;
     public IReadOnlyCollection<ServiceStatus> Services => _status.Values.OrderBy(s => s.Name).ToList();
+    /// <summary>The last OutGauge packet of any kind (used or not): how long ago, and where from. Null before the first.</summary>
+    public (TimeSpan Ago, IPAddress From)? OutGaugeLastPacket =>
+        Volatile.Read(ref _lastOutGaugeFrom) is { } from
+            ? (TimeSpan.FromMilliseconds(Environment.TickCount64 - Interlocked.Read(ref _lastOutGaugeAnyMs)), from)
+            : null;
+
+    /// <summary>True when the OutGauge listener could not open its port (usually another program holds it).</summary>
+    public bool OutGaugeFailed => _status.TryGetValue(OutGaugeService, out var st) && st.State == ServiceState.Failed;
+
+    public const string OutGaugeService = "OutGauge telemetry";
+
     public bool OutGaugeActive => Environment.TickCount64 - Interlocked.Read(ref _lastOutGaugeMs) < OutGaugeStale.TotalMilliseconds;
 
     public event Action<LogEntry>? Logged;
@@ -155,7 +169,7 @@ public sealed class CompanionHost : IDisposable
             return link;
         });
         if (c.EnableOutGauge)
-            StartService("OutGauge telemetry", $"UDP {c.OutGaugePort}", () =>
+            StartService(OutGaugeService, $"UDP {c.OutGaugePort}", () =>
             {
                 var u = new UdpLoop(IPAddress.Any, c.OutGaugePort, OnOutGauge);
                 u.Start();
@@ -671,12 +685,24 @@ public sealed class CompanionHost : IDisposable
         lock (_stateGate) return d.ToDictionary(kv => kv.Key, kv => kv.Value?.DeepClone());
     }
 
-    void OnOutGauge(byte[] data, IPEndPoint from)
+    internal void OnOutGauge(byte[] data, IPEndPoint from)
     {
-        // Telemetry is local; ignore anything that is not from this PC.
-        if (!IPAddress.IsLoopback(from.Address) && !LocalAddresses().Contains(from.Address)) return;
+        Interlocked.Exchange(ref _lastOutGaugeAnyMs, Environment.TickCount64);
+        Volatile.Write(ref _lastOutGaugeFrom, from.Address);
+        // Telemetry is local; ignore anything that is not from this PC. Each reason is logged once per run.
+        if (!IPAddress.IsLoopback(from.Address) && !LocalAddresses().Contains(from.Address))
+        {
+            if (Interlocked.Exchange(ref _loggedForeignOutGauge, 1) == 0)
+                Log("warn", $"OutGauge packet from {from.Address} ignored (not this PC)");
+            return;
+        }
         var values = OutGauge.Parse(data);
-        if (values == null) return;
+        if (values == null)
+        {
+            if (Interlocked.Exchange(ref _loggedShortOutGauge, 1) == 0)
+                Log("warn", $"OutGauge packet too short ({data.Length} bytes)");
+            return;
+        }
         Interlocked.Exchange(ref _lastOutGaugeMs, Environment.TickCount64);
         lock (_stateGate)
         {
