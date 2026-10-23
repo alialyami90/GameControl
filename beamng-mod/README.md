@@ -1,6 +1,6 @@
-# Game Controller mod for BeamNG.drive
+# GameCtl for BeamNG
 
-This optional add-on lets the Game Controller phone app work hand in hand with BeamNG.drive. The phone already works with any Windows game as a controller. With this mod installed, BeamNG also:
+This optional add-on lets the GameCtl phone app work hand in hand with BeamNG.drive. The phone already works with any Windows game as a controller. With this mod installed, BeamNG also:
 
 - reports what the car is doing (lights, signals, ESC, diff locks, 4WD, gear, speed, and more), so buttons on the phone light up and controls the car doesn't have are hidden;
 - runs car functions directly when you press a button on the phone, without needing a key binding;
@@ -14,8 +14,8 @@ This optional add-on lets the Game Controller phone app work hand in hand with B
    ```
 2. Copy `gamecontroller.zip` into your BeamNG user folder's `mods` folder. That is usually
    `%LOCALAPPDATA%\BeamNG.drive\<version>\mods` (older versions use `Documents\BeamNG.drive\mods`). In game you can open it from **Options > Other > Open user folder**.
-3. Start BeamNG.drive and make sure **Game Controller** is enabled in **Mods**.
-4. Start the Game Controller companion on the same PC. The mod connects by itself within a few seconds and shows "Connected to the Game Controller companion". It keeps retrying every 3 seconds while the companion is closed, so the start order doesn't matter.
+3. Start BeamNG.drive and make sure **GameCtl for BeamNG** is enabled in **Mods** (it shows version 1.0.0 and author ALI).
+4. Start the GameCtl companion on the same PC. The mod connects by itself within a few seconds and shows "Connected to the GameCtl companion". It keeps retrying every 3 seconds while the companion is closed, so the start order doesn't matter.
 
 To remove it, delete the zip or disable it in **Mods**. If you applied bindings from the app, they live in `settings/inputmaps/<vidpid>_gamecontroller.json` in the user folder; delete that file to remove them, or change them as usual in **Options > Controls**.
 
@@ -44,8 +44,14 @@ The protocol is in [`protocol/PROTOCOL.md`](../protocol/PROTOCOL.md), section "B
 - **4WD** counts as on in any mode other than "disconnected"; switching it back on restores the mode it had. **Range** is "low" or "high".
 - **Availability (`has.*`)** is only sent when the mod could tell. `has.fog` and `has.light_bar` come from the vehicle's light setup, `has.cruise` from the cruise control extension, and diff, 4WD and range availability only when the powertrain scan found the car's differentials. Anything the mod can't tell is left out, so the phone shows that control.
 - **Starter** uses the vehicle controller's `setStarter` and falls back to holding the ignition key in the start position.
-- **Winch**: stock BeamNG has no winch, so `winch.active` is never reported.
 - **Bindings**: BeamNG keys controller maps by "vidpid" (product ID then vendor ID, in hex). vJoy is `bead1234`; the companion sends the vidpid of the phone's Bluetooth controller. Button N in the app is BeamNG's `button{N-1}`. Every vJoy device shares one vidpid, so the bindings apply to all of them. The mod never touches your own `.diff` files. About a second after writing, it checks that BeamNG has loaded the bindings, and only then answers `ok:true`. If it can't confirm (for example the controller isn't plugged in yet), it answers `ok:false` with `written:true` and a message pointing to Options > Controls.
+
+## Known limits
+
+- **A held game action can release in the next car.** If you hold a phone button that runs a game-engine action (an `action.<name>` binding such as Look back) and switch car with Ctrl+E while holding it, the release runs in the car you switched to, because that action always addresses the current player car. Horn, Start and Recover are not affected: they release in the car they were pressed in.
+- **Trailers and props.** When you are in a vehicle with no engine or controllers (a trailer, a prop), the mod reports lamps and speed only. It leaves availability out rather than guessing, so the phone keeps its controls visible, and pressing them does nothing.
+- **Winch.** Stock BeamNG has no winch, so `winch.active` is never reported.
+- **One companion per PC.** The mod connects to the companion on this PC only (`127.0.0.1:47803`).
 
 ## Tests
 
@@ -71,7 +77,7 @@ Run this once in BeamNG.drive with the PC companion running and the phone connec
 
 **Profiles.** Steps 1-3 and 5-12 use the **BeamNG.drive** profile. It has two pages: **Drive** and **4x4** (switch with the tabs at the top). Step 4 uses the **BeamNG.drive (Bluetooth pad)** profile.
 
-1. **Connection.** Start BeamNG, then the companion. Within about 3 seconds a message says "Connected to the Game Controller companion" and the phone shows BeamNG as connected. Close the companion: a message says it disconnected. Start it again: it reconnects within about 3 seconds.
+1. **Connection.** Start BeamNG, then the companion. Within about 3 seconds a message says "Connected to the GameCtl companion" and the phone shows BeamNG as connected. Close the companion: a message says it disconnected. Start it again: it reconnects within about 3 seconds.
 2. **What the mod found.** Get into each of the three cars once. Each time, the console shows a line that starts `vehicle <name>:` followed by `has.esc=…`, `has.cruise=…` and others. **Copy all three lines into your report**, whatever they say. (`unknown` means the mod couldn't tell, so the phone keeps that control visible.)
 3. **Game actions.** In the D-Series, on the **Drive** page: switch the gearbox to manual (in game, Q), then press **Shift up** and **Shift down**. Hold **Recover** for two seconds and let go: the car rewinds while you hold it. Then try **Reset**, **Slow-mo** (on, then off), hold **Look back**, and on the **4x4** page **Center cam**. Each one does what its keyboard key does. In the console, a line "action failed in game engine Lua, running it in vehicle Lua (this is normal for some actions)" is fine. Write down any line that says "action failed in vehicle Lua" or "action not available".
 4. **Bind in game.** This needs the companion connected and BeamNG running with the mod, and the companion must know the pad: either the phone is paired over Bluetooth or vJoy is installed. Open the **BeamNG.drive (Bluetooth pad)** profile and tap **Edit**. On a phone, tap the **gear icon** in the top bar (on a tablet the panel is already on the right), scroll to **BEAMNG** and tap **Bind in game**. A dialog lists every button and the BeamNG action it will get; confirm. About a second later a result row appears under the button:

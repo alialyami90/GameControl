@@ -20,6 +20,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import com.gamecontroller.ui.icons.IconLibrary
 import com.gamecontroller.ui.theme.Race
 import com.gamecontroller.ui.theme.RaceMotion
@@ -48,7 +50,7 @@ fun CapFace(
         // Narrow caps also take the compact style, so labels like IGNITION fit instead of truncating.
         val small = maxHeight < 64.dp || maxWidth < 76.dp
         val vector = IconLibrary[icon]
-        val iconSize = (minSide * if (showLabel) 0.42f else 0.56f).coerceIn(20.dp, 56.dp)
+        val iconSize = (minSide * if (showLabel) (if (small) 0.36f else 0.42f) else 0.56f).coerceIn(20.dp, 56.dp)
         Column(
             Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -76,13 +78,14 @@ fun CapFace(
                 Text(
                     label.uppercase(),
                     style = when {
-                        small -> RaceType.unit
+                        small -> RaceType.unit.copy(lineHeight = 12.sp, letterSpacing = 0.04.em)
                         wide -> RaceType.capLabelLarge
                         else -> RaceType.capLabel
                     },
                     color = labelInk,
                     textAlign = TextAlign.Center,
-                    maxLines = 1,
+                    // Small caps wrap to a second line instead of truncating (SHIFT DOWN, CENTER DIFF).
+                    maxLines = if (small) 2 else 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }

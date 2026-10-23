@@ -126,7 +126,8 @@ internal fun PilotJoystick(
                 control.label.uppercase(),
                 style = RaceType.capLabel,
                 color = if (off) Race.Ink else Race.InkMuted,
-                maxLines = 1,
+                // Two-part names (BLADE LIFT / TILT) wrap rather than truncate.
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )

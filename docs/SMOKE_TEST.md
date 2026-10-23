@@ -8,7 +8,7 @@ Nothing in this script changes your BeamNG settings except one new input map fil
 
 - An Android phone or tablet (Android 9 or newer) on the same Wi-Fi as the PC.
 - A Windows 10 or 11 (64-bit) PC with Bluetooth and BeamNG.drive. .NET is not needed: the companion is self-contained.
-- The beta files from https://github.com/alialyami90/GameControl/releases (see Part 0).
+- The latest release from https://github.com/alialyami90/GameControl/releases (see Part 0).
 - Optional: vJoy (https://github.com/BrunnerInnovation/vJoy/releases), device 1 enabled with 128 buttons and all axes.
   **Install it before you start the companion** (or restart the companion afterwards). Without it, the vJoy checks in
   B4, C4 and D2-D3 are skipped; everything else still runs.
@@ -21,13 +21,14 @@ A step that matches needs no note.
 
 ## Part 0: Install (5 min)
 
-0.0 **Get the files.** Open https://github.com/alialyami90/GameControl/releases, pick the newest beta and download
+0.0 **Get the files.** Open https://github.com/alialyami90/GameControl/releases, pick the latest release and download
     `GameCtl.apk` (to the phone), `GameCtl-companion-win-x64.zip` and `gamecontroller.zip` (to the PC).
 
 0.1 On the phone open `GameCtl.apk`. Allow "Install unknown apps" for your browser or file manager when asked.
-    The beta is signed with a test key, so Play Protect may warn: choose **More details > Install anyway**.
-    Open **GameCtl**: it runs in landscape and shows the profile list with five built-in profiles:
-    **Generic gamepad**, **Keyboard keys**, **BeamNG.drive**, **BeamNG.drive (Bluetooth pad)**, **MudRunner**.
+    Play Protect may ask to scan it or warn once: choose **Install anyway**. (Upgrading from a beta: see INSTALL section 1.)
+    Open **GameCtl**: it runs in landscape and shows the profile list with seven built-in profiles:
+    **Generic gamepad**, **Keyboard keys**, **BeamNG.drive**, **BeamNG.drive (Bluetooth pad)**, **MudRunner**,
+    **Bulldozer**, **Utility vehicles**.
 
 0.2 On the PC unzip `GameCtl-companion-win-x64.zip` to a folder and run `GameControllerCompanion.exe`.
     Windows SmartScreen may say it protected your PC: choose **More info > Run anyway**.
@@ -55,6 +56,11 @@ A2 On the PC: **Settings > Bluetooth & devices > Add device > Bluetooth**, pick 
    phone, **Properties > Services**, untick the audio, headset and hands-free services, and set your speakers back as the
    default output. Note in your report whether this happened.
 
+A2a With the companion running on the PC and the phone **not** connected to it over Wi-Fi (on the phone: Connect > PC companion >
+    **Disconnect** if it is), look at the companion's **Phones** list: within about 2 seconds of Bluetooth pairing the phone shows
+    with a **BT** tag, and an amber **Wi-Fi: Not linked** banner explains that lamps and BeamNG commands need the Wi-Fi link.
+    Turn Bluetooth off on the phone: the phone leaves the list within about 2 seconds. Turn it back on and let it reconnect.
+
 A3 On the PC press `Win+R`, run `joy.cpl`, select **GameCtl Pad > Properties**. On the phone open **Generic gamepad**.
    - Tap **B1** to **B12**: the matching button lights in joy.cpl and goes out when you let go.
    - Tap **T1** (gamepad button 13): it stays lit on the phone and button 13 stays lit in joy.cpl; tap again, both go out.
@@ -76,7 +82,7 @@ A6 Turn Bluetooth off on the PC. Within a few seconds the phone's badge turns re
 
 ## Part B: Wi-Fi companion (10 min)
 
-B1 On the phone open the connection chip, then **PC companion**. The PC appears in the list within 5 seconds (same Wi-Fi).
+B1 On the phone tap the **PAIRED / OFF** badges at the top right of the profile list, then **PC companion**. The PC appears in the list within 5 seconds (same Wi-Fi).
    If it does not, type the IP shown in the companion window.
 
 B2 Tap the PC. Enter a wrong PIN first: the field turns red and says the PIN was wrong, the companion window shows a failed attempt,
@@ -110,9 +116,9 @@ expected to be hidden), a police car for the light bar (for example the **Gavril
 without ESC (for example the **Ibishu Pigeon**).
 
 C1 **Connection.** Start BeamNG with the companion running. Within about 3 seconds a message in BeamNG says
-   "Connected to the Game Controller companion", the companion window's signal path shows the node **BeamNG mod** with
+   "Connected to the GameCtl companion", the companion window's signal path shows the node **BeamNG mod** with
    "Mod 1.0.0 connected", and the phone's BeamNG
-   profile shows the game tag. Close the companion: BeamNG says it disconnected. Start it again: it reconnects within about 3 seconds.
+   profile shows the game tag. Close the companion: BeamNG says "GameCtl companion disconnected". Start it again: it reconnects within about 3 seconds.
 
 C2 **What the mod found.** Get into each of the three cars once. Each time the console shows a line that starts
    `vehicle <name>:` followed by `has.esc=…`, `has.cruise=…` and others. **Copy all three lines into your report**, whatever they say.
@@ -215,6 +221,24 @@ E5 Open the profile card's menu and choose **Export to file**: a `.gcprofile.jso
 
 E6 Open **BeamNG.drive > Edit**, move one control and tap **Done**. Then open the profile card's menu, choose
    **Restore original layout** and confirm with **Restore**: the built-in layout comes back. (Duplicate it first if you want to keep your edits.)
+
+---
+
+## Part F: Machines (5 min)
+
+F1 Keep `joy.cpl` open on **GameCtl Pad** (or vJoy). Open **Bulldozer**. Move **Drive / steer**: the X and Y axes follow your thumb;
+   let go and both return to centre. Move **Blade lift / tilt**: RX and RY follow. Move the **Ripper** and **Blade angle** levers:
+   SL1 and RZ follow and centre when released.
+
+F2 Hold **Drive / steer** off centre with one thumb and switch to another app with the other hand (or lock the screen): in joy.cpl
+   both axes go back to centre.
+
+F3 Open **Utility vehicles**. On each page (**Loader**, **Excavator**, **Crane**, **Plough & tow**) press every button once and move
+   every stick and lever: each button lights its number in joy.cpl (all are 32 or below), and each stick or lever moves its axes and
+   centres on release. The **Throttle** sliders stay where you leave them.
+
+F4 Open the Bulldozer's editor (**Edit**), select the **Blade lift / tilt** stick: the inspector shows two axis pickers,
+   **Left-right** and **Forward-back**. Tap **Done** without changes.
 
 ---
 

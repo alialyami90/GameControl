@@ -8,5 +8,5 @@ mkdir -p "$out"
 out="$(cd "$out" && pwd)"
 rm -f "$out/gamecontroller.zip"
 cd "$here/gamecontroller"
-zip -r -X -q "$out/gamecontroller.zip" scripts lua
+zip -r -X -q "$out/gamecontroller.zip" mod_info scripts lua
 echo "Wrote $out/gamecontroller.zip"

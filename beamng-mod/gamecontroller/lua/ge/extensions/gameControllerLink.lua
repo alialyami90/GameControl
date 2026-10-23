@@ -1,4 +1,4 @@
--- Game Controller: game engine Lua side.
+-- GameCtl: game engine Lua side.
 -- Connects to the Windows companion over TCP (127.0.0.1:47803, newline-delimited JSON, protocol v1),
 -- reports vehicle and game state, runs commands from the phone, and writes in-game bindings for
 -- the vJoy / Bluetooth HID buttons the phone profile uses. See protocol/PROTOCOL.md.
@@ -7,7 +7,7 @@ local M = {}
 
 local socketOk, socket = pcall(require, "socket")
 if not socketOk then
-  log('E', 'gameController', 'LuaSocket is not available in this game version, the Game Controller link is disabled: ' .. tostring(socket))
+  log('E', 'gameController', 'LuaSocket is not available in this game version, the GameCtl link is disabled: ' .. tostring(socket))
   socket = nil
 end
 
@@ -33,6 +33,7 @@ local pendingBindings = nil   -- bindings waiting to be confirmed as loaded
 local finishBindings          -- defined with the bindings code
 local releaseHeld             -- defined with the connection code
 local bindingsLoaded          -- defined with the bindings code
+local attachVehicle           -- defined with the vehicle code
 
 local state = {}              -- last known values, merged
 local pending = {}            -- values changed since the last send
@@ -65,7 +66,7 @@ end
 
 local function toast(kind, msg)
   if guihooks and guihooks.trigger then
-    guihooks.trigger("toastrMsg", { type = kind, title = "Game Controller", msg = msg })
+    guihooks.trigger("toastrMsg", { type = kind, title = "GameCtl", msg = msg })
   end
 end
 
@@ -354,6 +355,11 @@ end
 -- called from vehicle Lua with a JSON string of changed values
 local function onVehicleState(id, json, full)
   if id ~= be:getPlayerVehicleID(0) then return end
+  if id ~= vehicleId and not full and attachedId ~= id then
+    -- a car we have no snapshot for (back in it after leaving it, or after a level change): ask for one
+    attachVehicle()
+    return
+  end
   vehicleSilence = 0
   vehicleId = id
   local values = decode(json) or {}
@@ -381,11 +387,12 @@ local function onVehicleState(id, json, full)
 end
 
 -- load the vehicle extension into the player vehicle and ask it for a full snapshot
-local function attachVehicle()
+attachVehicle = function()
   local veh = playerVehicle()
   vehicleSilence = 0
   if not veh then
     vehicleId = nil
+    attachedId = nil
     for k in pairs(vehicleKeys) do state[k] = nil end
     vehicleKeys = {}
     readGameState()
@@ -744,7 +751,7 @@ local function onConnected()
   local ok, err = pcall(sock.setoption, sock, "tcp-nodelay", true)
   if not ok then logW("could not set tcp-nodelay: " .. tostring(err)) end
   logI("connected to the companion")
-  toast("success", "Connected to the Game Controller companion")
+  toast("success", "Connected to the GameCtl companion")
   send({ type = "hello", role = "beamng", modVersion = MOD_VERSION, gameVersion = tostring(beamng_versionb or beamng_version or "unknown") })
   send({ type = "commands", list = commandList() })
   requestFullState()
@@ -753,7 +760,7 @@ end
 onDisconnected = function(reason)
   if not sock then return end
   logI("companion connection closed: " .. tostring(reason))
-  if status == "connected" then toast("warning", "Game Controller companion disconnected") end
+  if status == "connected" then toast("warning", "GameCtl companion disconnected") end
   releaseHeld(playerVehicle())
   if pendingBindings then pendingBindings = nil end -- a result for this request can't be delivered any more
   closeSocket()
@@ -889,7 +896,7 @@ end
 
 local function onExtensionLoaded()
   if socket then
-    logI(string.format("Game Controller mod %s loaded, looking for the companion on %s:%d", MOD_VERSION, HOST, PORT))
+    logI(string.format("GameCtl mod %s loaded, looking for the companion on %s:%d", MOD_VERSION, HOST, PORT))
   end
 end
 

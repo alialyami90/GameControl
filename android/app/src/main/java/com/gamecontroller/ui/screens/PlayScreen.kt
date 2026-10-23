@@ -205,17 +205,18 @@ private fun PlayHud(
             IconButton(onClick = onBack) {
                 Icon(Icons.Rounded.ArrowBack, contentDescription = "Back to profiles", tint = Race.InkMuted)
             }
-            Column(Modifier.widthIn(min = if (tight) 72.dp else 96.dp, max = if (tight) 84.dp else if (compact) 180.dp else 240.dp).padding(end = 14.dp)) {
+            Column(Modifier.widthIn(min = if (tight) 72.dp else 96.dp, max = if (tight) 100.dp else if (compact) 180.dp else 240.dp).padding(end = if (tight) 8.dp else 14.dp)) {
+                // Tight: the condensed cap style on up to two lines, so names read instead of "BeamN...".
                 Text(
-                    state.profile.name,
-                    style = RaceType.title,
+                    if (tight) state.profile.name.uppercase() else state.profile.name,
+                    style = if (tight) RaceType.capLabel else RaceType.title,
                     color = Race.Ink,
-                    maxLines = 1,
+                    maxLines = if (tight) 2 else 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 // The game tag only adds information when the name doesn't already say it.
                 val tag = state.profile.game.tag()
-                if (!state.profile.name.contains(tag, ignoreCase = true) && !tag.contains(state.profile.name, ignoreCase = true)) {
+                if (!tight && !state.profile.name.contains(tag, ignoreCase = true) && !tag.contains(state.profile.name, ignoreCase = true)) {
                     Text(tag.uppercase(), style = RaceType.unit, color = Race.InkFaint, maxLines = 1)
                 }
             }

@@ -649,8 +649,6 @@ check(merged()["horn"] == nil and merged()["has.esc"] == nil, "vehicle values dr
 playerId = 7
 e.horn = 0
 pump(20)
-do local m = merged(); local ks = {} for k, v in pairs(m) do table.insert(ks, k .. "=" .. tostring(v)) end print("DBG", #inbox, table.concat(ks, " ")) end
-for i = #logs - 5, #logs do print("LOG", logs[i]) end
 check(merged()["ignition"] ~= nil and merged()["horn"] == false, "next level's car reports again")
 
 -- a vehicle whose Lua never answers is retried every 5 s, not every frame

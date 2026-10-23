@@ -16,7 +16,7 @@ There are two ways to connect, and you can use both at the same time.
 - An Android phone or tablet, Android 9 or newer.
 - A Windows 10 or 11 PC, 64-bit. .NET is not needed: the companion is a self-contained exe.
 
-Every beta is on the GitHub releases page: https://github.com/alialyami90/GameControl/releases. Each one has
+Download the latest release from https://github.com/alialyami90/GameControl/releases. It has
 `GameCtl.apk` (phone app), `GameCtl-companion-win-x64.zip` (PC companion), `gamecontroller.zip` (BeamNG mod),
 this guide and `SMOKE_TEST.md`, the single end-to-end test to run after installing.
 
@@ -25,8 +25,17 @@ installing them, so it finds them.
 
 ## 1. Install the app
 
-1. Open `GameCtl.apk` on the phone. Allow "Install unknown apps" for your browser or file manager when asked. The beta is
-   signed with a test key, so Play Protect may warn: choose **More details > Install anyway**.
+> **Upgrading from a beta?** The betas were signed with a test key and 1.0 is signed with the GameCtl release key, so
+> Android won't install 1.0 over a beta ("App not installed"). Do this once:
+> 1. In the beta, open each profile you made or changed, tap its card menu and **Export to file**.
+> 2. Uninstall the beta (this deletes its profiles and paired PCs).
+> 3. Install 1.0 as below, then **Import** each file with the download icon at the top right of the profile list.
+> 4. Connect to the PC companion again: it asks for the PIN once. The companion keeps its own list of phones.
+>
+> Later versions install over 1.0 directly.
+
+1. Open `GameCtl.apk` on the phone. Allow "Install unknown apps" for your browser or file manager when asked. Because the
+   app comes from outside the Play Store, Play Protect may ask to scan it or warn once: choose **Install anyway**.
 2. Open **GameCtl**. The app runs in landscape.
 
 ## 2a. Connect over Bluetooth (no PC software)
@@ -88,6 +97,7 @@ panel comes first: use the companion.
   equipment: pilot joysticks (two spring-centred axes each), hydraulic levers and switchgear. Every control is a gamepad axis or
   button: open the game's controls menu once and bind each function by moving the matching stick or pressing the button.
   Common jobs keep the same button on every machine (1 start, 2 horn, 3 beacon, 4 lights, 6 park brake, 11 camera).
+  Every machine button is 32 or below, so games that only read 32 joystick buttons see them all.
 - Make your own: **New profile**, then **Edit**. Add controls from the palette, drag to move, drag the corner to
   resize, and set what each one does in the inspector: keys, gamepad buttons/axes, macros, BeamNG commands or Xbox
   buttons. Profiles export and import as `.gcprofile.json` files.
@@ -95,8 +105,14 @@ panel comes first: use the companion.
 ## Building from source
 
 - Android: JDK 17 and the Android SDK (API 35). `cd android && ./gradlew :core:test :app:assembleRelease`
-  writes `app/build/outputs/apk/release/app-release.apk`.
+  writes `app/build/outputs/apk/release/app-release.apk`. Release signing comes only from the environment, never from
+  the repository: set `GAMECTL_KEYSTORE` (path to the `.jks`), `GAMECTL_KEYSTORE_PASSWORD` and `GAMECTL_KEY_ALIAS`.
+  Without them the release APK is signed with your local debug key, which is fine for testing but won't install over the
+  official app. `./gradlew -PcoreOnly=true :core:test` tests the core without the Android SDK.
 - Windows companion: .NET 8 SDK. See `windows/README.md`.
 - BeamNG mod: `sh beamng-mod/build.sh` writes `beamng-mod/dist/gamecontroller.zip`. Tests: `cd beamng-mod && luajit tests/run.lua`.
 - GitHub Actions (`.github/workflows/ci.yml`) builds and tests all three on every push and uploads the APK,
-  the companion and the mod zip as artifacts.
+  the companion and the mod zip as artifacts. The release key lives in the repository secrets `ANDROID_KEYSTORE_B64`,
+  `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`; CI decodes it to a temporary file for the build. Running the
+  workflow by hand with `release_tag` (for example `v1.0.0`) publishes a GitHub release; a `v*` release is refused unless
+  the APK is signed with the GameCtl release key.

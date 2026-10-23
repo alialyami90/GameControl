@@ -64,6 +64,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.em
 import com.gamecontroller.model.AxisRange
 import com.gamecontroller.model.Control
 import com.gamecontroller.model.ControlType
@@ -449,25 +451,40 @@ private fun AxisSlider(
         },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                control.label.uppercase(),
-                style = RaceType.capLabel,
-                color = Race.InkMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                (if (bipolar && pct > 0) "+" else "") + pct,
-                style = RaceType.readout,
-                color = if (abs(shown.value - rest) > 0.01f) accent else Race.InkFaint,
-            )
+        val readoutText = (if (bipolar && pct > 0) "+" else "") + pct
+        val readoutInk = if (abs(shown.value - rest) > 0.01f) accent else Race.InkFaint
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            if (maxWidth < 104.dp) {
+                // One-column sliders: label on up to two compact lines above the readout, never "THROT...".
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        control.label.uppercase(),
+                        style = RaceType.unit.copy(lineHeight = 12.sp, letterSpacing = 0.04.em),
+                        color = Race.InkMuted,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(readoutText, style = RaceType.readout, color = readoutInk)
+                }
+            } else {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        control.label.uppercase(),
+                        style = RaceType.capLabel,
+                        color = Race.InkMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(readoutText, style = RaceType.readout, color = readoutInk)
+                }
+            }
         }
         Spacer(Modifier.height(6.dp))
         Box(

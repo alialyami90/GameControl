@@ -60,6 +60,11 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gamecontroller.model.ConnectionUi
+import com.gamecontroller.model.ConnectionStatus
+import com.gamecontroller.model.HidStatus
+import com.gamecontroller.ui.AppVersion
+import androidx.compose.material.icons.rounded.Bluetooth
+import androidx.compose.material.icons.rounded.Computer
 import com.gamecontroller.model.GameId
 import com.gamecontroller.model.Page
 import com.gamecontroller.model.Profile
@@ -99,6 +104,8 @@ fun ProfilesScreen(
     var creating by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf<Profile?>(null) }
     var confirmRestore by remember { mutableStateOf<Profile?>(null) }
+    // First run, or both links down: the list leads with the way to reach Windows.
+    val linked = hid.status == HidStatus.CONNECTED || connection.status == ConnectionStatus.CONNECTED
 
     Box(
         Modifier
@@ -143,6 +150,10 @@ fun ProfilesScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
+                    if (!linked) {
+                        ConnectFirstRow(onOpenConnection)
+                        Gap(24)
+                    }
                     Text("No profiles yet", style = MaterialTheme.typography.headlineSmall, color = Race.Ink)
                     Gap(6)
                     Text("Make one for any game, or import a profile file.", style = MaterialTheme.typography.bodyMedium, color = Race.InkMuted)
@@ -156,6 +167,11 @@ fun ProfilesScreen(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     // New profile sits in the list as its first row, so nothing floats over the cards.
+                    if (!linked) {
+                        item(key = "connect", span = { GridItemSpan(maxLineSpan) }) {
+                            ConnectFirstRow(onOpenConnection)
+                        }
+                    }
                     item(key = "new", span = { GridItemSpan(maxLineSpan) }) {
                         NewProfileRow { creating = true }
                     }
@@ -167,6 +183,9 @@ fun ProfilesScreen(
                             onExport = { onExport(p.id) },
                             onDelete = { if (p.builtIn) confirmRestore = p else confirmDelete = p },
                         )
+                    }
+                    item(key = "about", span = { GridItemSpan(maxLineSpan) }) {
+                        AboutLine()
                     }
                 }
             }
@@ -214,6 +233,54 @@ fun ProfilesScreen(
             containerColor = Race.PanelRaised,
         )
     }
+}
+
+/**
+ * Lead-in shown while neither link is up: names both routes to Windows and opens Connect.
+ * It leaves on its own once Bluetooth or the companion app connects.
+ */
+@Composable
+private fun ConnectFirstRow(onOpenConnection: () -> Unit) {
+    val shape = CapShape(cut = 16.dp, radius = 8.dp)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 72.dp)
+            .clip(shape)
+            .background(Race.PanelRaised)
+            .border(1.dp, Race.Electric.copy(alpha = 0.55f), shape)
+            .clickable(onClickLabel = "Open connections", onClick = onOpenConnection)
+            .padding(start = 20.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(Icons.Rounded.Bluetooth, contentDescription = null, tint = Race.Electric, modifier = Modifier.size(22.dp))
+            Icon(Icons.Rounded.Computer, contentDescription = null, tint = Race.Electric, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text("CONNECT TO YOUR PC", style = RaceType.capLabelLarge.copy(fontStyle = FontStyle.Italic), color = Race.Ink)
+            Text(
+                "Pair over Bluetooth to drive any Windows game, or run the companion app for BeamNG lights and gauges.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Race.InkMuted,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        SlantButton(text = "Connect", onClick = onOpenConnection, style = SlantStyle.PRIMARY)
+    }
+}
+
+/** Quiet footer at the end of the list: app name and version, read from the build. */
+@Composable
+private fun AboutLine() {
+    Text(
+        "GameCtl $AppVersion",
+        style = RaceType.unit,
+        color = Race.InkFaint,
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).semantics { contentDescription = "GameCtl version $AppVersion" },
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+    )
 }
 
 /** Full-width first row of the list: a dashed slot to start a new profile, like an empty garage bay. */

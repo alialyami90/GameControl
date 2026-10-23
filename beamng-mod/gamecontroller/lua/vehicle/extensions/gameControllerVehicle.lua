@@ -1,4 +1,4 @@
--- Game Controller: vehicle Lua side.
+-- GameCtl: vehicle Lua side.
 -- Runs inside the player vehicle's Lua VM. Reads electrics, powertrain and controllers,
 -- sends changed state to the game engine side (gameControllerLink), and applies commands
 -- that need the vehicle VM. Loaded by gameControllerLink into the player vehicle.
