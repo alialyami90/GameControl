@@ -31,6 +31,8 @@ public sealed class HostOptions
     public TimeSpan IdleTimeout { get; init; } = TimeSpan.FromSeconds(8);
     /// <summary>Finds the phone's Bluetooth HID controller (Windows: SetupAPI); none elsewhere.</summary>
     public IBluetoothPads BluetoothPads { get; init; } = new NoBluetoothPads();
+    /// <summary>How often the Bluetooth pad scan runs, on its own background task.</summary>
+    public TimeSpan BluetoothScanInterval { get; init; } = TimeSpan.FromSeconds(2);
 }
 
 /// <summary>
@@ -65,6 +67,8 @@ public sealed class CompanionHost : IDisposable
     IReadOnlyList<BluetoothPad> _pads = Array.Empty<BluetoothPad>();
     string _padsKey = "";
     readonly object _padsGate = new();
+    readonly CancellationTokenSource _stop = new();
+    Task? _padScan;
     IReadOnlySet<IPAddress> _localAddresses = new HashSet<IPAddress>();
     long _localAddressesAtMs = long.MinValue;
 
@@ -177,8 +181,8 @@ public sealed class CompanionHost : IDisposable
             });
 
         _lastCapabilities = Capabilities().ToJsonString();
-        ScanBluetooth();
         _timer = new Timer(_ => Tick(), null, 100, 100);
+        _padScan = Task.Run(() => ScanBluetoothLoop(_stop.Token));
         Log("info", $"Companion ready as \"{c.ServerName}\". Pairing PIN {Pairing.Pin}");
     }
 
@@ -213,7 +217,6 @@ public sealed class CompanionHost : IDisposable
         foreach (var s in _sessions.Values) s.Engine.Tick(now);
         DropIdleSessions();
         FlushOutGauge(now);
-        if (_tickCount % 20 == 0) ScanBluetooth();
 
         bool active = OutGaugeActive;
         if (active != _outgaugeWasActive)
@@ -232,6 +235,21 @@ public sealed class CompanionHost : IDisposable
             try { changed |= Router.XInput.Refresh(); } catch { }
             if (changed) { PushCapabilities(); StatusChanged?.Invoke(); }
         }
+    }
+
+    /// <summary>
+    /// The SetupAPI walk can take tens of milliseconds (more while Windows is adding a device), so it runs
+    /// here rather than on the 100 ms input tick, where it would delay auto-release and idle checks.
+    /// </summary>
+    async Task ScanBluetoothLoop(CancellationToken stop)
+    {
+        using var timer = new PeriodicTimer(_options.BluetoothScanInterval);
+        do
+        {
+            try { ScanBluetooth(); }
+            catch (Exception e) { Log("error", $"Bluetooth scan failed: {e.Message}"); }
+        }
+        while (await timer.WaitForNextTickAsync(stop).ConfigureAwait(false));
     }
 
     /// <summary>
@@ -275,6 +293,8 @@ public sealed class CompanionHost : IDisposable
     public void Dispose()
     {
         _timer?.Dispose();
+        _stop.Cancel();
+        try { _padScan?.Wait(1000); } catch (AggregateException) { } // cancellation ends the loop
         foreach (var s in _sessions.Values) { s.Engine.ReleaseAll(); _ = s.CloseAsync("companion shutting down"); }
         Router.ReleaseAll();
         foreach (var svc in _services) { try { svc.Dispose(); } catch { } }

@@ -380,4 +380,28 @@ public sealed class HostIntegrationTests : IDisposable
         other.Start();
         Assert.True(other.OutGaugeFailed);
     }
+
+    [Fact]
+    public async Task Bluetooth_scan_runs_on_its_own_task_without_the_tick()
+    {
+        var pads = new FakePads();
+        var store = new ConfigStore(Path.Combine(Path.GetTempPath(), $"gc-host-{Guid.NewGuid():N}.json"));
+        var c = store.Config;
+        c.WsPort = FreeTcp(); c.UdpPort = FreeUdp(); c.DiscoveryPort = FreeUdp(); c.BeamNgPort = FreeTcp(); c.OutGaugePort = FreeUdp();
+        c.EnableMdns = false;
+        var host = new CompanionHost(store, new InputRouter(_out, _out, _out),
+            new HostOptions { Bind = IPAddress.Loopback, BluetoothPads = pads, BluetoothScanInterval = TimeSpan.FromMilliseconds(50) });
+        int threadOfScan = -1;
+        host.BluetoothChanged += () => threadOfScan = Environment.CurrentManagedThreadId;
+        host.Start();
+        lock (pads.Now) pads.Now.Add(new("pad1", "GameCtl Pad"));
+        await WaitFor(() => host.BluetoothPads.Count == 1, 2000);
+        Assert.Single(host.BluetoothPads);
+        Assert.NotEqual(Environment.CurrentManagedThreadId, threadOfScan);
+
+        host.Dispose(); // stops the scan loop
+        lock (pads.Now) pads.Now.Clear();
+        await Task.Delay(200);
+        Assert.Single(host.BluetoothPads);
+    }
 }
