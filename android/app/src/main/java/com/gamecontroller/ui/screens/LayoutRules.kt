@@ -15,7 +15,7 @@ fun Control.minSpan(page: Page): Pair<Int, Int> {
         // Horizontal only, matching core's sanitize, so what the editor allows survives a reload.
         ControlType.SWITCH, ControlType.RADIO -> n to 1
         ControlType.SLIDER -> if (vertical) 1 to 2 else 2 to 1
-        ControlType.ROTARY -> 2 to 2
+        ControlType.ROTARY, ControlType.JOYSTICK -> 2 to 2
         ControlType.MOMENTARY, ControlType.LATCHING -> 1 to 1
     }
     return w.coerceAtMost(page.columns) to h.coerceAtMost(page.rows)

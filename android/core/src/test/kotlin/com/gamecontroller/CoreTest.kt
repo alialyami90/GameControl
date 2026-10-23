@@ -8,6 +8,7 @@ import com.gamecontroller.hid.HidDescriptor
 import com.gamecontroller.hid.HidState
 import com.gamecontroller.model.Action
 import com.gamecontroller.model.ControlType
+import com.gamecontroller.model.Joystick
 import com.gamecontroller.model.FeedbackSource
 import com.gamecontroller.model.GameId
 import com.gamecontroller.model.KeyTrigger
@@ -367,6 +368,26 @@ class CoreTest {
         assertTrue(bit13 != 0, "latch is pressed over HID after the route moved")
         e.onValue(t, 0f)
         assertEquals(0, links.hid.last { it.first == HidDescriptor.GAMEPAD_REPORT_ID }.second[1].toInt() and 0x10)
+        advanceUntilIdle()
+    }
+
+    @Test fun joystickDrivesTwoAxesAndSyncsAsTwoSliders() = runTest {
+        val links = FakeLinks(hidConnected = true)
+        val e = InputEngine(this, links) { testScheduler.currentTime }
+        val p = BuiltInProfiles.bulldozer()
+        e.profile = p
+        val blade = p.pages[0].controls.first { it.id == "dz_blade" }
+        assertEquals(ControlType.JOYSTICK, blade.type)
+        val (bx, by) = Joystick.axes(blade)
+        assertEquals("dz_blade.x", bx.id); assertEquals("dz_blade.y", by.id)
+        assertEquals(by.id, LayoutOps.findControl(p, "dz_blade.y")?.second?.id)
+        assertTrue("dz_blade.y" in e.hidRoutedIds())
+        e.onValue(by, 1f)
+        val r = links.hid.last { it.first == HidDescriptor.GAMEPAD_REPORT_ID }.second
+        val rx = ((r[14].toInt() and 0xFF) or (r[15].toInt() shl 8)).toShort().toInt()
+        assertTrue(rx > 30000, "forward on the blade stick drives RX, got $rx")
+        val sync = Protocol.profileSync(p, emptySet())
+        assertTrue("\"dz_blade.x\"" in sync && "\"dz_blade.y\"" in sync && "\"joystick\"" !in sync, sync)
         advanceUntilIdle()
     }
 

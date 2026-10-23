@@ -22,8 +22,10 @@ object BuiltInProfiles {
     const val BEAMNG_ID = "builtin-beamng"
     const val MUDRUNNER_ID = "builtin-mudrunner"
     const val BEAMNG_PAD_ID = "builtin-beamng-pad"
+    const val BULLDOZER_ID = "builtin-bulldozer"
+    const val UTILITY_ID = "builtin-utility"
 
-    val all: List<Profile> by lazy { listOf(gamepad(), keyboard(), beamng(), beamngPad(), mudrunner()) }
+    val all: List<Profile> by lazy { listOf(gamepad(), keyboard(), beamng(), beamngPad(), mudrunner(), bulldozer(), utility()) }
 
     // ---- small builders --------------------------------------------------------------------
 
@@ -36,6 +38,16 @@ object BuiltInProfiles {
 
     private fun latching(id: String, label: String, icon: String?, x: Int, y: Int, action: Action, accent: Accent, feedback: String? = null, visibleWhen: String? = null, w: Int = 1, h: Int = 1) =
         Control(id, ControlType.LATCHING, label, icon, x, y, w, h, accent, action, feedbackKey = feedback, visibleWhen = visibleWhen)
+
+    /** A hydraulic or drive lever: centred, springs back to stop when let go. */
+    private fun lever(id: String, label: String, icon: String?, x: Int, y: Int, axis: String, accent: Accent = Accent.CYAN, w: Int = 1, h: Int = 4) =
+        Control(id, ControlType.SLIDER, label, icon, x, y, w, h, accent, Action.VJoyAxis(1, axis),
+            range = AxisRange.BIPOLAR, springReturn = true, vertical = h >= w)
+
+    /** A throttle: stays where it is left, from idle (bottom) to full. */
+    private fun throttle(id: String, x: Int, y: Int, axis: String = "SL0", h: Int = 4) =
+        Control(id, ControlType.SLIDER, "Throttle", "speed", x, y, 1, h, Accent.GREEN,
+            Action.VJoyAxis(1, axis, AxisRange.UNIPOLAR), range = AxisRange.UNIPOLAR)
 
     // ---- Generic gamepad: works with any game over Bluetooth HID or vJoy -------------------
 
@@ -257,6 +269,154 @@ object BuiltInProfiles {
             id = MUDRUNNER_ID, name = "MudRunner", game = GameId.MUDRUNNER, builtIn = true,
             pages = listOf(page), output = OutputRoute.AUTO,
             description = "Diff lock, AWD, winch, gears, handbrake, map and camera on MudRunner's default keys. Edit any key to match your bindings.",
+        )
+    }
+
+    // ---- Heavy machines: pilot joysticks, levers and buttons, bound once in the game ----------
+    //
+    // Laid out like a real cab: a pilot joystick under each thumb (two spring-centred axes each,
+    // ISO pattern on the excavator), extra hydraulics as spring-centred levers, switchgear in the
+    // middle. Every axis and button is the Bluetooth pad (or vJoy device 1), so these work in any
+    // game with machines once bound in its controls menu. Buttons keep one number per job across
+    // machines (1 start, 2 horn, 3 beacon, 4 lights, 5 work lights, 6 park brake, 7/8 gear down/up,
+    // 11/12 cameras), so one set of bindings covers several machines.
+
+    private fun stick(id: String, label: String, icon: String?, x: Int, y: Int, xAxis: String, yAxis: String, accent: Accent = Accent.AMBER) =
+        Control(id, ControlType.JOYSTICK, label, icon, x, y, 2, 2, accent, Action.VJoyAxis(1, xAxis), actionY = Action.VJoyAxis(1, yAxis))
+
+    private fun direction(id: String, x: Int, y: Int) =
+        Control(id, ControlType.SWITCH, "Direction", "direction", x, y, 3, 1, Accent.CYAN,
+            positions = listOf(Position("F", btn(13)), Position("N", btn(14)), Position("R", btn(15))))
+
+    fun bulldozer(): Profile {
+        val dozer = Page(
+            id = "dz_main", name = "Dozer", columns = 8, rows = 4,
+            controls = listOf(
+                stick("dz_drive", "Drive / steer", "tracks", 0, 0, "X", "Y", Accent.GREEN),
+                throttle("dz_throttle", 0, 2, h = 2),
+                momentary("dz_gear_up", "Gear up", "gear_up", 1, 2, btn(8)),
+                momentary("dz_gear_down", "Gear down", "gear_down", 1, 3, btn(7)),
+                momentary("dz_start", "Start", "starter", 2, 0, btn(1), Accent.RED),
+                momentary("dz_horn", "Horn", "horn", 3, 0, btn(2)),
+                latching("dz_beacon", "Beacon", "beacon", 4, 0, btn(3), Accent.AMBER),
+                latching("dz_lights", "Lights", "low_beam", 2, 1, btn(4), Accent.GREEN),
+                latching("dz_work", "Work lights", "work_light", 3, 1, btn(5), Accent.AMBER),
+                latching("dz_pbrake", "Park brake", "parking_brake", 4, 1, btn(6), Accent.RED),
+                direction("dz_direction", 2, 2),
+                latching("dz_float", "Blade float", "float_mode", 2, 3, btn(9), Accent.CYAN),
+                latching("dz_autoshift", "Auto shift", "gearbox", 3, 3, btn(16), Accent.GREEN),
+                momentary("dz_cam", "Camera", "camera_cycle", 4, 3, btn(11)),
+                lever("dz_ripper", "Ripper", "ripper", 5, 0, "SL1", Accent.AMBER),
+                stick("dz_blade", "Blade lift / tilt", "blade", 6, 0, "RY", "RX"),
+                lever("dz_angle", "Blade angle", "blade_angle", 6, 2, "RZ", w = 2, h = 1),
+                momentary("dz_shank", "Ripper pin", "ripper", 6, 3, btn(10), Accent.AMBER),
+                momentary("dz_rear_cam", "Rear view", "look_back", 7, 3, btn(12)),
+            ),
+        )
+        return Profile(
+            id = BULLDOZER_ID, name = "Bulldozer", game = GameId.CUSTOM, builtIn = true,
+            pages = listOf(dozer), output = OutputRoute.AUTO,
+            description = "A dozer cab: drive joystick on the left, blade joystick on the right, ripper and blade-angle levers, throttle and switchgear. Bind once in the game's controls menu.",
+        )
+    }
+
+    fun utility(): Profile {
+        val loader = Page(
+            id = "ut_loader", name = "Loader", columns = 8, rows = 4,
+            controls = listOf(
+                stick("ld_drive", "Drive / steer", "arrow_up", 0, 0, "X", "Y", Accent.GREEN),
+                throttle("ld_throttle", 0, 2, h = 2),
+                momentary("ld_gear_up", "Gear up", "gear_up", 1, 2, btn(8)),
+                momentary("ld_gear_down", "Gear down", "gear_down", 1, 3, btn(7)),
+                momentary("ld_start", "Start", "starter", 2, 0, btn(1), Accent.RED),
+                momentary("ld_horn", "Horn", "horn", 3, 0, btn(2)),
+                latching("ld_beacon", "Beacon", "beacon", 4, 0, btn(3), Accent.AMBER),
+                latching("ld_lights", "Lights", "low_beam", 5, 0, btn(4), Accent.GREEN),
+                latching("ld_pbrake", "Park brake", "parking_brake", 2, 1, btn(6), Accent.RED),
+                latching("ld_diff", "Diff lock", "diff_lock", 3, 1, btn(32), Accent.AMBER),
+                latching("ld_float", "Float", "float_mode", 4, 1, btn(9), Accent.CYAN),
+                latching("ld_coupler", "Coupler", "quick_coupler", 5, 1, btn(19), Accent.AMBER),
+                momentary("ld_return", "Return to dig", "bucket", 2, 2, btn(17), Accent.CYAN),
+                momentary("ld_cam", "Camera", "camera_cycle", 3, 2, btn(11)),
+                momentary("ld_rear_cam", "Rear view", "look_back", 4, 2, btn(12)),
+                latching("ld_work", "Work lights", "work_light", 5, 2, btn(5), Accent.AMBER),
+                direction("ld_direction", 2, 3),
+                momentary("ld_kickdown", "Kickdown", "gear_down", 5, 3, btn(33)),
+                stick("ld_bucket", "Boom / bucket", "bucket", 6, 0, "RY", "RX"),
+                stick("ld_aux", "Attachment", "quick_coupler", 6, 2, "RZ", "SL1", Accent.CYAN),
+            ),
+        )
+        val excavator = Page(
+            id = "ut_excavator", name = "Excavator", columns = 8, rows = 4,
+            controls = listOf(
+                lever("ex_left", "Left track", "tracks", 0, 0, "Y", Accent.GREEN),
+                lever("ex_right", "Right track", "tracks", 1, 0, "Z", Accent.GREEN),
+                stick("ex_left_stick", "Swing / stick", "swing", 2, 0, "X", "RY"),
+                momentary("ex_start", "Start", "starter", 4, 0, btn(1), Accent.RED),
+                momentary("ex_horn", "Horn", "horn", 5, 0, btn(2)),
+                latching("ex_beacon", "Beacon", "beacon", 4, 1, btn(3), Accent.AMBER),
+                latching("ex_lights", "Lights", "low_beam", 5, 1, btn(4), Accent.GREEN),
+                stick("ex_right_stick", "Boom / bucket", "boom", 6, 0, "SL1", "RX"),
+                latching("ex_work", "Work lights", "work_light", 2, 2, btn(5), Accent.AMBER),
+                momentary("ex_hammer", "Hammer", "bucket", 3, 2, btn(20), Accent.RED),
+                latching("ex_coupler", "Coupler", "quick_coupler", 4, 2, btn(19), Accent.AMBER),
+                momentary("ex_cam", "Camera", "camera_cycle", 5, 2, btn(11)),
+                lever("ex_aux", "Aux flow", "stick", 2, 3, "RZ", Accent.CYAN, w = 2, h = 1),
+                latching("ex_hispeed", "Travel speed", "tracks", 4, 3, btn(34), Accent.GREEN),
+                momentary("ex_rear_cam", "Rear view", "look_back", 5, 3, btn(12)),
+                Control("ex_rpm", ControlType.ROTARY, "Engine speed", "speed", 6, 2, 2, 2, Accent.CYAN, cw = btn(35), ccw = btn(36)),
+            ),
+        )
+        val crane = Page(
+            id = "ut_crane", name = "Crane", columns = 8, rows = 4,
+            controls = listOf(
+                stick("cr_left_stick", "Slew / hoist", "hook", 0, 0, "X", "SL1"),
+                stick("cr_drive", "Drive / steer", "arrow_up", 0, 2, "Z", "Y", Accent.GREEN),
+                momentary("cr_out_out", "Outriggers out", "outriggers", 2, 0, btn(21), Accent.AMBER),
+                momentary("cr_out_in", "Outriggers in", "outriggers", 3, 0, btn(22)),
+                latching("cr_lock", "Load lock", "hook", 4, 0, btn(23), Accent.RED),
+                momentary("cr_start", "Start", "starter", 5, 0, btn(1), Accent.RED),
+                momentary("cr_horn", "Horn", "horn", 2, 1, btn(2)),
+                latching("cr_beacon", "Beacon", "beacon", 3, 1, btn(3), Accent.AMBER),
+                latching("cr_lights", "Lights", "low_beam", 4, 1, btn(4), Accent.GREEN),
+                latching("cr_pbrake", "Park brake", "parking_brake", 5, 1, btn(6), Accent.RED),
+                momentary("cr_gear_down", "Gear down", "gear_down", 2, 2, btn(7)),
+                momentary("cr_gear_up", "Gear up", "gear_up", 3, 2, btn(8)),
+                momentary("cr_cam", "Camera", "camera_cycle", 4, 2, btn(11)),
+                momentary("cr_hook_cam", "Hook view", "camera", 5, 2, btn(12)),
+                lever("cr_rotate", "Hook rotate", "hook", 2, 3, "RZ", Accent.NEUTRAL, w = 4, h = 1),
+                stick("cr_right_stick", "Boom / extend", "boom", 6, 0, "RY", "RX"),
+                throttle("cr_throttle", 6, 2, h = 2),
+                latching("cr_work", "Work lights", "work_light", 7, 2, btn(5), Accent.AMBER),
+                momentary("cr_rear_cam", "Rear view", "look_back", 7, 3, btn(12)),
+            ),
+        )
+        val plough = Page(
+            id = "ut_plough", name = "Plough & tow", columns = 8, rows = 4,
+            controls = listOf(
+                stick("pl_plough", "Plough lift / angle", "plough", 0, 0, "Z", "RX"),
+                Control("pl_rate", ControlType.ROTARY, "Spread rate", "spreader", 0, 2, 2, 2, Accent.CYAN, cw = btn(25), ccw = btn(26)),
+                latching("pl_beacon", "Beacon", "beacon", 2, 0, btn(3), Accent.AMBER),
+                latching("pl_lights", "Lights", "low_beam", 3, 0, btn(4), Accent.GREEN),
+                latching("pl_work", "Work lights", "work_light", 4, 0, btn(5), Accent.AMBER),
+                momentary("pl_horn", "Horn", "horn", 5, 0, btn(2)),
+                latching("pl_spreader", "Spreader", "spreader", 2, 1, btn(24), Accent.CYAN),
+                latching("pl_float", "Plough float", "float_mode", 3, 1, btn(31), Accent.CYAN),
+                momentary("pl_wheel_up", "Wheel lift up", "tow", 4, 1, btn(27), Accent.AMBER),
+                momentary("pl_wheel_down", "Wheel lift down", "tow", 5, 1, btn(28)),
+                momentary("pl_winch_in", "Winch in", "winch", 2, 2, btn(29), Accent.AMBER),
+                momentary("pl_winch_out", "Winch out", "winch", 3, 2, btn(30)),
+                latching("pl_pbrake", "Park brake", "parking_brake", 4, 2, btn(6), Accent.RED),
+                momentary("pl_cam", "Camera", "camera_cycle", 5, 2, btn(11)),
+                momentary("pl_rear_cam", "Rear view", "look_back", 2, 3, btn(12)),
+                stick("pl_tow", "Tow boom / extend", "tow", 6, 0, "RY", "SL1"),
+                stick("pl_wing", "Wing plough", "plough", 6, 2, "RZ", "X", Accent.CYAN),
+            ),
+        )
+        return Profile(
+            id = UTILITY_ID, name = "Utility vehicles", game = GameId.CUSTOM, builtIn = true,
+            pages = listOf(loader, excavator, crane, plough), output = OutputRoute.AUTO,
+            description = "Wheel loader, excavator (ISO joysticks), mobile crane, snow plough and tow truck, a page each. Bind once in the game's controls menu.",
         )
     }
 }

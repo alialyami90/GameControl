@@ -1,5 +1,7 @@
 package com.gamecontroller.ui.screens
 
+import com.gamecontroller.model.Joystick
+import com.gamecontroller.model.ControlType
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.contentDescription
@@ -122,14 +124,19 @@ fun PlayScreen(
                 EmptyPage(onEdit)
             } else {
                 ControlGrid(page) { control, mod ->
+                    // A joystick is two axes to everything past the UI: "<id>.x" and "<id>.y".
+                    val stick = control.type == ControlType.JOYSTICK
+                    val xId = if (stick) control.id + Joystick.X else control.id
                     ControlView(
                         control = control,
-                        value = state.values[control.id] ?: 0f,
+                        value = state.values[xId] ?: 0f,
                         indicator = state.indicators[control.id],
                         enabled = control.id !in state.unavailable,
-                        onValue = { onControlValue(control.id, it) },
+                        onValue = { onControlValue(xId, it) },
                         onStep = { onRotaryStep(control.id, it) },
                         modifier = mod,
+                        valueY = if (stick) state.values[control.id + Joystick.Y] ?: 0f else 0f,
+                        onValueY = { if (stick) onControlValue(control.id + Joystick.Y, it) },
                     )
                 }
             }

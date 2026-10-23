@@ -4,6 +4,7 @@ import com.gamecontroller.model.Accent
 import com.gamecontroller.model.Action
 import com.gamecontroller.model.AxisRange
 import com.gamecontroller.model.Control
+import com.gamecontroller.model.Joystick
 import com.gamecontroller.model.ControlType
 import com.gamecontroller.model.GameId
 import com.gamecontroller.model.Page
@@ -69,6 +70,7 @@ object LayoutOps {
             ControlType.RADIO -> base.copy(w = 3, accent = Accent.CYAN, positions = listOf(Position("1"), Position("2"), Position("3")))
             ControlType.SLIDER -> base.copy(h = 2, accent = Accent.GREEN, action = Action.VJoyAxis(1, "SL0", AxisRange.UNIPOLAR), range = AxisRange.UNIPOLAR)
             ControlType.ROTARY -> base.copy(w = 2, h = 2, accent = Accent.CYAN)
+            ControlType.JOYSTICK -> base.copy(w = 2, h = 2, accent = Accent.AMBER, action = Action.VJoyAxis(1, "X"), actionY = Action.VJoyAxis(1, "Y"))
         }
         return clamp(c, page)
     }
@@ -80,12 +82,13 @@ object LayoutOps {
         ControlType.RADIO -> "Select"
         ControlType.SLIDER -> "Slider"
         ControlType.ROTARY -> "Dial"
+        ControlType.JOYSTICK -> "Joystick"
     }
 
     /** Smallest span (w, h) a control may have so it stays usable at touch size. */
     fun minSpan(c: Control): Pair<Int, Int> = when (c.type) {
         ControlType.SWITCH, ControlType.RADIO -> c.positions.size.coerceAtLeast(2) to 1
-        ControlType.ROTARY -> 2 to 2
+        ControlType.ROTARY, ControlType.JOYSTICK -> 2 to 2
         ControlType.SLIDER -> if (c.vertical) 1 to 2 else 2 to 1
         else -> 1 to 1
     }
@@ -163,7 +166,7 @@ object LayoutOps {
     }
 
     fun findControl(p: Profile, id: String): Pair<Int, Control>? {
-        p.pages.forEachIndexed { i, pg -> pg.controls.firstOrNull { it.id == id }?.let { return i to it } }
+        p.pages.forEachIndexed { i, pg -> Joystick.find(pg.controls, id)?.let { return i to it } }
         return null
     }
 }

@@ -1,6 +1,7 @@
 package com.gamecontroller.engine
 
 import com.gamecontroller.model.Control
+import com.gamecontroller.model.Joystick
 import com.gamecontroller.model.ControlType
 import com.gamecontroller.model.FeedbackSource
 import com.gamecontroller.model.IndicatorState
@@ -84,7 +85,7 @@ object Feedback {
                 }
                 IndicatorState(true, c.positions.getOrNull(idx)?.label, source)
             }
-            ControlType.SLIDER, ControlType.ROTARY -> {
+            ControlType.SLIDER, ControlType.ROTARY, ControlType.JOYSTICK -> {
                 if (gameRaw != null) IndicatorState(truthy(gameRaw) == true, text(gameRaw), FeedbackSource.GAME)
                 else IndicatorState(value != 0f, null, FeedbackSource.LOCAL)
             }

@@ -82,6 +82,10 @@ panel comes first: use the companion.
 - **Generic gamepad** and **Keyboard keys** work in any game. Bind the buttons in the game's own controls menu.
 - **MudRunner** uses the game's default keys (Q diff lock, E AWD, R gear, F winch, T handbrake, H lights, G horn).
   Map and camera are set to M and C; edit them if your bindings differ.
+- **Bulldozer** and **Utility vehicles** (loader, excavator, crane, plough & tow) are machine cabs for any game with heavy
+  equipment: pilot joysticks (two spring-centred axes each), hydraulic levers and switchgear. Every control is a gamepad axis or
+  button: open the game's controls menu once and bind each function by moving the matching stick or pressing the button.
+  Common jobs keep the same button on every machine (1 start, 2 horn, 3 beacon, 4 lights, 6 park brake, 11 camera).
 - Make your own: **New profile**, then **Edit**. Add controls from the palette, drag to move, drag the corner to
   resize, and set what each one does in the inspector: keys, gamepad buttons/axes, macros, BeamNG commands or Xbox
   buttons. Profiles export and import as `.gcprofile.json` files.

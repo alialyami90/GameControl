@@ -97,6 +97,8 @@ fun ControlView(
     onStep: (Int) -> Unit,
     modifier: Modifier = Modifier,
     interactive: Boolean = true,
+    valueY: Float = 0f,
+    onValueY: (Float) -> Unit = {},
 ) {
     when (control.type) {
         ControlType.MOMENTARY -> MomentaryButton(control, indicator, enabled && interactive, enabled, onValue, modifier)
@@ -104,6 +106,8 @@ fun ControlView(
         ControlType.SWITCH -> SelectorSwitch(control, value, indicator, enabled && interactive, enabled, onValue, modifier)
         ControlType.RADIO -> RadioKeys(control, value, indicator, enabled && interactive, enabled, onValue, modifier)
         ControlType.SLIDER -> AxisSlider(control, value, enabled && interactive, enabled, onValue, modifier)
+        // A joystick's value is its left-right axis; [valueY] / [onValueY] carry forward-back.
+        ControlType.JOYSTICK -> PilotJoystick(control, value, valueY, enabled && interactive, enabled, onValue, onValueY, modifier)
         ControlType.ROTARY -> RotaryKnob(control, indicator, enabled && interactive, enabled, onStep, modifier, labelMinHeight = if (interactive) 0.dp else 96.dp)
     }
 }
@@ -509,6 +513,9 @@ private fun AxisSlider(
                 val len = (if (vertical) size.height else size.width) - thumbPx
                 fun at(v: Float) = thumbPx / 2 + (v - min) / (1f - min) * len
                 val cross = if (vertical) size.width else size.height
+                // Spring-centred bipolar axes draw as a hydraulic lever: a ball knob in a wide gate
+                // with a centre detent notch, the way a machine's valve lever sits.
+                val lever = bipolar && control.springReturn
                 // Tick ladder.
                 val ticks = if (bipolar) 20 else 10
                 for (i in 0..ticks) {
@@ -529,7 +536,24 @@ private fun AxisSlider(
                 // Fill from rest to value.
                 val a = at(rest); val b = at(shown.value)
                 val lo = minOf(a, b); val hi = maxOf(a, b)
-                val slot = 6.dp.toPx()
+                val slot = (if (lever) 10.dp else 6.dp).toPx()
+                if (lever) {
+                    // Detent notches either side of the gate at the rest point.
+                    val p = at(rest)
+                    val n = 6.dp.toPx()
+                    val gap = slot / 2 + 3.dp.toPx()
+                    val mid = cross / 2
+                    val notch = Race.Ink.copy(alpha = 0.7f)
+                    fun tri(a: Offset, b: Offset, t: Offset) = androidx.compose.ui.graphics.Path().apply { moveTo(a.x, a.y); lineTo(b.x, b.y); lineTo(t.x, t.y); close() }
+                    if (vertical) {
+                        val yy = size.height - p
+                        drawPath(tri(Offset(mid - gap - n, yy - n / 1.4f), Offset(mid - gap - n, yy + n / 1.4f), Offset(mid - gap, yy)), notch)
+                        drawPath(tri(Offset(mid + gap + n, yy - n / 1.4f), Offset(mid + gap + n, yy + n / 1.4f), Offset(mid + gap, yy)), notch)
+                    } else {
+                        drawPath(tri(Offset(p - n / 1.4f, mid - gap - n), Offset(p + n / 1.4f, mid - gap - n), Offset(p, mid - gap)), notch)
+                        drawPath(tri(Offset(p - n / 1.4f, mid + gap + n), Offset(p + n / 1.4f, mid + gap + n), Offset(p, mid + gap)), notch)
+                    }
+                }
                 if (vertical) {
                     val x = size.width / 2 - slot / 2
                     drawRoundRect(Color.Black.copy(alpha = 0.45f), Offset(x, thumbPx / 2), Size(slot, len), CornerRadius(slot / 2))
@@ -539,8 +563,18 @@ private fun AxisSlider(
                     drawRoundRect(Color.Black.copy(alpha = 0.45f), Offset(thumbPx / 2, y), Size(len, slot), CornerRadius(slot / 2))
                     if (enabled) drawRoundRect(accent, Offset(lo, y), Size(hi - lo, slot), CornerRadius(slot / 2))
                 }
-                // T-handle thumb.
                 val t = at(shown.value)
+                if (lever) {
+                    // Ball knob on the lever.
+                    val kc = if (vertical) Offset(size.width / 2, size.height - t) else Offset(t, size.height / 2)
+                    val kr = minOf(thumbPx / 2, cross / 2 - 4.dp.toPx())
+                    drawCircle(Color.Black.copy(alpha = 0.5f), kr, kc + Offset(0f, 3.dp.toPx()))
+                    drawCircle(Brush.verticalGradient(listOf(Race.CapHigh, Race.Cap), kc.y - kr, kc.y + kr), kr, kc)
+                    drawCircle(if (dragging) accent else Race.LineStrong, kr, kc, style = Stroke(2.dp.toPx()))
+                    drawCircle(if (enabled) accent else Race.InkFaint, kr * 0.3f, kc)
+                    return@Canvas
+                }
+                // T-handle thumb.
                 val handleCross = cross - 12.dp.toPx()
                 val handleLen = thumbPx - 6.dp.toPx()
                 val tl = if (vertical) Offset(6.dp.toPx(), size.height - t - handleLen / 2) else Offset(t - handleLen / 2, 6.dp.toPx())

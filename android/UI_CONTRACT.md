@@ -27,4 +27,8 @@ Visual direction: **Race Front-End**, chosen by ALI. Slanted plates, italic cond
 - Driving: `ignition`, `starter`, `horn`, `cruise`, `parking_brake`, `esc`, `esc_off`, `tcs`, `abs`, `wiper`, `steering`, `fuel`, `engine`
 - Drivetrain: `gearbox`, `gear_up`, `gear_down`, `diff_lock`, `differential`, `awd`, `low_range`, `suspension`, `winch`, `trailer`, `jack`
 - Camera & tools: `camera`, `camera_cycle`, `look_back`, `photo`, `map`, `recover`, `reset`, `replay`, `slowmo`, `pause`
+- Machines: `blade`, `blade_tilt`, `blade_angle`, `ripper`, `float_mode`, `bucket`, `quick_coupler`, `boom`, `stick`, `swing`, `tracks`, `hook`, `boom_extend`, `outriggers`, `beacon`, `work_light`, `plough`, `spreader`, `tow`, `direction`
 - General: `gamepad`, `keyboard`, `power`, `bolt`, `flag`, `speed`, `timer`, `place`, `navigation`, `chat`, `mic`, `mic_off`, `volume_up`, `volume_down`, `music`, `screenshot`, `menu`, `settings`, `home`, `star`, `build`, `play`, `stop`, `fast_forward`, `skip_next`, `skip_previous`, `zoom_in`, `zoom_out`, `visibility`, `lightbulb`, `inventory`, `target`, `shield`, `radio`, `arrow_up`, `arrow_down`, `arrow_left`, `arrow_right`, `plus`, `minus`
+
+## Joystick (ControlType.JOYSTICK)
+ControlView takes `valueY` / `onValueY` for the forward-back axis. PlayScreen maps a joystick to "<id>.x" / "<id>.y" (Joystick.X / Joystick.Y) for both values and onControlValue, and sends 0 on both when it's released, cancelled or disposed. An unknown icon id renders the control's label instead of an icon.

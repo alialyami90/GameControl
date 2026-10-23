@@ -220,6 +220,13 @@ The pressable unit of the play surface. Cap Steel gradient, cut corner, icon abo
 - **Lit:** accent wash plus a **racing stripe** along the bottom: solid with speed slashes when the game confirmed it, marching slashes while the command is still PENDING.
 - **Disabled / hidden by condition:** dashed outline, faint ink.
 
+### Pilot Joystick (machines)
+A 2×2-minimum plate in the cut-corner cap shape on Garage Panel. It holds a round recessed gate with a 24-step tick ring, faint cross guides, a dashed dead-zone ring at the centre, and a chunky raised knob (cap gradient, rim, accent dimple). Off centre, an accent rod runs from the centre to the knob and the rim turns accent while held. On release the knob springs back (springBack motion). Leaving the dead zone gives one haptic tick.
+- **Caution band:** diagonal slashes along the plate's foot in the control's accent. They show at 35% alpha at rest and full accent while the stick is off centre, so they carry state like the racing stripe and never act as pure decoration.
+
+### Hydraulic Lever
+A spring-centred bipolar slider draws as a machine valve lever: a 10dp gate, a ball knob instead of the T-handle, and detent notches either side of the rest point. It keeps the slider's tick ladder and the haptic tick when crossing centre.
+
 ### Link Badge
 Slanted plate with an icon, a name (Bluetooth / PC), a status lamp and a status word or latency ("PAIRED", "9 MS"). The lamp is filled when linked, half-filled when connecting, hollow when off, so state never depends on colour alone.
 

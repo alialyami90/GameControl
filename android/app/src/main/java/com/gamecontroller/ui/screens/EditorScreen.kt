@@ -119,6 +119,7 @@ fun ControlType.displayName(): String = when (this) {
     ControlType.RADIO -> "Button group"
     ControlType.SLIDER -> "Slider"
     ControlType.ROTARY -> "Knob"
+    ControlType.JOYSTICK -> "Joystick"
 }
 
 fun ControlType.blurb(): String = when (this) {
@@ -128,6 +129,7 @@ fun ControlType.blurb(): String = when (this) {
     ControlType.RADIO -> "Separate keys, one active"
     ControlType.SLIDER -> "Axis, optional spring return"
     ControlType.ROTARY -> "Turn for steps"
+    ControlType.JOYSTICK -> "Two axes on one stick, springs to centre"
 }
 
 private fun ControlType.paletteIcon(): ImageVector? = IconLibrary[
@@ -138,6 +140,7 @@ private fun ControlType.paletteIcon(): ImageVector? = IconLibrary[
         ControlType.RADIO -> "camera_cycle"
         ControlType.SLIDER -> "suspension"
         ControlType.ROTARY -> "cruise"
+        ControlType.JOYSTICK -> "swing"
     }
 ]
 

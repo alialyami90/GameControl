@@ -4,6 +4,7 @@ import com.gamecontroller.model.Action
 import com.gamecontroller.model.AxisRange
 import com.gamecontroller.model.Capabilities
 import com.gamecontroller.model.Control
+import com.gamecontroller.model.Joystick
 import com.gamecontroller.model.ControlType
 import com.gamecontroller.model.Profile
 import com.gamecontroller.model.Action as ModelAction
@@ -89,7 +90,8 @@ object Protocol {
         put("profileId", profile.id)
         put("game", profile.game.name.lowercase())
         put("bindings", buildJsonArray {
-            profile.pages.flatMap { it.controls }.forEach { add(binding(it, it.id in hidRouted)) }
+            // A joystick goes out as its two axes (Joystick): the companion only ever sees sliders.
+            profile.pages.flatMap { Joystick.expand(it.controls) }.forEach { add(binding(it, it.id in hidRouted)) }
         })
     }
 

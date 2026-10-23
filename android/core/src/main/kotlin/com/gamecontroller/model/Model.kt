@@ -54,7 +54,9 @@ enum class ControlType {
     @SerialName("switch") SWITCH,
     @SerialName("radio") RADIO,
     @SerialName("slider") SLIDER,
-    @SerialName("rotary") ROTARY;
+    @SerialName("rotary") ROTARY,
+    /** Two spring-centred axes on one stick, like a machine's pilot joystick. See [Joystick]. */
+    @SerialName("joystick") JOYSTICK;
 
     val wire: String get() = name.lowercase()
 }
@@ -82,7 +84,7 @@ data class Control(
     val w: Int = 1,
     val h: Int = 1,
     val accent: Accent = Accent.NEUTRAL,
-    /** Used by MOMENTARY, LATCHING and SLIDER. */
+    /** Used by MOMENTARY, LATCHING and SLIDER; the left-right axis of a JOYSTICK. */
     val action: Action = Action.None,
     /** Used by SWITCH and RADIO: one entry per position, in order. */
     val positions: List<Position> = emptyList(),
@@ -106,7 +108,43 @@ data class Control(
      * e.g. BeamNG "toggle_headlights". Used by "Bind in game" (BeamNG mod bindings.apply).
      */
     val bindTo: String? = null,
+    /** JOYSTICK: the forward-back axis (forward is +1). */
+    val actionY: Action = Action.None,
 )
+
+/**
+ * A JOYSTICK is two spring-centred bipolar sliders that share one stick. Everything past the UI
+ * (engine, routes, protocol, companion) sees only those two sliders, with ids "<id>.x" and "<id>.y",
+ * so the wire protocol and the companion need nothing new.
+ */
+object Joystick {
+    const val X = ".x"
+    const val Y = ".y"
+
+    fun axes(c: Control): List<Control> = listOf(axis(c, X, c.action), axis(c, Y, c.actionY))
+
+    private fun axis(c: Control, suffix: String, a: Action) = c.copy(
+        id = c.id + suffix, type = ControlType.SLIDER, action = a, actionY = Action.None,
+        range = AxisRange.BIPOLAR, springReturn = true, feedbackKey = null,
+        label = c.label + if (suffix == X) " (left-right)" else " (forward-back)",
+    )
+
+    /** The page's controls as the engine sees them: each joystick replaced by its two axes. */
+    fun expand(controls: List<Control>): List<Control> =
+        controls.flatMap { if (it.type == ControlType.JOYSTICK) axes(it) else listOf(it) }
+
+    /** Finds [id] among [controls], including a joystick axis id such as "stick.x". */
+    fun find(controls: List<Control>, id: String): Control? {
+        controls.firstOrNull { it.id == id }?.let { return it }
+        val base = when {
+            id.endsWith(X) -> id.removeSuffix(X)
+            id.endsWith(Y) -> id.removeSuffix(Y)
+            else -> return null
+        }
+        val stick = controls.firstOrNull { it.id == base && it.type == ControlType.JOYSTICK } ?: return null
+        return axes(stick).first { it.id == id }
+    }
+}
 
 @Serializable
 data class Position(

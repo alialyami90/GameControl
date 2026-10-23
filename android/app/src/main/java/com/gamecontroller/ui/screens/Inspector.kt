@@ -143,6 +143,13 @@ fun Inspector(
             ToggleRow("Spring back on release", c.springReturn, { onUpdate(c.copy(springReturn = it)) }, hint = "Returns to rest like a throttle pedal")
             ToggleRow("Vertical", c.vertical, { onUpdate(c.copy(vertical = it)) })
         }
+        ControlType.JOYSTICK -> {
+            SectionHeader("Left-right")
+            ActionEditor(c.action, { onUpdate(c.copy(action = it)) }, beamngCommands, axisOnly = true)
+            SectionHeader("Forward-back")
+            ActionEditor(c.actionY, { onUpdate(c.copy(actionY = it)) }, beamngCommands, axisOnly = true)
+            Hint("Both axes run -1 to 1 and spring back to centre on release. Forward and right are +1.")
+        }
         ControlType.ROTARY -> {
             SectionHeader("Turn right")
             ActionEditor(c.cw, { onUpdate(c.copy(cw = it)) }, beamngCommands)

@@ -5,6 +5,7 @@ import com.gamecontroller.hid.HidState
 import com.gamecontroller.model.Action
 import com.gamecontroller.model.AxisRange
 import com.gamecontroller.model.Control
+import com.gamecontroller.model.Joystick
 import com.gamecontroller.model.ControlType
 import com.gamecontroller.model.KeyTrigger
 import com.gamecontroller.model.OutputRoute
@@ -90,7 +91,7 @@ class InputEngine(
 
     /** Control ids that currently go over Bluetooth HID; sent in profile.sync as route "hid". */
     fun hidRoutedIds(): Set<String> =
-        profile?.pages?.flatMap { it.controls }?.filter { routeFor(it) == Route.HID }?.map { it.id }?.toSet() ?: emptySet()
+        profile?.pages?.flatMap { Joystick.expand(it.controls) }?.filter { routeFor(it) == Route.HID }?.map { it.id }?.toSet() ?: emptySet()
 
     /** The current HID input report for [reportId] (keyboard or gamepad), for GET_REPORT requests. */
     fun hidReport(reportId: Int): ByteArray? = when (reportId) {
@@ -266,7 +267,7 @@ class InputEngine(
 
     private fun resetAxesState() {
         val p = profile ?: return
-        for (c in p.pages.flatMap { it.controls }) {
+        for (c in p.pages.flatMap { Joystick.expand(it.controls) }) {
             if (c.type != ControlType.SLIDER) continue
             val a = c.action as? Action.VJoyAxis ?: continue
             if (!hidAction(a)) continue
@@ -274,7 +275,7 @@ class InputEngine(
         }
     }
 
-    private fun findControl(id: String) = profile?.pages?.firstNotNullOfOrNull { p -> p.controls.firstOrNull { it.id == id } }
+    private fun findControl(id: String) = profile?.pages?.firstNotNullOfOrNull { p -> Joystick.find(p.controls, id) }
 
     private fun sendCompanion(control: Control, value: Float) {
         val reliable = control.type in DISCRETE
@@ -333,6 +334,7 @@ class InputEngine(
                 tapAction(action, i, control.positions.size)
             }
             ControlType.ROTARY -> Unit // handled by onRotary
+            ControlType.JOYSTICK -> Unit // the UI sends its two axes as sliders (Joystick)
         }
     }
 
@@ -480,6 +482,7 @@ class InputEngine(
             val actions = when (control.type) {
                 ControlType.SWITCH, ControlType.RADIO -> control.positions.map { it.action }
                 ControlType.ROTARY -> listOf(control.cw, control.ccw)
+                ControlType.JOYSTICK -> listOf(control.action, control.actionY)
                 else -> listOf(control.action)
             }.filter { it !is Action.None }
             return actions.isNotEmpty() && actions.all { hidAction(it) }
