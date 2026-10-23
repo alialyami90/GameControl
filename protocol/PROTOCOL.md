@@ -195,7 +195,7 @@ Companion to mod:
 {"v":1,"type":"state.request"}
 ```
 
-`bindings.result` fields: `ok` (true only once BeamNG's input system shows the bindings loaded), `message` (always shown to the user when `ok` is false), `written` (the inputmap file was saved), `count` (bindings written), `unknown` (action names this game version does not have), `device`, `busy` (a previous apply is still being confirmed; retry in a second), `alreadyBound` (the same pairs were already bound in the game, so nothing was written).
+`bindings.result` fields: `ok` (true only once BeamNG's input system shows the bindings loaded), `message` (always shown to the user when `ok` is false), `written` (the inputmap file was saved), `count` (bindings written), `unknown` (action names this game version does not have), `device`, `busy` (a previous apply is still being confirmed; retry in a second), `alreadyBound` (the same pairs were already live in the game before this apply, from an earlier apply or the user's own bindings; the file is still written and `written` is true).
 
 `bindings.apply`: BeamNG keys joystick input maps by `vidpid` (lowercase PID+VID hex, e.g. vJoy = `bead1234`). GE Lua has no device-list API, so the **companion adds `"vidpid"`** to every `bindings.apply` it forwards: it reads the VID/PID of the vJoy device (`device:"vjoy1"`) or of the paired "GameCtl Pad" Bluetooth HID device (`device:"hid"`) from Windows. Without it the mod falls back to `bead1234` for `vjoy1` and answers `ok:false` for `hid`. Protocol button N maps to BeamNG `button{N-1}`. The mod writes `settings/inputmaps/<vidpid>_gamecontroller.json` in the user folder and reloads input; users can still rebind in Options > Controls.
 

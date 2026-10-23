@@ -11,6 +11,7 @@ import com.gamecontroller.engine.OutputLinks
 import com.gamecontroller.hid.BluetoothHidLink
 import com.gamecontroller.model.Action
 import com.gamecontroller.model.BindResult
+import com.gamecontroller.model.ConnectionStatus
 import com.gamecontroller.model.Control
 import com.gamecontroller.model.ControlType
 import com.gamecontroller.model.EditorState
@@ -141,7 +142,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     atMillis = System.currentTimeMillis(),
                 )
                 _editor.update { it?.copy(bindResult = result) }
-                if (_editor.value == null || !r.ok) notify(r.message.ifEmpty { if (r.ok) "Bound ${r.count} of $requested in BeamNG" else "Binding failed" })
+                // In the editor the result row says it all; a snackbar would only repeat it (A-S2).
+                if (_editor.value == null) notify(r.message.ifEmpty { if (r.ok) "Bound ${r.count} of $requested in BeamNG" else "Binding failed" })
             }
             override fun onDisconnected() {
                 engine.onLinkChanged()
@@ -155,6 +157,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (connected) replayHeld()
             // Routes depend on which links are up: tell the companion which ids now go over HID.
             syncProfile()
+            // Latches the companion just let go of continue over HID (A-S1).
+            if (connected) engine.rehomeLatches()
+            // Bluetooth up usually means the PC is in use: bring the Wi-Fi link up too, so the companion
+            // shows the phone and game lamps keep working alongside the HID route.
+            if (connected && companion.state.value.status in setOf(ConnectionStatus.DISCONNECTED, ConnectionStatus.ERROR)) {
+                settings.lastHost?.let { host -> if (settings.token(host.substringBefore(":")) != null) companion.connect(host) }
+            }
         }
         settings.lastHost?.let { host -> if (settings.token(host.substringBefore(":")) != null) companion.connect(host) }
         if (hid.hasPermission() && hid.isBluetoothOn()) hid.enable()

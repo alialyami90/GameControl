@@ -353,6 +353,23 @@ class CoreTest {
         advanceUntilIdle()
     }
 
+    @Test fun as1_latchOnCompanionIsPressedOverHidWhenBluetoothComesUp() = runTest {
+        val links = FakeLinks(hidConnected = false, companionConnected = true)
+        val e = InputEngine(this, links) { testScheduler.currentTime }
+        e.profile = BuiltInProfiles.gamepad()
+        val t = e.profile!!.pages[0].controls.first { it.id == "gp_t13" }
+        e.onValue(t, 1f)
+        assertEquals(Route.COMPANION, e.routeFor(t))
+        links.hidConnected = true
+        e.onLinkChanged()
+        e.rehomeLatches()
+        val bit13 = links.hid.last { it.first == HidDescriptor.GAMEPAD_REPORT_ID }.second[1].toInt() and 0x10
+        assertTrue(bit13 != 0, "latch is pressed over HID after the route moved")
+        e.onValue(t, 0f)
+        assertEquals(0, links.hid.last { it.first == HidDescriptor.GAMEPAD_REPORT_ID }.second[1].toInt() and 0x10)
+        advanceUntilIdle()
+    }
+
     @Test fun layoutOpsClampAndPages() {
         var p = LayoutOps.newProfile("Test", GameId.CUSTOM)
         val (p2, id) = LayoutOps.addControl(p, 0, ControlType.SLIDER, 100, 100)

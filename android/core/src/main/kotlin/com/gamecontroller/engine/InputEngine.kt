@@ -195,6 +195,28 @@ class InputEngine(
         if (!links.companionConnected && p != null) forgetHeld(Route.COMPANION)
     }
 
+    /**
+     * Moves latches that are on to the route they would take now (A-S1). Called after a link comes up:
+     * the old route's owner has already let them go (the companion releases ids that profile.sync marks
+     * as HID-routed), so the latch is pressed again on its new route and the PC stays in step with the cap.
+     */
+    fun rehomeLatches() {
+        for ((id, route) in routeOf.toMap()) {
+            val c = findControl(id) ?: continue
+            if (c.type != ControlType.LATCHING) continue
+            val v = lastValue[id] ?: continue
+            val rest = restValue(c)
+            if (v == rest) continue
+            val target = routeFor(c)
+            if (target == route) continue
+            when (target) {
+                Route.HID -> { routeOf[id] = target; applyHid(c, rest, v) }
+                Route.COMPANION -> { routeOf[id] = target; sendCompanion(c, v) }
+                Route.NONE -> routeOf.remove(id)
+            }
+        }
+    }
+
     private fun forgetHeld(route: Route) {
         val ids = routeOf.filterValues { it == route }.keys.toList()
         for (id in ids) {
