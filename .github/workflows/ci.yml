@@ -117,14 +117,17 @@ jobs:
           TAG: ${{ inputs.release_tag }}
         run: |
           set -e
-          # A v* release must be signed with the release key, never the debug key.
+          # A v* release must be signed with the GameCtl release key, never the debug key. The APK is
+          # signed with v2/v3 only (minSdk 28), so apksigner reads it; its certificate must match the pinned fingerprint.
           if [ "${TAG#v}" != "$TAG" ]; then
-            CERT=$(unzip -p artifacts/GameCtl-android/GameCtl.apk 'META-INF/*.RSA' 'META-INF/*.EC' 2>/dev/null | openssl pkcs7 -inform DER -print_certs 2>/dev/null | grep -i subject || true)
-            if [ -z "$CERT" ]; then
-              CERT=$("$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs artifacts/GameCtl-android/GameCtl.apk 2>/dev/null | grep -i "DN" | head -1 || true)
+            RELEASE_SHA256=9011afbffa132eec2d27c862365bc51172ba09274bdc650efe693de035cb82d6
+            BT=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)
+            SIGNER=$("${BT}apksigner" verify --print-certs artifacts/GameCtl-android/GameCtl.apk)
+            echo "$SIGNER"
+            DIGEST=$(echo "$SIGNER" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)
+            if [ "$DIGEST" != "$RELEASE_SHA256" ]; then
+              echo "::error::$TAG is not signed with the GameCtl release key (got '$DIGEST')"; exit 1
             fi
-            echo "APK signer: $CERT"
-            case "$CERT" in *GameCtl*) ;; *) echo "::error::$TAG is not signed with the GameCtl release key"; exit 1;; esac
           fi
           mkdir -p pkg
           cp artifacts/GameCtl-android/GameCtl.apk pkg/

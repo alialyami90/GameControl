@@ -404,4 +404,32 @@ public sealed class HostIntegrationTests : IDisposable
         await Task.Delay(200);
         Assert.Single(host.BluetoothPads);
     }
+
+    sealed class FailingPads : GameController.Companion.Engine.IBluetoothPads
+    {
+        public IReadOnlyList<GameController.Companion.Engine.BluetoothPad> Present() => throw new InvalidOperationException("SetupAPI said no");
+    }
+
+    [Fact]
+    public async Task Bluetooth_scan_failures_are_logged_once_and_the_pin_is_not_logged()
+    {
+        var store = new ConfigStore(Path.Combine(Path.GetTempPath(), $"gc-host-{Guid.NewGuid():N}.json"));
+        var c = store.Config;
+        c.WsPort = FreeTcp(); c.UdpPort = FreeUdp(); c.DiscoveryPort = FreeUdp(); c.BeamNgPort = FreeTcp(); c.OutGaugePort = FreeUdp();
+        c.EnableMdns = false;
+        var host = new CompanionHost(store, new InputRouter(_out, _out, _out),
+            new HostOptions { Bind = IPAddress.Loopback, BluetoothPads = new FailingPads(), BluetoothScanInterval = TimeSpan.FromMilliseconds(30) });
+        var log = new List<string>();
+        host.Logged += e => { lock (log) log.Add(e.Message); };
+        host.Pairing.UsePin("135791");
+        host.Start();
+        await Task.Delay(400);
+        host.Dispose();
+        host.Dispose(); // twice is fine
+        lock (log)
+        {
+            Assert.Single(log, m => m == "Bluetooth scan failed: SetupAPI said no");
+            Assert.DoesNotContain(log, m => m.Contains("135791"));
+        }
+    }
 }

@@ -197,6 +197,15 @@ class InputEngine(
     }
 
     /**
+     * The companion link went down. Its holds are forgotten even if [OutputLinks.companionConnected] still
+     * reads true while the client tears down, so the next welcome replays every latch that is on (M1).
+     */
+    fun onCompanionLost() {
+        profile?.let { forgetHeld(Route.COMPANION) }
+        onLinkChanged()
+    }
+
+    /**
      * Moves latches that are on to the route they would take now (A-S1). Called after a link comes up:
      * the old route's owner has already let them go (the companion releases ids that profile.sync marks
      * as HID-routed), so the latch is pressed again on its new route and the PC stays in step with the cap.

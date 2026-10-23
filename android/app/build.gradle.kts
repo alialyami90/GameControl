@@ -13,20 +13,23 @@ android {
         applicationId = "com.gamecontroller"
         minSdk = 28 // BluetoothHidDevice needs Android 9
         targetSdk = 35
-        versionCode = 1
+        versionCode = 3
         versionName = "1.0.0"
     }
 
     // Release signing comes from the environment (CI secrets), never from the repository:
-    // GAMECTL_KEYSTORE (path to the .jks), GAMECTL_KEYSTORE_PASSWORD, GAMECTL_KEY_ALIAS.
+    // GAMECTL_KEYSTORE (path to the .jks), GAMECTL_KEYSTORE_PASSWORD, GAMECTL_KEY_ALIAS (default gamectl),
+    // and GAMECTL_KEY_PASSWORD when the key's password differs from the store's.
     // Without them (local builds, forks) the release APK is signed with the debug key.
     val releaseKeystore = System.getenv("GAMECTL_KEYSTORE")?.let { file(it) }?.takeIf { it.exists() }
     signingConfigs {
         if (releaseKeystore != null) create("release") {
             storeFile = releaseKeystore
             storePassword = System.getenv("GAMECTL_KEYSTORE_PASSWORD")
-            keyAlias = System.getenv("GAMECTL_KEY_ALIAS") ?: "gamectl"
-            keyPassword = System.getenv("GAMECTL_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("GAMECTL_KEY_ALIAS")?.takeIf { it.isNotBlank() } ?: "gamectl"
+            // A PKCS12 store has one password for the store and its key; GAMECTL_KEY_PASSWORD overrides it for JKS.
+            keyPassword = System.getenv("GAMECTL_KEY_PASSWORD")?.takeIf { it.isNotBlank() }
+                ?: System.getenv("GAMECTL_KEYSTORE_PASSWORD")
         }
     }
 

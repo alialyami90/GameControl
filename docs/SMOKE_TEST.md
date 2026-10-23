@@ -33,7 +33,7 @@ A step that matches needs no note.
 0.2 On the PC unzip `GameCtl-companion-win-x64.zip` to a folder and run `GameCtlCompanion.exe`.
     Windows SmartScreen may say it protected your PC: choose **More info > Run anyway**.
     When the firewall asks, allow **Private networks** (your Wi-Fi must be set to Private in Windows network settings).
-    The window titled "GAMECTL Companion" opens and a tray icon appears; it shows a 6-digit PIN
+    The window titled "GameCtl Companion" opens and a tray icon appears; it shows a 6-digit PIN
     and the PC's IP address.
 
 0.3 Copy `gamecontroller.zip` (still zipped) into `%LOCALAPPDATA%\BeamNG.drive\<version>\mods\`. The quickest way there:

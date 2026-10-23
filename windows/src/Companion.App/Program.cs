@@ -18,7 +18,8 @@ static class Program
                 try { using var show = EventWaitHandle.OpenExisting(ShowEventName); show.Set(); } catch { }
             return 0;
         }
-        if (OperatingSystem.IsWindows())
+        App.SecondInstance = !first;
+        if (OperatingSystem.IsWindows() && first)
             App.ShowSignal = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
 
         // Whatever ends the process, held keys and buttons must not stay down in Windows.

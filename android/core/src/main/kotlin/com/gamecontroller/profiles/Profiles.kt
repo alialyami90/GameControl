@@ -11,6 +11,9 @@ import com.gamecontroller.model.Page
 import com.gamecontroller.model.Position
 import com.gamecontroller.model.Profile
 import com.gamecontroller.protocol.Protocol
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.util.UUID
 
 /** Import and export of `.gcprofile.json` files (PROTOCOL.md, Profile file format). */
@@ -20,8 +23,9 @@ object ProfileJson {
 
     /**
      * A profile is written with the oldest schema that can hold it, so a profile without
-     * joysticks still opens in an app that only knows schema 1, and one with joysticks is
-     * refused there with a clear "newer version" message instead of a parse error.
+     * joysticks still opens in an app that only knows schema 1. An app that reads the schema
+     * before decoding (this one, from 1.0) refuses a newer file with a clear "newer version"
+     * message; the betas decoded first, so they show a parse error for a schema 2 file.
      */
     fun schemaFor(profile: Profile): Int =
         if (profile.pages.any { pg -> pg.controls.any { it.type == ControlType.JOYSTICK } }) 2 else 1
@@ -34,8 +38,12 @@ object ProfileJson {
      * and has its layout clamped to the grid so a hand-edited file cannot break the editor.
      */
     fun import(text: String, newId: String = newId()): Profile {
+        // The schema is read before decoding: a newer file may hold controls this app can't parse (R6-4).
+        val schema = runCatching {
+            Protocol.json.parseToJsonElement(text).jsonObject["schema"]?.jsonPrimitive?.intOrNull
+        }.getOrNull() ?: 1
+        require(schema <= SCHEMA) { "This profile was made by a newer version of the app (schema $schema)." }
         val p = Protocol.json.decodeFromString(Profile.serializer(), text)
-        require(p.schema <= SCHEMA) { "This profile was made by a newer version of the app (schema ${p.schema})." }
         require(p.pages.isNotEmpty()) { "The profile has no pages." }
         return LayoutOps.sanitize(p.copy(id = newId, builtIn = false))
     }

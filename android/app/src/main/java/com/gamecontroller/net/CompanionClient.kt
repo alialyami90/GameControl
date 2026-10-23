@@ -104,9 +104,9 @@ class CompanionClient(
         val wasConnected = isConnected
         userDisconnected = true
         closeSocket()
-        // The engine must hear about a user disconnect too, or held companion inputs stay "held" (A26).
-        if (wasConnected) listener?.onDisconnected()
+        // The state changes first, so the engine sees the link as down and forgets what it held there (A26, M1).
         _state.update { ConnectionUi(status = ConnectionStatus.DISCONNECTED) }
+        if (wasConnected) listener?.onDisconnected()
     }
 
     private fun open(pin: String?) {
@@ -142,6 +142,8 @@ class CompanionClient(
     }
 
     private fun handle(msg: Incoming) {
+        // Any message proves the PC is alive, not only a pong (A19-c).
+        lastPong = System.currentTimeMillis()
         when (msg) {
             is Incoming.Welcome -> {
                 host?.let { settings.saveToken(it, msg.token) }
@@ -218,15 +220,21 @@ class CompanionClient(
         closeSocket()
         if (userDisconnected) return
         val h = host
-        if (wasConnected) listener?.onDisconnected()
+        // The state changes before the engine hears about it, so it forgets companion holds (M1).
         if (h != null && settings.token(h) != null) {
             _state.update { it.copy(status = ConnectionStatus.CONNECTING, message = message ?: "Reconnecting…", latencyMs = null) }
+            if (wasConnected) listener?.onDisconnected()
             cancelReconnect()
             val task = Runnable { if (!userDisconnected && host == h && !isConnected) open(pin = null) }
             reconnectTask = task
             main.postDelayed(task, RECONNECT_MS)
-        } else if (_state.value.status != ConnectionStatus.PAIRING) {
-            _state.update { it.copy(status = ConnectionStatus.ERROR, message = message, latencyMs = null) }
+        } else {
+            if (_state.value.status != ConnectionStatus.PAIRING) {
+                _state.update { it.copy(status = ConnectionStatus.ERROR, message = message, latencyMs = null) }
+            } else if (wasConnected) {
+                _state.update { it.copy(latencyMs = null) }
+            }
+            if (wasConnected) listener?.onDisconnected()
         }
     }
 
@@ -373,16 +381,16 @@ class CompanionClient(
         }
     }
 
-    /** The PC name for [h]: from discovery, or the last PC this phone paired with when [h] is its last address. */
-    private fun nameOf(h: String): String? =
-        _servers.value.firstOrNull { it.host == h }?.name
-            ?: settings.lastServerName?.takeIf { settings.lastHost?.let { parseHostPort(it).first } == h }
+    /** The PC name for [h], from discovery only: an old address may now belong to another PC (A19-a). */
+    private fun nameOf(h: String): String? = _servers.value.firstOrNull { it.host == h }?.name
 
     private fun addServer(s: DiscoveredServer) {
         _servers.update { list -> if (list.any { it.host == s.host }) list else list + s }
         // The last PC came back on a new address: follow it without asking for the PIN (A19).
-        val idle = _state.value.status == ConnectionStatus.DISCONNECTED || _state.value.status == ConnectionStatus.ERROR ||
-            (_state.value.status == ConnectionStatus.CONNECTING && !isConnected)
+        // Discovery turns DISCONNECTED and ERROR into SEARCHING, so that counts as idle too (A19-b).
+        val idle = _state.value.status in setOf(
+            ConnectionStatus.DISCONNECTED, ConnectionStatus.ERROR, ConnectionStatus.SEARCHING, ConnectionStatus.CONNECTING,
+        ) && !isConnected
         if (idle && !userDisconnected && s.name == settings.lastServerName && s.host != host && settings.namedToken(s.name) != null) {
             connect(if (s.host.contains(':')) "[${s.host}]:${s.wsPort}" else "${s.host}:${s.wsPort}")
         }

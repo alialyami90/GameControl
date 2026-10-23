@@ -183,8 +183,8 @@ public sealed class CompanionHost : IDisposable
         _lastCapabilities = Capabilities().ToJsonString();
         _timer = new Timer(_ => Tick(), null, 100, 100);
         _padScan = Task.Run(() => ScanBluetoothLoop(_stop.Token));
-        Log("info", $"Companion ready as \"{c.ServerName}\". Pairing PIN {Pairing.Pin}");
-        if (_store.LoadNote is { } note) Log(note.Contains("could not") ? "warn" : "info", note);
+        Log("info", $"Companion ready as \"{c.ServerName}\". The pairing PIN is shown in the window (never written to the log)");
+        if (_store.LoadNote is { } note) Log(_store.WriteBlocked != null || note.Contains("could not") ? "warn" : "info", note);
     }
 
     void StartService(string name, string detail, Func<IDisposable> start)
@@ -242,13 +242,22 @@ public sealed class CompanionHost : IDisposable
     /// The SetupAPI walk can take tens of milliseconds (more while Windows is adding a device), so it runs
     /// here rather than on the 100 ms input tick, where it would delay auto-release and idle checks.
     /// </summary>
+    string? _lastScanError;
+
     async Task ScanBluetoothLoop(CancellationToken stop)
     {
         using var timer = new PeriodicTimer(_options.BluetoothScanInterval);
         do
         {
             try { ScanBluetooth(); }
-            catch (Exception e) { Log("error", $"Bluetooth scan failed: {e.Message}"); }
+            catch (Exception e)
+            {
+                // Logged once per distinct failure, not every 2 s.
+                if (e.Message != _lastScanError) Log("error", $"Bluetooth scan failed: {e.Message}");
+                _lastScanError = e.Message;
+                continue;
+            }
+            _lastScanError = null;
         }
         while (await timer.WaitForNextTickAsync(stop).ConfigureAwait(false));
     }
@@ -262,19 +271,20 @@ public sealed class CompanionHost : IDisposable
         IReadOnlyList<BluetoothPad> now, before;
         lock (_padsGate)
         {
-            try { now = _options.BluetoothPads.Present(); }
-            catch (Exception) { return; }
+            if (_stop.IsCancellationRequested) return; // shutting down: no late events
+            now = _options.BluetoothPads.Present(); // a failure goes to the caller (the scan loop logs it)
             var key = string.Join("|", now.Select(p => p.Id).Order());
             if (key == _padsKey) return;
             before = _pads;
             _padsKey = key;
             Volatile.Write(ref _pads, now);
         }
+        if (_stop.IsCancellationRequested) return;
         foreach (var p in now.Where(p => before.All(b => b.Id != p.Id)))
             Log("info", $"{p.Name} connected over Bluetooth (controls go straight to Windows; lamps and BeamNG commands need the Wi-Fi link)");
         foreach (var p in before.Where(b => now.All(x => x.Id != b.Id)))
             Log("info", $"{p.Name} disconnected from Bluetooth");
-        BluetoothChanged?.Invoke();
+        if (!_stop.IsCancellationRequested) BluetoothChanged?.Invoke();
     }
 
     void DropIdleSessions()
@@ -291,11 +301,17 @@ public sealed class CompanionHost : IDisposable
         }
     }
 
+    int _disposed;
+
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) == 1) return;
         _timer?.Dispose();
         _stop.Cancel();
-        try { _padScan?.Wait(1000); } catch (AggregateException) { } // cancellation ends the loop
+        bool ended = true;
+        try { ended = _padScan?.Wait(1000) ?? true; } catch (AggregateException) { } // cancellation ends the loop
+        if (ended) _stop.Dispose();
+        else _padScan!.ContinueWith(_ => _stop.Dispose(), TaskScheduler.Default); // a scan stuck in SetupAPI
         foreach (var s in _sessions.Values) { s.Engine.ReleaseAll(); _ = s.CloseAsync("companion shutting down"); }
         Router.ReleaseAll();
         foreach (var svc in _services) { try { svc.Dispose(); } catch { } }

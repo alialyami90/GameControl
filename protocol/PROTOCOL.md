@@ -1,4 +1,4 @@
-# Game Controller protocol, version 1
+# GameCtl protocol, version 1
 
 Owner: Lead developer. Shared by the Android app (`android/`), the Windows companion (`windows/`) and the BeamNG mod (`beamng-mod/`). Change it only through the Lead developer so all three stay in sync. Machine-readable examples live in `protocol/examples/`.
 

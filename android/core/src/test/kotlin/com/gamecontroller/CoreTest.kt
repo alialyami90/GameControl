@@ -372,6 +372,27 @@ class CoreTest {
         advanceUntilIdle()
     }
 
+    @Test fun r6_4_newerSchemaIsRefusedBeforeDecoding() {
+        val text = ProfileJson.export(BuiltInProfiles.bulldozer())
+            .replace("\"schema\": 2", "\"schema\": 3").replace("\"joystick\"", "\"hologram\"")
+        val e = runCatching { ProfileJson.import(text) }.exceptionOrNull()
+        assertNotNull(e)
+        assertTrue("newer version" in (e.message ?: ""), "got: ${e.message}")
+    }
+
+    @Test fun m1_companionLossForgetsLatchesEvenWhileLinkStillReadsUp() = runTest {
+        val links = FakeLinks(hidConnected = false, companionConnected = true)
+        val e = InputEngine(this, links) { testScheduler.currentTime }
+        e.profile = BuiltInProfiles.gamepad()
+        val t = e.profile!!.pages[0].controls.first { it.id == "gp_t13" }
+        e.onValue(t, 1f)
+        assertTrue(e.isHeld(t.id))
+        // The client calls back before its state reads DISCONNECTED: the hold must still be forgotten.
+        e.onCompanionLost()
+        assertFalse(e.isHeld(t.id), "the next welcome must replay the latch")
+        advanceUntilIdle()
+    }
+
     @Test fun joystickDrivesTwoAxesAndSyncsAsTwoSliders() = runTest {
         val links = FakeLinks(hidConnected = true)
         val e = InputEngine(this, links) { testScheduler.currentTime }

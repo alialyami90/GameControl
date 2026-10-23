@@ -97,6 +97,66 @@ public class ConfigMigrationTests
         Assert.Equal("Newer", dev.DeviceName);
         Assert.Equal("Settings file repaired", store.LoadNote);
     }
+
+    static string PairedFile(string token, int? schema = null) =>
+        (schema is { } v ? Beta2File(CompanionConfig.HashToken(token)).Replace("\"serverName\"", $"\"schema\": {v}, \"futureThing\": {{ \"x\": 1 }}, \"serverName\"") : Beta2File(CompanionConfig.HashToken(token)));
+
+    [Fact]
+    public void A_briefly_locked_file_is_read_after_a_retry()
+    {
+        var path = TempPath();
+        File.WriteAllText(path, PairedFile("t"));
+        int calls = 0;
+        var store = new ConfigStore(path, p => ++calls < 3 ? throw new IOException("in use by OneDrive") : File.ReadAllText(p), null);
+        Assert.Equal(3, calls);
+        Assert.Single(store.Config.Devices);
+        Assert.Null(store.WriteBlocked);
+    }
+
+    [Fact]
+    public void A_file_that_stays_locked_is_never_overwritten()
+    {
+        var path = TempPath();
+        File.WriteAllText(path, PairedFile("t"));
+        var original = File.ReadAllText(path);
+        var store = new ConfigStore(path, _ => throw new IOException("locked by antivirus"), null);
+        Assert.Empty(store.Config.Devices);
+        Assert.NotNull(store.WriteBlocked);
+        Assert.Contains("not lost", store.LoadNote);
+
+        // Pairing a phone now fails cleanly instead of replacing the real file.
+        var pairing = new Pairing(store);
+        Assert.Equal(PairOutcome.SaveFailed, pairing.Authenticate("new", "New phone", pairing.Pin, null, out _));
+        Assert.Throws<IOException>(() => store.Update(c => c.ServerName = "X"));
+        Assert.Equal(original, File.ReadAllText(path));
+        Assert.Empty(store.Config.Devices);
+    }
+
+    [Fact]
+    public void An_unreadable_file_that_cannot_be_set_aside_is_left_alone()
+    {
+        var path = TempPath();
+        File.WriteAllText(path, "{ not json");
+        var store = new ConfigStore(path, null, (_, _) => throw new IOException("disk full"));
+        Assert.NotNull(store.WriteBlocked);
+        Assert.Throws<IOException>(() => store.Save());
+        Assert.Equal("{ not json", File.ReadAllText(path));
+    }
+
+    [Fact]
+    public void A_newer_settings_file_is_used_but_never_rewritten()
+    {
+        var path = TempPath();
+        const string token = "newer";
+        File.WriteAllText(path, PairedFile(token, schema: 2));
+        var original = File.ReadAllText(path);
+        var store = new ConfigStore(path);
+        Assert.Contains("newer version", store.LoadNote);
+        Assert.NotNull(store.WriteBlocked);
+        // Its phones still sign in (the last-seen update is best effort and is skipped).
+        Assert.Equal(PairOutcome.Ok, new Pairing(store).Authenticate("pixel-8", "Pixel 8", null, token, out _));
+        Assert.Equal(original, File.ReadAllText(path)); // unknown fields and schema 2 kept
+    }
 }
 
 public class FileLogTests
@@ -126,5 +186,21 @@ public class FileLogTests
         Directory.CreateDirectory(Path.Combine(dir, "companion.log")); // a folder where the file should be
         using var log = new GameController.Companion.Logging.FileLog(Path.Combine(dir, "companion.log"));
         log.Write(DateTimeOffset.Now, "info", "dropped");
+    }
+
+    [Fact]
+    public void Stays_capped_when_the_old_file_cannot_be_replaced()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"gc-log-{Guid.NewGuid():N}");
+        var path = Path.Combine(dir, "companion.log");
+        Directory.CreateDirectory(path + ".1");
+        File.WriteAllText(Path.Combine(path + ".1", "keep"), "x"); // a non-empty folder: the move always fails
+        using (var log = new GameController.Companion.Logging.FileLog(path))
+        {
+            var big = new string('x', 2000);
+            for (int i = 0; i < 1500; i++) log.Write(DateTimeOffset.Now, "info", big);
+        }
+        Assert.True(new FileInfo(path).Length <= GameController.Companion.Logging.FileLog.MaxBytes + 4096);
+        Assert.Contains("Log restarted", File.ReadAllText(path));
     }
 }

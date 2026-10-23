@@ -77,7 +77,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public bool IsWindows => _platform.IsWindows;
     public string ConfigPath => Host.Store.Path;
     public string LogPath => Path.Combine(Path.GetDirectoryName(ConfigPath) ?? ".", "companion.log");
-    public static string Version => typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
+    /// <summary>The product version from Directory.Build.props (InformationalVersion), as shown to people.</summary>
+    public static string Version { get; } =
+        typeof(MainViewModel).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion.Split('+')[0]
+        ?? typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
     public bool HasPhones => Phones.Count > 0;
     public bool HasConnected => ConnectedCount > 0;
     partial void OnConnectedCountChanged(int value) => OnPropertyChanged(nameof(HasConnected));
@@ -301,8 +305,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OutputNodes = Outputs.Select(o => new SignalNode(o.Key, o.Title, o.Status, o.Icon, o.State)).ToList();
 
         var failed = Host.Services.Where(s => s.State == ServiceState.Failed).ToList();
-        ServiceBanner = failed.Count == 0 ? null :
-            $"{string.Join(", ", failed.Select(f => f.Name))} could not start: {failed[0].Detail.Split(": ").Last()}. Another program may be using the port. Close it, or change the port in the settings file, then restart the companion.";
+        ServiceBanner = failed.Count > 0
+            ? $"{string.Join(", ", failed.Select(f => f.Name))} could not start: {failed[0].Detail.Split(": ").Last()}. Another program may be using the port. Close it, or change the port in the settings file, then restart the companion."
+            : Host.Store.WriteBlocked != null ? Host.Store.LoadNote : null;
         Nav[2].Badge = Outputs.Count(o => o.State == NodeState.Attention) is > 0 and var n ? n.ToString() : null;
         Nav[2].BadgeIsAttention = true;
         RefreshRailHealth();

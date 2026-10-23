@@ -5,7 +5,6 @@
   "username": "ALI",
   "author": "ALI",
   "version_string": "1.0.0",
-  "tagid": "gamecontroller",
   "tags": ["controller", "phone", "android", "utility"],
   "message": "Optional add-on for the GameCtl phone app and its Windows companion. It reports the car's state (lights, signals, ESC, diff locks, 4WD, gear, speed) so the phone's buttons light up and unavailable controls are hidden, runs car functions directly from the phone, and binds the phone's vJoy or Bluetooth controller buttons to BeamNG actions. It connects only to the companion on this PC (127.0.0.1, TCP 47803). Without the companion running it does nothing."
 }

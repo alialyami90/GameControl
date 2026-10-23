@@ -61,7 +61,7 @@ panel comes first: use the companion.
 
 1. Unzip `GameCtl-companion-win-x64.zip` and run `GameCtlCompanion.exe`. If SmartScreen says it protected your PC,
    choose **More info > Run anyway**. Allow it through the Windows firewall on **Private networks** when asked (your Wi-Fi
-   must be set to Private in Windows). The window "GAMECTL Companion" opens, a tray icon appears, and it
+   must be set to Private in Windows). The window "GameCtl Companion" opens, a tray icon appears, and it
    shows a 6-digit PIN.
 2. Optional drivers:
    - **vJoy** (extra joystick buttons and axes through the companion): install the maintained fork from
@@ -99,6 +99,7 @@ panel comes first: use the companion.
   equipment: pilot joysticks (two spring-centred axes each), hydraulic levers and switchgear. Every control is a gamepad axis or
   button: open the game's controls menu once and bind each function by moving the matching stick or pressing the button.
   Common jobs keep the same button on every machine (1 start, 2 horn, 3 beacon, 4 lights, 6 park brake, 11 camera).
+  Jobs only one machine has can share a button with another machine's own job, so bind each machine on its own.
   Every machine button is 32 or below, so games that only read 32 joystick buttons see them all.
 - Make your own: **New profile**, then **Edit**. Add controls from the palette, drag to move, drag the corner to
   resize, and set what each one does in the inspector: keys, gamepad buttons/axes, macros, BeamNG commands or Xbox
@@ -117,7 +118,7 @@ panel comes first: use the companion.
 - **No lamps in BeamNG.** Check that **GameCtl for BeamNG** is enabled in BeamNG's mod manager and that the companion window shows
   "Mod 1.0.0 connected".
 - **Reporting a problem.** The companion's settings and log are in `%APPDATA%\GameController\` (`companion.json`,
-  `companion.log`); **Settings > Settings and log > OPEN FOLDER** in the companion opens it. Attach `companion.log`.
+  `companion.log`); **Settings > Settings and log > OPEN FOLDER** in the companion opens it. Attach `companion.log` (a second copy started with `--allow-second` writes `companion-second.log`). The pairing PIN is masked in the log.
 
 ## Uninstalling
 
@@ -132,7 +133,8 @@ panel comes first: use the companion.
 
 - Android: JDK 17 and the Android SDK (API 35). `cd android && ./gradlew :core:test :app:assembleRelease`
   writes `app/build/outputs/apk/release/app-release.apk`. Release signing comes only from the environment, never from
-  the repository: set `GAMECTL_KEYSTORE` (path to the `.jks`), `GAMECTL_KEYSTORE_PASSWORD` and `GAMECTL_KEY_ALIAS`.
+  the repository: set `GAMECTL_KEYSTORE` (path to the `.jks`), `GAMECTL_KEYSTORE_PASSWORD` and `GAMECTL_KEY_ALIAS`
+  (default `gamectl`). The key password is taken to be the store password; set `GAMECTL_KEY_PASSWORD` if yours differs.
   Without them the release APK is signed with your local debug key, which is fine for testing but won't install over the
   official app. `./gradlew -PcoreOnly=true :core:test` tests the core without the Android SDK.
 - Windows companion: .NET 8 SDK. See `windows/README.md`.
@@ -141,4 +143,4 @@ panel comes first: use the companion.
   the companion and the mod zip as artifacts. The release key lives in the repository secrets `ANDROID_KEYSTORE_B64`,
   `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`; CI decodes it to a temporary file for the build. Running the
   workflow by hand with `release_tag` (for example `v1.0.0`) publishes a GitHub release; a `v*` release is refused unless
-  the APK is signed with the GameCtl release key.
+  the APK is signed with the GameCtl release key (its SHA-256 certificate fingerprint is pinned in the workflow).

@@ -31,3 +31,4 @@ While the companion isn't running, the mod tries again every 3 seconds without w
 - `state check failed: <detail>` (shown as `E`)
 - `LuaSocket is not available in this game version, the GameCtl link is disabled` (shown as `E`)
 - `call failed: <detail>`
+- `could not create a socket: <detail>` (shown as `W`, at most once per game start; the mod keeps retrying quietly every 3 seconds)

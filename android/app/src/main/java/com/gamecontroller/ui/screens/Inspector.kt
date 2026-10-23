@@ -136,7 +136,8 @@ fun Inspector(
         ControlType.SLIDER -> {
             SectionHeader("Axis")
             ActionEditor(c.action, { onUpdate(c.copy(action = it)) }, beamngCommands, axisOnly = true)
-            Gap(4)
+            Gap(10)
+            Text("Range", style = MaterialTheme.typography.bodyMedium, color = Race.InkMuted)
             ChoiceChips(listOf("0 to 1", "-1 to 1"), if (c.range == AxisRange.UNIPOLAR) "0 to 1" else "-1 to 1", {
                 onUpdate(c.copy(range = if (it == "0 to 1") AxisRange.UNIPOLAR else AxisRange.BIPOLAR))
             })

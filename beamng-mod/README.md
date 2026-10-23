@@ -55,7 +55,7 @@ The protocol is in [`protocol/PROTOCOL.md`](../protocol/PROTOCOL.md), section "B
 
 ## Tests
 
-The offline tests simulate the game engine VM, one vehicle VM and the companion (a real TCP server on port 47803):
+The offline tests simulate the game engine VM, the companion (a real TCP server on port 47803) and four vehicles: a full car with its own vehicle VM, a trailer with its own vehicle VM and no powertrain or controllers, and two more cars that only record what is sent to them (one for vehicle switches, one whose Lua never answers):
 
 ```sh
 # needs LuaJIT and LuaSocket, e.g. apt install luajit lua-socket

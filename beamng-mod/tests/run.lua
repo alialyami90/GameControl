@@ -209,7 +209,7 @@ local actionFiles = {
     recover_vehicle = { onDown = "be:getPlayerVehicle(0):queueLuaCommand('recovery.startRecovering()')",
       onUp = "be:getPlayerVehicle(0):queueLuaCommand('recovery.stopRecovering()')" },
     reset_physics = { onDown = "testHits.reset = VEHICLEID" },
-    horn_test = { onChange = "testHits.hornValue = VALUE" },
+    horn_test = { onChange = "testHits.hornValue = VALUE; testHits.hornLog = (testHits.hornLog or '') .. VALUE" },
     veh_code_no_ctx = { onDown = "electrics.values.testVeh = 1" },
     ui_only = { ctx = "ui", onDown = "testHits.ui = true" },
   },
@@ -641,6 +641,7 @@ check(client ~= nil and link._status() == "connected", "reconnects")
 -- level unload: every vehicle goes away, then the next level's car is picked up
 pump(10)
 command("horn", 1)
+command("action.horn_test", 1) -- held across the unload
 link.onClientEndMission()
 playerId = -1
 pump(10)
@@ -650,13 +651,30 @@ playerId = 7
 e.horn = 0
 pump(20)
 check(merged()["ignition"] ~= nil and merged()["horn"] == false, "next level's car reports again")
+-- the unload forgot the held action: pressing it again doesn't first release a hold from the old level
+ge.testHits.hornLog = ""
+command("action.horn_test", 1)
+check(ge.testHits.hornLog == "1", "level unload forgets held actions, got " .. tostring(ge.testHits.hornLog))
+command("action.horn_test", 0)
+
+-- after a switch, a car that misses the first load is retried after 0.5 s
+veh2Queue = {}
+playerId = 8
+link.onVehicleSwitched(7, 8)
+pump(14) -- 0.7 s, car 8's Lua doesn't run in this test
+check(#veh2Queue >= 2, "first retry after a switch comes within 0.5 s, loads " .. #veh2Queue)
+playerId = 7
+link.onVehicleSwitched(8, 7)
+pump(20)
 
 -- a vehicle whose Lua never answers is retried every 5 s, not every frame
 playerId = 9
 pump(40) -- 2 s
-check(#veh3Queue == 1, "silent vehicle: loaded once in 2 s, got " .. #veh3Queue)
-pump(80) -- 4 s more
-check(#veh3Queue == 2, "silent vehicle: retried after 5 s, got " .. #veh3Queue)
+check(#veh3Queue == 2, "silent vehicle: loaded, then retried once after 0.5 s, in 2 s, got " .. #veh3Queue)
+pump(60) -- 3 s more
+check(#veh3Queue == 2, "silent vehicle: no more retries for 5 s, got " .. #veh3Queue)
+pump(60) -- 3 s more
+check(#veh3Queue == 3, "silent vehicle: then retried every 5 s, got " .. #veh3Queue)
 playerId = 7
 pump(20)
 check(merged()["ignition"] ~= nil, "back in a working car")

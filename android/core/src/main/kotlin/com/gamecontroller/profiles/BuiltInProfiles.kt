@@ -279,7 +279,9 @@ object BuiltInProfiles {
     // middle. Every axis and button is the Bluetooth pad (or vJoy device 1), so these work in any
     // game with machines once bound in its controls menu. Buttons keep one number per job across
     // machines (1 start, 2 horn, 3 beacon, 4 lights, 5 work lights, 6 park brake, 7/8 gear down/up,
-    // 11/12 cameras), so one set of bindings covers several machines. Every button is 32 or below,
+    // 11/12 cameras), so one set of bindings covers several machines. Jobs only one machine has use
+    // 17-32 and may share a number with another machine's own job (24 is excavator travel speed and the
+    // plough's spreader), since each machine is bound on its own. Every button is 32 or below,
     // the most many DirectInput games and the Windows Game Controllers panel can see.
 
     private fun stick(id: String, label: String, icon: String?, x: Int, y: Int, xAxis: String, yAxis: String, accent: Accent = Accent.AMBER) =

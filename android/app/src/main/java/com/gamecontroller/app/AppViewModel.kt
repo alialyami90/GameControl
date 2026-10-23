@@ -148,7 +148,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (_editor.value == null) notify(r.message.ifEmpty { if (r.ok) "Bound ${r.count} of $requested in BeamNG" else "Binding failed" })
             }
             override fun onDisconnected() {
-                engine.onLinkChanged()
+                engine.onCompanionLost()
                 game.value = emptyMap()
                 pending.value = emptyMap()
             }

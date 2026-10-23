@@ -84,8 +84,22 @@ public sealed class ConfigStore
     /// <summary>What happened while loading, for the log: a migration, or an unreadable file that was set aside. Null when nothing to say.</summary>
     public string? LoadNote { get; private set; }
 
-    public ConfigStore(string? path = null)
+    /// <summary>
+    /// Set when the file on disk must not be overwritten: it could not be read (locked by antivirus or a
+    /// sync client), could not be set aside, or comes from a newer version. Saves then fail with this
+    /// reason, so pairings in the real file are never replaced by the defaults in memory.
+    /// </summary>
+    public string? WriteBlocked { get; private set; }
+
+    readonly Func<string, string> _readFile;
+    readonly Action<string, string> _copyFile;
+
+    public ConfigStore(string? path = null) : this(path, null, null) { }
+
+    internal ConfigStore(string? path, Func<string, string>? readFile, Action<string, string>? copyFile)
     {
+        _readFile = readFile ?? File.ReadAllText;
+        _copyFile = copyFile ?? ((from, to) => File.Copy(from, to, overwrite: true));
         Path = path ?? DefaultPath();
         Config = Load(Path, out var note);
         LoadNote = note;
@@ -101,23 +115,55 @@ public sealed class ConfigStore
     {
         note = null;
         if (!File.Exists(path)) return new CompanionConfig();
-        CompanionConfig? config = null;
+
+        // Antivirus, backup and sync clients (OneDrive) hold the file for a moment: retry for about 3 s.
+        string json;
+        for (int attempt = 1; ; attempt++)
+        {
+            try { json = _readFile(path); break; }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                if (attempt >= 6)
+                {
+                    WriteBlocked = $"{path} could not be read ({e.Message}), so it is left untouched";
+                    note = $"The settings file could not be read ({e.Message}). Paired phones and settings are not lost, but this session uses defaults and saves nothing. Close whatever holds the file, then restart the companion.";
+                    return new CompanionConfig();
+                }
+                Thread.Sleep(100 * attempt);
+            }
+        }
+
+        CompanionConfig config;
+        bool hadSchema;
         try
         {
-            var json = File.ReadAllText(path);
+            var node = System.Text.Json.Nodes.JsonNode.Parse(json, documentOptions: new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
             // A file without "schema" is from a beta build.
-            bool hadSchema = System.Text.Json.Nodes.JsonNode.Parse(json, documentOptions: new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }) is System.Text.Json.Nodes.JsonObject o
-                             && o.Any(kv => string.Equals(kv.Key, "schema", StringComparison.OrdinalIgnoreCase));
+            hadSchema = node is System.Text.Json.Nodes.JsonObject o && o.Any(kv => string.Equals(kv.Key, "schema", StringComparison.OrdinalIgnoreCase));
             config = JsonSerializer.Deserialize<CompanionConfig>(json, Options) ?? new CompanionConfig();
-            if (!hadSchema) config.Schema = 0;
         }
-        catch (Exception e)
+        catch (Exception e) when (e is JsonException or NotSupportedException or InvalidOperationException)
         {
-            // Never lose paired phones silently: keep the unreadable file next to the new one.
+            // Really unreadable: keep it next to the new one. If even that fails, never save over it.
             var aside = $"{path}.unreadable-{DateTime.Now:yyyyMMdd-HHmmss}";
-            try { File.Copy(path, aside, overwrite: true); } catch { aside = "(could not be copied)"; }
+            try { _copyFile(path, aside); }
+            catch (Exception copy)
+            {
+                WriteBlocked = $"{path} is unreadable and could not be set aside ({copy.Message}), so it is left untouched";
+                note = $"The settings file could not be read ({e.Message}) or copied aside ({copy.Message}). It is left untouched; this session uses defaults and saves nothing.";
+                return new CompanionConfig();
+            }
             note = $"The settings file could not be read ({e.Message}); defaults are in use and the old file was kept as {aside}";
             return new CompanionConfig();
+        }
+
+        if (!hadSchema) config.Schema = 0;
+        if (config.Schema > CompanionConfig.CurrentSchema)
+        {
+            // Written by a newer companion: use what we understand, change nothing on disk.
+            WriteBlocked = $"{path} was written by a newer version of the companion (settings schema {config.Schema}), so it is left untouched";
+            note = $"The settings file is from a newer version of the companion (schema {config.Schema}). Paired phones work, but changes made here are not saved. Install the newer version to change settings.";
+            return config;
         }
         int from = config.Schema;
         if (config.Migrate())
@@ -158,6 +204,7 @@ public sealed class ConfigStore
     {
         lock (_gate)
         {
+            if (WriteBlocked != null) throw new IOException(WriteBlocked);
             var dir = System.IO.Path.GetDirectoryName(Path);
             if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
             var tmp = Path + ".tmp";

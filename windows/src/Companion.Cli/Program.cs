@@ -65,6 +65,7 @@ host.Pairing.PinChanged += () => Console.WriteLine($"Pairing PIN is now {host.Pa
 if (Opt("--pin") is { } pin) host.Pairing.UsePin(pin);
 host.Start();
 foreach (var s in host.Services) Console.WriteLine($"  {s.State,-7} {s.Name}: {s.Detail}");
+Console.WriteLine($"Pairing PIN {host.Pairing.Pin}");
 
 var done = new TaskCompletionSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; done.TrySetResult(); };

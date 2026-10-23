@@ -166,10 +166,13 @@ fun ActionEditor(
             }
             is Action.VJoyAxis -> {
                 ChoiceChips(GamepadAxes, action.axis, { onChange(action.copy(axis = it)) })
-                Gap(8)
-                ChoiceChips(listOf("0 to 1", "-1 to 1"), if (action.range == AxisRange.UNIPOLAR) "0 to 1" else "-1 to 1", {
-                    onChange(action.copy(range = if (it == "0 to 1") AxisRange.UNIPOLAR else AxisRange.BIPOLAR))
-                })
+                // Sliders and joysticks (axisOnly) set the range on the control itself; core ignores the action's.
+                if (!axisOnly) {
+                    Gap(8)
+                    ChoiceChips(listOf("0 to 1", "-1 to 1"), if (action.range == AxisRange.UNIPOLAR) "0 to 1" else "-1 to 1", {
+                        onChange(action.copy(range = if (it == "0 to 1") AxisRange.UNIPOLAR else AxisRange.BIPOLAR))
+                    })
+                }
                 Hint("Gamepad axes reach Windows over Bluetooth or through vJoy.")
             }
             is Action.Macro -> MacroEditor(action, onChange)

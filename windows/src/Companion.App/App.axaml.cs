@@ -14,6 +14,8 @@ namespace GameController.Companion.App;
 public partial class App : Application
 {
     public static bool StartMinimized { get; set; }
+    /// <summary>Started with --allow-second while another copy runs: it keeps its own log file.</summary>
+    public static bool SecondInstance { get; set; }
     /// <summary>Set by a second launch to bring this window forward (Windows only).</summary>
     public static EventWaitHandle? ShowSignal { get; set; }
     static App? _current;
@@ -44,7 +46,7 @@ public partial class App : Application
                 e.Handled = true;
             };
 
-            _fileLog = new GameController.Companion.Logging.FileLog(GameController.Companion.Logging.FileLog.DefaultPath());
+            _fileLog = new GameController.Companion.Logging.FileLog(GameController.Companion.Logging.FileLog.DefaultPath(SecondInstance));
             var store = new ConfigStore();
             _platform = PlatformFactory.Create(store.Config);
             _host = new CompanionHost(store, _platform.Router, _platform.Options);
