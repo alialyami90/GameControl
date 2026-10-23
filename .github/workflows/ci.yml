@@ -9,6 +9,11 @@ on:
         description: "Create a GitHub release with this tag (for example beta-1). Leave empty for a normal CI run."
         required: false
         default: ""
+      allow_test_key:
+        description: "Allow a v* release signed with a test key instead of the GameCtl release key."
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -115,6 +120,7 @@ jobs:
       - name: Assemble package
         env:
           TAG: ${{ inputs.release_tag }}
+          ALLOW_TEST_KEY: ${{ inputs.allow_test_key }}
         run: |
           set -e
           # A v* release must be signed with the GameCtl release key, never the debug key. The APK is
@@ -126,7 +132,11 @@ jobs:
             echo "$SIGNER"
             DIGEST=$(echo "$SIGNER" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)
             if [ "$DIGEST" != "$RELEASE_SHA256" ]; then
-              echo "::error::$TAG is not signed with the GameCtl release key (got '$DIGEST')"; exit 1
+              if [ "$ALLOW_TEST_KEY" = "true" ]; then
+                echo "::warning::$TAG is signed with a test key ($DIGEST), allowed by allow_test_key"
+              else
+                echo "::error::$TAG is not signed with the GameCtl release key (got '$DIGEST')"; exit 1
+              fi
             fi
           fi
           mkdir -p pkg

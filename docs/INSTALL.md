@@ -25,8 +25,8 @@ installing them, so it finds them.
 
 ## 1. Install the app
 
-> **Upgrading from a beta?** The betas were signed with a test key and 1.0 is signed with the GameCtl release key, so
-> Android won't install 1.0 over a beta ("App not installed"). Do this once:
+> **Upgrading from an earlier build?** The betas and 1.0 are signed with test keys that differ between builds, so
+> Android won't install 1.0 over a beta ("App not installed"), and the same applies to the next version. Do this each time:
 > 1. In the beta, open each profile you made or changed, tap its card menu and **Export to file**.
 > 2. Uninstall the beta (this deletes its profiles and paired PCs).
 > 3. Install 1.0 as below, then **Import** each file with the download icon at the top right of the profile list.
@@ -143,4 +143,5 @@ panel comes first: use the companion.
   the companion and the mod zip as artifacts. The release key lives in the repository secrets `ANDROID_KEYSTORE_B64`,
   `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`; CI decodes it to a temporary file for the build. Running the
   workflow by hand with `release_tag` (for example `v1.0.0`) publishes a GitHub release; a `v*` release is refused unless
-  the APK is signed with the GameCtl release key (its SHA-256 certificate fingerprint is pinned in the workflow).
+  the APK is signed with the GameCtl release key (its SHA-256 certificate fingerprint is pinned in the workflow), unless
+  `allow_test_key` is ticked. 1.0.0 was released that way, with a test key.

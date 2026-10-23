@@ -15,9 +15,9 @@ The first full release of GameCtl: an Android phone or tablet as an extra contro
 
 ## Upgrading from a beta
 
-1.0 is signed with the GameCtl release key; the betas used a test key, so Android won't install 1.0 over a beta.
-Export any profiles you made (card menu > **Export to file**), uninstall the beta, install 1.0, import them again, and enter
-the companion's PIN once. Later versions install over 1.0 directly.
+1.0 is signed with a test key, like the betas, and that key differs between builds, so Android won't install 1.0 over a
+beta. Export any profiles you made (card menu > **Export to file**), uninstall the beta, install 1.0, import them again,
+and enter the companion's PIN once. A later version signed with a permanent release key will need the same steps once.
 
 ## What's in 1.0
 
