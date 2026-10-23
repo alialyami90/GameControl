@@ -15,10 +15,19 @@ import java.util.UUID
 
 /** Import and export of `.gcprofile.json` files (PROTOCOL.md, Profile file format). */
 object ProfileJson {
-    const val SCHEMA = 1
+    /** Newest schema this app reads. 2 added the joystick control and Control.actionY. */
+    const val SCHEMA = 2
+
+    /**
+     * A profile is written with the oldest schema that can hold it, so a profile without
+     * joysticks still opens in an app that only knows schema 1, and one with joysticks is
+     * refused there with a clear "newer version" message instead of a parse error.
+     */
+    fun schemaFor(profile: Profile): Int =
+        if (profile.pages.any { pg -> pg.controls.any { it.type == ControlType.JOYSTICK } }) 2 else 1
 
     fun export(profile: Profile): String =
-        Protocol.prettyJson.encodeToString(Profile.serializer(), profile.copy(schema = SCHEMA))
+        Protocol.prettyJson.encodeToString(Profile.serializer(), profile.copy(schema = schemaFor(profile)))
 
     /**
      * Parses an exported profile. The imported copy always gets a fresh id, is never built-in,

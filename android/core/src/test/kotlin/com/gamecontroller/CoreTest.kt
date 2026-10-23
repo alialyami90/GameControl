@@ -45,7 +45,7 @@ class CoreTest {
     @Test fun builtInProfilesRoundTripThroughJson() {
         for (p in BuiltInProfiles.all) {
             val text = ProfileJson.export(p)
-            val back = ProfileJson.import(text, newId = p.id).copy(builtIn = p.builtIn)
+            val back = ProfileJson.import(text, newId = p.id).copy(builtIn = p.builtIn, schema = p.schema)
             assertEquals(p, back, "round trip of ${p.name}")
         }
     }
@@ -389,6 +389,26 @@ class CoreTest {
         val sync = Protocol.profileSync(p, emptySet())
         assertTrue("\"dz_blade.x\"" in sync && "\"dz_blade.y\"" in sync && "\"joystick\"" !in sync, sync)
         advanceUntilIdle()
+    }
+
+    @Test fun joystickProfilesExportAsSchema2AndKeepActionY() {
+        val p = BuiltInProfiles.utility()
+        val text = ProfileJson.export(p)
+        assertTrue("\"schema\": 2" in text, "joystick profile is schema 2")
+        assertTrue("\"schema\": 1" in ProfileJson.export(BuiltInProfiles.mudrunner()), "no joystick: schema 1")
+        val back = ProfileJson.import(text)
+        val stick = back.pages[1].controls.first { it.id == "ex_right_stick" }
+        assertEquals(Action.VJoyAxis(1, "RX"), stick.actionY)
+        assertEquals(Action.VJoyAxis(1, "SL1"), stick.action)
+    }
+
+    @Test fun machineButtonsFitIn32AndAreUniquePerPage() {
+        for (p in listOf(BuiltInProfiles.bulldozer(), BuiltInProfiles.utility())) for (page in p.pages) {
+            val buttons = page.controls.flatMap { c -> listOf(c.action, c.cw, c.ccw) + c.positions.map { it.action } }
+                .filterIsInstance<Action.VJoyButton>().map { it.button }
+            assertTrue(buttons.all { it in 1..32 }, "${page.name}: $buttons")
+            assertEquals(buttons.size, buttons.toSet().size, "${page.name} reuses a button: $buttons")
+        }
     }
 
     @Test fun layoutOpsClampAndPages() {

@@ -41,6 +41,8 @@ installing them, so it finds them.
    **Properties > Services**, untick the audio, headset and hands-free services, and set your speakers or headphones back as
    the default output (sound icon in the taskbar). Restart the game if it still has no sound.
 3. Next time, open GameCtl and pick your PC under **Paired PCs**; it reconnects.
+   With several phones on one PC, the companion matches each Bluetooth pad to a Wi-Fi phone in the order they connected,
+   so connect one phone at a time if the Phones list should show which pad is which.
 4. Check it in Windows: press `Win+R`, run `joy.cpl`, select **GameCtl Pad**, and press buttons on the phone.
 
 Some phone makers remove Bluetooth HID support. Then the Bluetooth panel is a single grey line saying so, and the PC companion

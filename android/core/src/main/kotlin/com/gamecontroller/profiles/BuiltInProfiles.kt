@@ -279,7 +279,8 @@ object BuiltInProfiles {
     // middle. Every axis and button is the Bluetooth pad (or vJoy device 1), so these work in any
     // game with machines once bound in its controls menu. Buttons keep one number per job across
     // machines (1 start, 2 horn, 3 beacon, 4 lights, 5 work lights, 6 park brake, 7/8 gear down/up,
-    // 11/12 cameras), so one set of bindings covers several machines.
+    // 11/12 cameras), so one set of bindings covers several machines. Every button is 32 or below,
+    // the most many DirectInput games and the Windows Game Controllers panel can see.
 
     private fun stick(id: String, label: String, icon: String?, x: Int, y: Int, xAxis: String, yAxis: String, accent: Accent = Accent.AMBER) =
         Control(id, ControlType.JOYSTICK, label, icon, x, y, 2, 2, accent, Action.VJoyAxis(1, xAxis), actionY = Action.VJoyAxis(1, yAxis))
@@ -341,7 +342,7 @@ object BuiltInProfiles {
                 momentary("ld_rear_cam", "Rear view", "look_back", 4, 2, btn(12)),
                 latching("ld_work", "Work lights", "work_light", 5, 2, btn(5), Accent.AMBER),
                 direction("ld_direction", 2, 3),
-                momentary("ld_kickdown", "Kickdown", "gear_down", 5, 3, btn(33)),
+                momentary("ld_kickdown", "Kickdown", "gear_down", 5, 3, btn(18)),
                 stick("ld_bucket", "Boom / bucket", "bucket", 6, 0, "RY", "RX"),
                 stick("ld_aux", "Attachment", "quick_coupler", 6, 2, "RZ", "SL1", Accent.CYAN),
             ),
@@ -362,9 +363,9 @@ object BuiltInProfiles {
                 latching("ex_coupler", "Coupler", "quick_coupler", 4, 2, btn(19), Accent.AMBER),
                 momentary("ex_cam", "Camera", "camera_cycle", 5, 2, btn(11)),
                 lever("ex_aux", "Aux flow", "stick", 2, 3, "RZ", Accent.CYAN, w = 2, h = 1),
-                latching("ex_hispeed", "Travel speed", "tracks", 4, 3, btn(34), Accent.GREEN),
+                latching("ex_hispeed", "Travel speed", "tracks", 4, 3, btn(24), Accent.GREEN),
                 momentary("ex_rear_cam", "Rear view", "look_back", 5, 3, btn(12)),
-                Control("ex_rpm", ControlType.ROTARY, "Engine speed", "speed", 6, 2, 2, 2, Accent.CYAN, cw = btn(35), ccw = btn(36)),
+                Control("ex_rpm", ControlType.ROTARY, "Engine speed", "speed", 6, 2, 2, 2, Accent.CYAN, cw = btn(25), ccw = btn(26)),
             ),
         )
         val crane = Page(
@@ -383,7 +384,7 @@ object BuiltInProfiles {
                 momentary("cr_gear_down", "Gear down", "gear_down", 2, 2, btn(7)),
                 momentary("cr_gear_up", "Gear up", "gear_up", 3, 2, btn(8)),
                 momentary("cr_cam", "Camera", "camera_cycle", 4, 2, btn(11)),
-                momentary("cr_hook_cam", "Hook view", "camera", 5, 2, btn(12)),
+                momentary("cr_hook_cam", "Hook view", "camera", 5, 2, btn(10)),
                 lever("cr_rotate", "Hook rotate", "hook", 2, 3, "RZ", Accent.NEUTRAL, w = 4, h = 1),
                 stick("cr_right_stick", "Boom / extend", "boom", 6, 0, "RY", "RX"),
                 throttle("cr_throttle", 6, 2, h = 2),
