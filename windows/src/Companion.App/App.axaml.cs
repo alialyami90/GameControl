@@ -21,6 +21,7 @@ public partial class App : Application
     WindowIcon? _iconLive, _iconIdle;
 
     CompanionHost? _host;
+    static GameController.Companion.Logging.FileLog? _fileLog;
     IPlatform? _platform;
     MainViewModel? _vm;
     MainWindow? _window;
@@ -39,12 +40,16 @@ public partial class App : Application
             Avalonia.Threading.Dispatcher.UIThread.UnhandledException += (_, e) =>
             {
                 _host?.Log("error", $"Unexpected error in the window: {e.Exception.Message}");
+                WriteCrash("window", e.Exception);
                 e.Handled = true;
             };
 
+            _fileLog = new GameController.Companion.Logging.FileLog(GameController.Companion.Logging.FileLog.DefaultPath());
             var store = new ConfigStore();
             _platform = PlatformFactory.Create(store.Config);
             _host = new CompanionHost(store, _platform.Router, _platform.Options);
+            _host.Logged += e => _fileLog?.Write(e.At, e.Level, e.Message);
+            _host.Log("info", $"GameCtl Companion {MainViewModel.Version} starting; settings in {store.Path}");
             _vm = new MainViewModel(_host, _platform);
             _host.Start();
 
@@ -91,6 +96,12 @@ public partial class App : Application
         t.Start();
     }
 
+    /// <summary>Full details of an unexpected exception, to the log file (the window only shows the message).</summary>
+    public static void WriteCrash(string where, object? exception)
+    {
+        try { _fileLog?.Write(DateTimeOffset.Now, "error", $"Unhandled exception ({where}): {exception}"); } catch { }
+    }
+
     /// <summary>Last-chance release from a crash handler or the end of Main. Safe to call twice.</summary>
     public static void EmergencyRelease()
     {
@@ -111,12 +122,12 @@ public partial class App : Application
     void BuildTray()
     {
         var menu = new NativeMenu();
-        var open = new NativeMenuItem("Open Game Controller");
+        var open = new NativeMenuItem("Open GameCtl Companion");
         open.Click += (_, _) => ShowWindow();
         _pinItem = new NativeMenuItem("Pairing PIN") { IsEnabled = false };
         var release = new NativeMenuItem("Release all held input");
         release.Click += (_, _) => _host?.ReleaseEverything();
-        var quit = new NativeMenuItem("Quit");
+        var quit = new NativeMenuItem("Quit GameCtl Companion");
         quit.Click += (_, _) => _vm?.QuitCommand.Execute(null);
         menu.Add(open);
         menu.Add(_pinItem);
@@ -135,9 +146,11 @@ public partial class App : Application
         var phones = _host.Phones();
         int n = phones.Count, btOnly = phones.Count(p => p.Wifi == null);
         var pin = _host.Pairing.Pin;
-        _tray.ToolTipText = n == 0 ? $"Game Controller: waiting for a phone (PIN {pin})"
-            : btOnly == n ? $"Game Controller: {n} phone{(n == 1 ? "" : "s")} on Bluetooth only (Wi-Fi not linked, PIN {pin})"
-            : $"Game Controller: {n} phone{(n == 1 ? "" : "s")} connected" + (btOnly > 0 ? $", {btOnly} on Bluetooth only" : "");
+        var name = $"GameCtl Companion {MainViewModel.Version}";
+        var tip = n == 0 ? $"{name}: waiting for a phone (PIN {pin})"
+            : btOnly == n ? $"{name}: {n} phone{(n == 1 ? "" : "s")} on Bluetooth only (Wi-Fi not linked, PIN {pin})"
+            : $"{name}: {n} phone{(n == 1 ? "" : "s")} connected" + (btOnly > 0 ? $", {btOnly} on Bluetooth only" : "");
+        _tray.ToolTipText = tip.Length <= 127 ? tip : tip[..127]; // Windows cuts tray tips at 127 characters
         if (_pinItem != null) _pinItem.Header = $"Pairing PIN  {pin[..3]} {pin[3..]}";
         _iconLive ??= LoadIcon("tray.png");
         _iconIdle ??= LoadIcon("tray-idle.png");
@@ -147,7 +160,7 @@ public partial class App : Application
 
     static WindowIcon LoadIcon(string asset)
     {
-        using var s = AssetLoader.Open(new Uri($"avares://GameControllerCompanion/Assets/{asset}"));
+        using var s = AssetLoader.Open(new Uri($"avares://GameCtlCompanion/Assets/{asset}"));
         return new WindowIcon(new Bitmap(s));
     }
 
@@ -168,5 +181,6 @@ public partial class App : Application
         catch { try { _platform?.Router.ReleaseAll(); } catch { } }
         try { _platform?.Dispose(); } catch { }
         try { ShowSignal?.Dispose(); } catch { }
+        try { _host?.Log("info", "GameCtl Companion stopped"); _fileLog?.Dispose(); } catch { }
     }
 }

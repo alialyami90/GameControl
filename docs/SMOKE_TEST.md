@@ -30,10 +30,10 @@ A step that matches needs no note.
     **Generic gamepad**, **Keyboard keys**, **BeamNG.drive**, **BeamNG.drive (Bluetooth pad)**, **MudRunner**,
     **Bulldozer**, **Utility vehicles**.
 
-0.2 On the PC unzip `GameCtl-companion-win-x64.zip` to a folder and run `GameControllerCompanion.exe`.
+0.2 On the PC unzip `GameCtl-companion-win-x64.zip` to a folder and run `GameCtlCompanion.exe`.
     Windows SmartScreen may say it protected your PC: choose **More info > Run anyway**.
     When the firewall asks, allow **Private networks** (your Wi-Fi must be set to Private in Windows network settings).
-    The window titled "GAME CONTROLLER Companion for Windows" opens and a tray icon appears; it shows a 6-digit PIN
+    The window titled "GAMECTL Companion" opens and a tray icon appears; it shows a 6-digit PIN
     and the PC's IP address.
 
 0.3 Copy `gamecontroller.zip` (still zipped) into `%LOCALAPPDATA%\BeamNG.drive\<version>\mods\`. The quickest way there:
@@ -58,7 +58,7 @@ A2 On the PC: **Settings > Bluetooth & devices > Add device > Bluetooth**, pick 
 
 A2a With the companion running on the PC and the phone **not** connected to it over Wi-Fi (on the phone: Connect > PC companion >
     **Disconnect** if it is), look at the companion's **Phones** list: within about 2 seconds of Bluetooth pairing the phone shows
-    with a **BT** tag, and an amber **Wi-Fi: Not linked** banner explains that lamps and BeamNG commands need the Wi-Fi link.
+    with a green **BT** tag and the status "Bluetooth only", and an amber **WI-FI Not linked** banner explains that lamps, game state and BeamNG commands need the Wi-Fi link too.
     Turn Bluetooth off on the phone: the phone leaves the list within about 2 seconds. Turn it back on and let it reconnect.
 
 A3 On the PC press `Win+R`, run `joy.cpl`, select **GameCtl Pad > Properties**. On the phone open **Generic gamepad**.

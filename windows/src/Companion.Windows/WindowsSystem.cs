@@ -10,9 +10,11 @@ namespace GameController.Companion.Windows;
 [SupportedOSPlatform("windows")]
 public static class WindowsSystem
 {
-    public const string FirewallRuleName = "Game Controller Companion";
+    public const string FirewallRuleName = "GameCtl Companion";
+    const string LegacyFirewallRuleName = "Game Controller Companion"; // beta builds
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    const string RunValue = "GameControllerCompanion";
+    const string RunValue = "GameCtlCompanion";
+    const string LegacyRunValue = "GameControllerCompanion"; // beta builds (GameControllerCompanion.exe)
 
     public static string ExePath => Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName ?? "";
 
@@ -44,7 +46,8 @@ public static class WindowsSystem
     public static bool AddFirewallRule()
     {
         // Replace any rule of ours that points at an old location, then add one for this exe (one UAC prompt).
-        var args = $"/c netsh advfirewall firewall delete rule name=\"{FirewallRuleName}\" >nul 2>&1 & " +
+        var args = $"/c netsh advfirewall firewall delete rule name=\"{LegacyFirewallRuleName}\" >nul 2>&1 & " +
+                   $"netsh advfirewall firewall delete rule name=\"{FirewallRuleName}\" >nul 2>&1 & " +
                    $"netsh advfirewall firewall add rule name=\"{FirewallRuleName}\" dir=in action=allow program=\"{ExePath}\" enable=yes profile=private,domain";
         try
         {
@@ -66,6 +69,21 @@ public static class WindowsSystem
         using var k = Registry.CurrentUser.CreateSubKey(RunKey);
         if (on) k.SetValue(RunValue, $"\"{ExePath}\" --minimized");
         else k.DeleteValue(RunValue, throwOnMissingValue: false);
+        k.DeleteValue(LegacyRunValue, throwOnMissingValue: false);
+    }
+
+    /// <summary>
+    /// At start-up: a beta's Run entry points at GameControllerCompanion.exe, and a moved exe leaves a
+    /// stale path. If the user asked to start with Windows (saved setting or a beta entry), point the
+    /// entry at this exe; drop the beta entry either way.
+    /// </summary>
+    public static void RepairStartWithWindows(bool wanted)
+    {
+        using var k = Registry.CurrentUser.CreateSubKey(RunKey);
+        bool legacy = k.GetValue(LegacyRunValue) != null;
+        bool current = k.GetValue(RunValue) != null;
+        if (wanted || legacy || current) SetStartWithWindows(true);
+        else k.DeleteValue(LegacyRunValue, throwOnMissingValue: false);
     }
 
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();

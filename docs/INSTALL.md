@@ -59,9 +59,9 @@ panel comes first: use the companion.
 
 ## 2b. Connect over Wi-Fi with the PC companion
 
-1. Unzip `GameCtl-companion-win-x64.zip` and run `GameControllerCompanion.exe`. If SmartScreen says it protected your PC,
+1. Unzip `GameCtl-companion-win-x64.zip` and run `GameCtlCompanion.exe`. If SmartScreen says it protected your PC,
    choose **More info > Run anyway**. Allow it through the Windows firewall on **Private networks** when asked (your Wi-Fi
-   must be set to Private in Windows). The window "GAME CONTROLLER Companion for Windows" opens, a tray icon appears, and it
+   must be set to Private in Windows). The window "GAMECTL Companion" opens, a tray icon appears, and it
    shows a 6-digit PIN.
 2. Optional drivers:
    - **vJoy** (extra joystick buttons and axes through the companion): install the maintained fork from
@@ -70,6 +70,8 @@ panel comes first: use the companion.
      archived upstream, so it is optional.
 3. On the phone open **Connect > PC companion**. Your PC appears in the list (same Wi-Fi network). Tap it, enter the PIN.
    If it doesn't appear, type the PC's IP address (shown in the companion window).
+4. Closing the window keeps the companion running in the tray; use **QUIT COMPANION** on the window's side rail (or the tray
+   menu) to stop it. To start it with Windows, turn on **Settings > Startup > Start with Windows** in the companion.
 
 ## 3. BeamNG.drive
 
@@ -101,6 +103,30 @@ panel comes first: use the companion.
 - Make your own: **New profile**, then **Edit**. Add controls from the palette, drag to move, drag the corner to
   resize, and set what each one does in the inspector: keys, gamepad buttons/axes, macros, BeamNG commands or Xbox
   buttons. Profiles export and import as `.gcprofile.json` files.
+
+## Troubleshooting
+
+- **The phone doesn't find the PC.** Both must be on the same Wi-Fi, and that network must be set to **Private** in Windows.
+  Guest networks and some routers isolate devices from each other ("AP isolation"); a VPN on the PC or the phone, or the
+  phone on mobile data, has the same effect. Type the PC's IP address from the companion window if the list stays empty.
+- **The PIN is rejected.** Type the PIN currently shown in the companion window (it changes after each pairing). After 5 wrong
+  tries the companion waits a minute.
+- **Bluetooth pairs but nothing moves in joy.cpl.** On the PC remove **GameCtl Pad** in Settings > Bluetooth & devices, then on
+  the phone tap **MAKE DISCOVERABLE** and add it again.
+- **The PC's sound moved to the phone after pairing.** See section 2a, step 2.
+- **No lamps in BeamNG.** Check that **GameCtl for BeamNG** is enabled in BeamNG's mod manager and that the companion window shows
+  "Mod 1.0.0 connected".
+- **Reporting a problem.** The companion's settings and log are in `%APPDATA%\GameController\` (`companion.json`,
+  `companion.log`); **Settings > Settings and log > OPEN FOLDER** in the companion opens it. Attach `companion.log`.
+
+## Uninstalling
+
+- **Phone:** uninstall GameCtl like any app (this deletes its profiles; export the ones you want to keep first).
+- **PC:** in the companion turn off **Start with Windows**, quit it, then delete its folder and `%APPDATA%\GameController\`.
+  Optionally remove its firewall rule: `netsh advfirewall firewall delete rule name="GameCtl Companion"`.
+- **Bluetooth:** remove **GameCtl Pad** in Windows Settings > Bluetooth & devices.
+- **BeamNG:** delete `gamecontroller.zip` from the `mods` folder and the file ending in `_gamecontroller.json` from
+  `settings\inputmaps\` in the BeamNG user folder.
 
 ## Building from source
 

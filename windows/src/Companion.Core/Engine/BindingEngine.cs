@@ -374,7 +374,8 @@ public sealed class BindingEngine
                     if (!st.HeldCommands.Contains(cmd)) st.HeldCommands.Add(cmd);
                     _ = Task.Delay(InputRouter.PulseMs).ContinueWith(_ =>
                     {
-                        lock (_gate) if (st.HeldCommands.Remove(cmd)) SendCommand(b, cmd, 0);
+                        try { lock (_gate) if (st.HeldCommands.Remove(cmd)) SendCommand(b, cmd, 0); }
+                        catch (Exception e) { Report(b.Id, $"BeamNG {cmd} release failed: {e.Message}"); }
                     }, TaskScheduler.Default);
                 }
                 else SendCommand(b, a.Command, 1);
@@ -410,6 +411,7 @@ public sealed class BindingEngine
                     else await Task.Delay(step.DelayMs).ConfigureAwait(false);
                 }
             }
+            catch (Exception e) { Report(b.Id, $"macro stopped: {e.Message}"); }
             finally
             {
                 lock (_gate) st.MacroRunning = false;

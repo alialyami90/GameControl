@@ -56,6 +56,8 @@ public sealed partial class OutputRow : ObservableObject
     [ObservableProperty] private string? _setupLink;
     /// <summary>Show <see cref="Setup"/> even while the output is ready (a how-to rather than a fault).</summary>
     [ObservableProperty] private bool _setupIsHint;
+    /// <summary>Off because an optional driver is not installed: reads "Optional", not as a fault.</summary>
+    [ObservableProperty] private bool _optional;
 
     public string StateWord => State switch
     {
@@ -63,7 +65,7 @@ public sealed partial class OutputRow : ObservableObject
         NodeState.Ready => "Ready",
         NodeState.Attention => "Needs setup",
         NodeState.Failed => "Failed",
-        _ => "Off",
+        _ => Optional ? "Optional" : "Off",
     };
 
     public bool NeedsSetup => (SetupIsHint || State is NodeState.Attention or NodeState.Failed or NodeState.Off) && !string.IsNullOrEmpty(Setup);
@@ -77,6 +79,7 @@ public sealed partial class OutputRow : ObservableObject
 
     partial void OnSetupChanged(string value) => OnPropertyChanged(nameof(NeedsSetup));
     partial void OnSetupIsHintChanged(bool value) => OnPropertyChanged(nameof(NeedsSetup));
+    partial void OnOptionalChanged(bool value) => OnPropertyChanged(nameof(StateWord));
 
     public IBrush LampBrush => State switch
     {

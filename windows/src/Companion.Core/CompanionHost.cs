@@ -184,6 +184,7 @@ public sealed class CompanionHost : IDisposable
         _timer = new Timer(_ => Tick(), null, 100, 100);
         _padScan = Task.Run(() => ScanBluetoothLoop(_stop.Token));
         Log("info", $"Companion ready as \"{c.ServerName}\". Pairing PIN {Pairing.Pin}");
+        if (_store.LoadNote is { } note) Log(note.Contains("could not") ? "warn" : "info", note);
     }
 
     void StartService(string name, string detail, Func<IDisposable> start)
@@ -301,7 +302,14 @@ public sealed class CompanionHost : IDisposable
         _services.Clear();
     }
 
-    public void Log(string level, string message) => Logged?.Invoke(new LogEntry(DateTimeOffset.Now, level, message));
+    public void Log(string level, string message)
+    {
+        // Each listener on its own: a failing log view or file must not break the caller (often a network loop).
+        if (Logged is not { } handlers) return;
+        var entry = new LogEntry(DateTimeOffset.Now, level, message);
+        foreach (Action<LogEntry> h in handlers.GetInvocationList())
+            try { h(entry); } catch { }
+    }
 
     // ---------------------------------------------------------------- messages out
 
@@ -613,7 +621,7 @@ public sealed class CompanionHost : IDisposable
     {
         if (BeamNg?.Connected != true)
         {
-            s.Send(JsonExt.Error("no_beamng", "BeamNG is not running with the Game Controller mod"));
+            s.Send(JsonExt.Error("no_beamng", "BeamNG is not running with the GameCtl for BeamNG mod"));
             return;
         }
         if (JsonNode.Parse(m.GetRawText()) is not JsonObject fwd) return;

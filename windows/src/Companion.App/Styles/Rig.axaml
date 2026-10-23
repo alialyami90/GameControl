@@ -64,13 +64,13 @@
       </LinearGradientBrush>
 
       <!-- Italic condensed for names and numbers; upright Barlow for sentences. -->
-      <FontFamily x:Key="CondBold">avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed</FontFamily>
-      <FontFamily x:Key="CondXBold">avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed ExtraBold</FontFamily>
-      <FontFamily x:Key="CondSemi">avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed SemiBold</FontFamily>
-      <FontFamily x:Key="CondMedium">avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed Medium</FontFamily>
-      <FontFamily x:Key="Body">avares://GameControllerCompanion/Assets/Fonts#Barlow</FontFamily>
-      <FontFamily x:Key="BodyMedium">avares://GameControllerCompanion/Assets/Fonts#Barlow Medium</FontFamily>
-      <FontFamily x:Key="BodySemi">avares://GameControllerCompanion/Assets/Fonts#Barlow SemiBold</FontFamily>
+      <FontFamily x:Key="CondBold">avares://GameCtlCompanion/Assets/Fonts#Barlow Condensed</FontFamily>
+      <FontFamily x:Key="CondXBold">avares://GameCtlCompanion/Assets/Fonts#Barlow Condensed ExtraBold</FontFamily>
+      <FontFamily x:Key="CondSemi">avares://GameCtlCompanion/Assets/Fonts#Barlow Condensed SemiBold</FontFamily>
+      <FontFamily x:Key="CondMedium">avares://GameCtlCompanion/Assets/Fonts#Barlow Condensed Medium</FontFamily>
+      <FontFamily x:Key="Body">avares://GameCtlCompanion/Assets/Fonts#Barlow</FontFamily>
+      <FontFamily x:Key="BodyMedium">avares://GameCtlCompanion/Assets/Fonts#Barlow Medium</FontFamily>
+      <FontFamily x:Key="BodySemi">avares://GameCtlCompanion/Assets/Fonts#Barlow SemiBold</FontFamily>
 
       <!-- Fluent overrides so stock parts of controls carry the palette. -->
       <SolidColorBrush x:Key="TextControlSelectionHighlightColor" Color="#80FF2E7E" />

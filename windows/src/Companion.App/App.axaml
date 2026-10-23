@@ -2,9 +2,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="GameController.Companion.App.App"
              RequestedThemeVariant="Dark"
-             Name="Game Controller">
+             Name="GameCtl Companion">
   <Application.Styles>
     <FluentTheme />
-    <StyleInclude Source="avares://GameControllerCompanion/Styles/Rig.axaml" />
+    <StyleInclude Source="avares://GameCtlCompanion/Styles/Rig.axaml" />
   </Application.Styles>
 </Application>

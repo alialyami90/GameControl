@@ -1,0 +1,17 @@
+<Project>
+  <!-- One version for every assembly: the exe's file properties, the Settings footer and the tray read it. -->
+  <PropertyGroup>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>1.0.0</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Product>GameCtl Companion</Product>
+    <Company>GameCtl</Company>
+    <Copyright>GameCtl</Copyright>
+  </PropertyGroup>
+  <!-- Published builds carry their symbols inside the exe, so the release folder is just GameCtlCompanion.exe. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+</Project>

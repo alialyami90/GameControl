@@ -56,9 +56,9 @@ public sealed class SignalPath : Control
         Green = Tokens.Color("Green", "#34E07F"), Red = Tokens.Color("Red", "#FF4B3A");
 
     // Names and numbers in italic condensed; detail lines upright.
-    static readonly Typeface TitleFace = new(new FontFamily("avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed SemiBold"), FontStyle.Italic);
-    static readonly Typeface DetailFace = new(new FontFamily("avares://GameControllerCompanion/Assets/Fonts#Barlow"));
-    static readonly Typeface HubFace = new(new FontFamily("avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed ExtraBold"), FontStyle.Italic);
+    static readonly Typeface TitleFace = new(new FontFamily("avares://GameCtlCompanion/Assets/Fonts#Barlow Condensed SemiBold"), FontStyle.Italic);
+    static readonly Typeface DetailFace = new(new FontFamily("avares://GameCtlCompanion/Assets/Fonts#Barlow"));
+    static readonly Typeface HubFace = new(new FontFamily("avares://GameCtlCompanion/Assets/Fonts#Barlow Condensed ExtraBold"), FontStyle.Italic);
 
     public SignalPath()
     {
@@ -341,7 +341,7 @@ public sealed class SignalPath : Control
         }
     }
 
-    static readonly Typeface TagFace = new(new FontFamily("avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed SemiBold"));
+    static readonly Typeface TagFace = new(new FontFamily("avares://GameCtlCompanion/Assets/Fonts#Barlow Condensed SemiBold"));
 
     /// <summary>Small slanted tags, left to right from <paramref name="topLeft"/>: green fill when up, hollow
     /// outline when not. Returns the width they took.</summary>

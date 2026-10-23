@@ -76,7 +76,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public bool IsWindows => _platform.IsWindows;
     public string ConfigPath => Host.Store.Path;
-    public string Version => typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
+    public string LogPath => Path.Combine(Path.GetDirectoryName(ConfigPath) ?? ".", "companion.log");
+    public static string Version => typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
     public bool HasPhones => Phones.Count > 0;
     public bool HasConnected => ConnectedCount > 0;
     partial void OnConnectedCountChanged(int value) => OnPropertyChanged(nameof(HasConnected));
@@ -103,7 +104,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Outputs.Add(new OutputRow { Key = "keyboard", Title = "Keyboard", Icon = "keyboard", Purpose = "Key presses as hardware scancodes, which DirectInput and raw-input games read." });
         Outputs.Add(new OutputRow { Key = "vjoy", Title = "vJoy joystick", Icon = "joystick", Purpose = "Up to 128 buttons and 8 axes on a virtual joystick, so controls do not use up keyboard keys." });
         Outputs.Add(new OutputRow { Key = "xbox", Title = "Xbox pad", Icon = "gamepad", Purpose = "A virtual Xbox 360 controller for games that only read XInput. Optional." });
-        Outputs.Add(new OutputRow { Key = "beamng", Title = "BeamNG mod", Icon = "car", Purpose = "Game commands and live vehicle state, both ways, through the Game Controller mod." });
+        Outputs.Add(new OutputRow { Key = "beamng", Title = "BeamNG mod", Icon = "car", Purpose = "Game commands and live vehicle state, both ways, through the GameCtl for BeamNG mod." });
         Outputs.Add(new OutputRow { Key = "telemetry", Title = "Telemetry", Icon = "telemetry", Purpose = "OutGauge dashboard data (speed, gear, lamps) when the mod is not installed." });
 
         Action pin = () => Ui(RefreshPin), phones = () => Ui(RefreshPhones), outputs = () => Ui(RefreshOutputs);
@@ -239,6 +240,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return t.LocalDateTime.ToString("d MMM");
     }
 
+    static bool NotInstalled(string status) => status.Contains("not installed", StringComparison.OrdinalIgnoreCase);
+
     void RefreshOutputs()
     {
         var caps = Host.Capabilities();
@@ -253,18 +256,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         var vj = Outputs[1];
         bool vjoyOk = caps["vjoy"]?.GetValue<bool>() == true;
-        vj.State = ready(vjoyOk, "vjoy");
+        // Not installed is a choice (keys work without it); installed but unusable needs the user.
+        bool vjoyMissing = !vjoyOk && NotInstalled(_platform.VJoyStatus);
+        vj.Optional = vjoyMissing;
+        vj.State = vjoyMissing ? NodeState.Off : ready(vjoyOk, "vjoy");
         var devs = Host.Router.VJoy.Devices;
-        vj.Status = vjoyOk ? (devs.Count == 1 ? $"Device {devs[0]}" : $"Devices {string.Join(", ", devs)}") : "Not installed";
-        vj.Detail = vjoyOk ? "Buttons and axes ready" : _platform.VJoyStatus;
-        vj.Setup = vjoyOk ? "" : "Install vJoy 2.2 (the BrunnerInnovation release for Windows 10 and 11), open Configure vJoy, enable device 1 with 32 or more buttons and all axes, then come back here. The companion picks it up within a few seconds.";
+        vj.Status = vjoyOk ? (devs.Count == 1 ? $"Device {devs[0]}" : $"Devices {string.Join(", ", devs)}") : vjoyMissing ? "Not installed (optional)" : "Needs configuring";
+        vj.Detail = vjoyOk ? "Buttons and axes ready" : vjoyMissing ? "Only for profiles that use joystick buttons or axes" : _platform.VJoyStatus;
+        vj.Setup = vjoyOk ? "" : (vjoyMissing ? "Keys work without it. " : "") + "Install vJoy 2.2 (the BrunnerInnovation release for Windows 10 and 11), open Configure vJoy, enable device 1 with 32 or more buttons and all axes, then come back here. The companion picks it up within a few seconds.";
         vj.SetupLink = vjoyOk ? null : "https://github.com/BrunnerInnovation/vJoy/releases";
 
         var xb = Outputs[2];
         bool vigemOk = caps["vigem"]?.GetValue<bool>() == true;
-        xb.State = !Host.Config.EnableVigem ? NodeState.Off : ready(vigemOk, "xbox");
-        xb.Status = !Host.Config.EnableVigem ? "Turned off" : !vigemOk ? "ViGEmBus missing" : Host.Router.XInput.InUse ? "Pad plugged in" : "Plugs in on first use";
-        xb.Detail = !Host.Config.EnableVigem ? "Turn it on in Settings" : vigemOk ? "Virtual Xbox 360 controller" : _platform.VigemStatus;
+        bool vigemMissing = Host.Config.EnableVigem && !vigemOk && NotInstalled(_platform.VigemStatus);
+        xb.Optional = vigemMissing;
+        xb.State = !Host.Config.EnableVigem || vigemMissing ? NodeState.Off : ready(vigemOk, "xbox");
+        xb.Status = !Host.Config.EnableVigem ? "Turned off" : vigemMissing ? "Not installed (optional)" : !vigemOk ? "ViGEmBus unavailable" : Host.Router.XInput.InUse ? "Pad plugged in" : "Plugs in on first use";
+        xb.Detail = !Host.Config.EnableVigem ? "Turn it on in Settings" : vigemOk ? "Virtual Xbox 360 controller" : vigemMissing ? "Only for games that read Xbox controllers only" : _platform.VigemStatus;
         xb.Setup = Host.Config.EnableVigem && !vigemOk ? "Only needed for games that ignore joysticks and read Xbox controllers only. Install the last ViGEmBus release (1.22), then restart the companion." : "";
         xb.SetupLink = Host.Config.EnableVigem && !vigemOk ? "https://github.com/nefarius/ViGEmBus/releases" : null;
 
@@ -273,7 +281,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         bn.State = modOk ? NodeState.Live : NodeState.Off;
         bn.Status = modOk ? (Host.BeamNg?.ModVersion is { } v ? $"Mod {v} connected" : "Mod connected") : "Game not running";
         bn.Detail = modOk ? $"{Host.BeamNg?.KnownCommands.Count ?? 0} commands, live vehicle state" : "Waiting for BeamNG.drive";
-        bn.Setup = modOk ? "" : "Copy gamecontroller.zip into Documents\\BeamNG.drive\\current\\mods (or BeamNG's user folder \\mods), start the game and load a vehicle. It connects to this PC by itself.";
+        bn.Optional = !modOk;
+        bn.Setup = modOk ? "" : "For BeamNG.drive only. Copy gamecontroller.zip into Documents\\BeamNG.drive\\current\\mods (or BeamNG's user folder \\mods), start the game and load a vehicle. It connects to this PC by itself.";
 
         var tm = Outputs[4];
         bool ogOn = Host.Config.EnableOutGauge, ogLive = Host.OutGaugeActive, ogFailed = ogOn && Host.OutGaugeFailed;
@@ -446,16 +455,24 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     async Task AllowFirewall()
     {
-        bool ok = await Task.Run(_platform.AddFirewallRule);
+        bool ok;
+        try { ok = await Task.Run(_platform.AddFirewallRule); }
+        catch (Exception e) { Host.Log("warn", $"Could not add the firewall rule: {e.Message}"); ok = false; }
         Host.Log(ok ? "info" : "warn", ok ? "Firewall rule added for private networks" : "The firewall rule was not added (the Windows prompt was declined or failed)");
         await CheckFirewallAsync();
     }
 
     [RelayCommand]
-    void OpenConfigFolder() => _platform.OpenFolder(Path.GetDirectoryName(ConfigPath) ?? ".");
+    void OpenConfigFolder() => Try("open the settings folder", () => _platform.OpenFolder(Path.GetDirectoryName(ConfigPath) ?? "."));
 
     [RelayCommand]
-    void OpenLink(string? url) { if (!string.IsNullOrEmpty(url)) _platform.OpenLink(url); }
+    void OpenLink(string? url) { if (!string.IsNullOrEmpty(url)) Try($"open {url}", () => _platform.OpenLink(url)); }
+
+    void Try(string what, Action action)
+    {
+        try { action(); }
+        catch (Exception e) { Host.Log("warn", $"Could not {what}: {e.Message}"); }
+    }
 
     [RelayCommand]
     void Go(string key) => SelectedNav = Nav.FirstOrDefault(n => n.Key == key) ?? SelectedNav;

@@ -17,6 +17,9 @@ public sealed class PairedDevice
 
 public sealed class CompanionConfig
 {
+    /// <summary>The settings file layout. Beta builds wrote no number (read as 0); their layout is the same as 1.</summary>
+    public const int CurrentSchema = 1;
+    public int Schema { get; set; } = CurrentSchema;
     public string ServerName { get; set; } = Environment.MachineName;
     public int WsPort { get; set; } = Protocol.ProtocolInfo.WsPort;
     public int UdpPort { get; set; } = Protocol.ProtocolInfo.UdpPort;
@@ -30,6 +33,32 @@ public sealed class CompanionConfig
     public bool StartWithWindows { get; set; }
     public List<PairedDevice> Devices { get; set; } = new();
 
+    /// <summary>
+    /// Brings a file from an older build (or one edited by hand) to the current layout: fills in what is
+    /// missing, puts out-of-range ports back to their defaults, and drops pairings that could never sign in.
+    /// Returns true when anything changed.
+    /// </summary>
+    public bool Migrate()
+    {
+        bool changed = false;
+        var d = new CompanionConfig();
+        int Port(int v, int fallback) { if (v is >= 1 and <= 65535) return v; changed = true; return fallback; }
+        WsPort = Port(WsPort, d.WsPort);
+        UdpPort = Port(UdpPort, d.UdpPort);
+        DiscoveryPort = Port(DiscoveryPort, d.DiscoveryPort);
+        BeamNgPort = Port(BeamNgPort, d.BeamNgPort);
+        OutGaugePort = Port(OutGaugePort, d.OutGaugePort);
+        if (string.IsNullOrWhiteSpace(ServerName)) { ServerName = d.ServerName; changed = true; }
+        if (Devices == null) { Devices = new(); changed = true; }
+        int before = Devices.Count;
+        Devices = Devices.Where(x => x != null && !string.IsNullOrEmpty(x.DeviceId) && !string.IsNullOrEmpty(x.TokenHash))
+                         .GroupBy(x => x.DeviceId).Select(g => g.OrderByDescending(x => x.LastSeen).First()).ToList();
+        foreach (var x in Devices) if (string.IsNullOrEmpty(x.DeviceName)) { x.DeviceName = x.DeviceId; changed = true; }
+        changed |= Devices.Count != before;
+        if (Schema != CurrentSchema) { Schema = CurrentSchema; changed = true; }
+        return changed;
+    }
+
     public static string HashToken(string token) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 }
@@ -42,16 +71,24 @@ public sealed class ConfigStore
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.Never,
+        // Tolerant reading: a hand-edited file may differ in case or quote its numbers.
+        PropertyNameCaseInsensitive = true,
+        NumberHandling = JsonNumberHandling.AllowReadingFromString,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
     };
 
     readonly object _gate = new();
     public string Path { get; }
     public CompanionConfig Config { get; private set; }
+    /// <summary>What happened while loading, for the log: a migration, or an unreadable file that was set aside. Null when nothing to say.</summary>
+    public string? LoadNote { get; private set; }
 
     public ConfigStore(string? path = null)
     {
         Path = path ?? DefaultPath();
-        Config = Load(Path);
+        Config = Load(Path, out var note);
+        LoadNote = note;
     }
 
     public static string DefaultPath()
@@ -60,18 +97,36 @@ public sealed class ConfigStore
         return System.IO.Path.Combine(dir, "companion.json");
     }
 
-    static CompanionConfig Load(string path)
+    CompanionConfig Load(string path, out string? note)
     {
+        note = null;
+        if (!File.Exists(path)) return new CompanionConfig();
+        CompanionConfig? config = null;
         try
         {
-            if (File.Exists(path))
-                return JsonSerializer.Deserialize<CompanionConfig>(File.ReadAllText(path), Options) ?? new CompanionConfig();
+            var json = File.ReadAllText(path);
+            // A file without "schema" is from a beta build.
+            bool hadSchema = System.Text.Json.Nodes.JsonNode.Parse(json, documentOptions: new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }) is System.Text.Json.Nodes.JsonObject o
+                             && o.Any(kv => string.Equals(kv.Key, "schema", StringComparison.OrdinalIgnoreCase));
+            config = JsonSerializer.Deserialize<CompanionConfig>(json, Options) ?? new CompanionConfig();
+            if (!hadSchema) config.Schema = 0;
         }
-        catch (Exception)
+        catch (Exception e)
         {
-            // A corrupt file falls back to defaults; the next save rewrites it.
+            // Never lose paired phones silently: keep the unreadable file next to the new one.
+            var aside = $"{path}.unreadable-{DateTime.Now:yyyyMMdd-HHmmss}";
+            try { File.Copy(path, aside, overwrite: true); } catch { aside = "(could not be copied)"; }
+            note = $"The settings file could not be read ({e.Message}); defaults are in use and the old file was kept as {aside}";
+            return new CompanionConfig();
         }
-        return new CompanionConfig();
+        int from = config.Schema;
+        if (config.Migrate())
+        {
+            Config = config;
+            try { Save(); note = from < CompanionConfig.CurrentSchema ? $"Settings upgraded from an earlier version ({config.Devices.Count} paired phone{(config.Devices.Count == 1 ? "" : "s")} kept)" : "Settings file repaired"; }
+            catch (Exception e) { note = $"Settings upgraded in memory but could not be saved ({e.Message})"; }
+        }
+        return config;
     }
 
     /// <summary>Reads under the same lock as <see cref="Update"/>, so lists are never seen mid-change.</summary>

@@ -1,6 +1,6 @@
-# Game Controller companion for Windows
+# GameCtl Companion for Windows
 
-The PC half of Game Controller. The Android app sends control events over Wi-Fi; the companion turns them into input any Windows game can see, and sends game state back so the phone's indicators light from the game. It is game-agnostic. BeamNG.drive is fully supported through its mod and OutGauge telemetry.
+The PC half of GameCtl. The Android app sends control events over Wi-Fi; the companion turns them into input any Windows game can see, and sends game state back so the phone's indicators light from the game. It is game-agnostic. BeamNG.drive is fully supported through its mod and OutGauge telemetry.
 
 Protocol: [`../protocol/PROTOCOL.md`](../protocol/PROTOCOL.md) (v1). The companion implements it as written.
 
@@ -26,7 +26,7 @@ dotnet test                       # 93 unit + loopback integration tests
 dotnet publish src/Companion.App -c Release -r win-x64 -o publish/win-x64
 ```
 
-The publish step makes one self-contained `GameControllerCompanion.exe` (no .NET install needed on the gaming PC). `dotnet publish -c Release -r win-x64` on the whole solution also works; tests and the screenshot tool are excluded from publishing.
+The publish step makes one self-contained `GameCtlCompanion.exe` (no .NET install needed on the gaming PC). `dotnet publish -c Release -r win-x64` on the whole solution also works; tests and the screenshot tool are excluded from publishing.
 
 ## Projects
 
@@ -76,4 +76,4 @@ Screenshots for design review: `dotnet run --project tools/UiSnap -- docs/screen
 - **SimHub (or another dashboard) also wants OutGauge.** Only one program can listen on UDP 4444. Either give the companion another port in Settings and point BeamNG there, or use SimHub's UDP forwarding to pass OutGauge on to the companion's port. With the BeamNG mod connected the companion does not need OutGauge at all.
 - **A key seems stuck.** Status > Release all input, or the tray menu item of the same name.
 
-Settings live in `%APPDATA%\GameController\companion.json`.
+Settings live in `%APPDATA%\GameController\companion.json` (the folder name is kept from the betas so their settings and pairings carry over). The log is `%APPDATA%\GameController\companion.log`, with one older file `companion.log.1`; each is kept under 1 MB. If the settings file cannot be read it is kept as `companion.json.unreadable-<date>` and defaults are used.

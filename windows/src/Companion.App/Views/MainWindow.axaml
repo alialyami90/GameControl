@@ -5,8 +5,8 @@
         xmlns:v="using:GameController.Companion.App.Views"
         x:Class="GameController.Companion.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Title="Game Controller Companion"
-        Icon="avares://GameControllerCompanion/Assets/companion.ico"
+        Title="GAMECTL Companion"
+        Icon="avares://GameCtlCompanion/Assets/companion.ico"
         Width="1120" Height="760" MinWidth="820" MinHeight="560"
         Background="{StaticResource Ground}"
         WindowStartupLocation="CenterScreen">
@@ -19,9 +19,17 @@
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="8,0,0,26">
           <c:RigIcon Kind="wheel" Size="30" Foreground="{StaticResource Ink}" VerticalAlignment="Center" />
           <StackPanel VerticalAlignment="Center">
-            <TextBlock Text="GAME CONTROLLER" FontFamily="{StaticResource CondXBold}" FontStyle="Italic" FontSize="19" />
+            <TextBlock Text="GAMECTL" FontFamily="{StaticResource CondXBold}" FontStyle="Italic" FontSize="19" />
             <TextBlock Text="Companion for Windows" Classes="small muted" />
           </StackPanel>
+        </StackPanel>
+
+        <!-- Closing the window only hides it; this is the way out. -->
+        <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0" Spacing="2">
+          <Button Classes="quiet" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                  Content="QUIT COMPANION" Command="{Binding QuitCommand}"
+                  ToolTip.Tip="Stops the companion and releases every held input. Closing the window keeps it running in the tray." />
+          <TextBlock Text="Closing the window keeps it in the tray" Classes="small faint" HorizontalAlignment="Center" />
         </StackPanel>
 
         <!-- PC identity and link health -->

@@ -16,7 +16,7 @@ bool Flag(string name) => argv.Contains(name);
 if (Flag("--help") || Flag("-h"))
 {
     Console.WriteLine("""
-        Game Controller companion (console)
+        GameCtl Companion (console)
 
           --config <path>   settings file (default: %APPDATA%\GameController\companion.json)
           --pin <6 digits>  use a fixed pairing PIN instead of a random one

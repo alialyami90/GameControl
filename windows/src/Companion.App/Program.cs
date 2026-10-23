@@ -22,8 +22,9 @@ static class Program
             App.ShowSignal = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
 
         // Whatever ends the process, held keys and buttons must not stay down in Windows.
-        AppDomain.CurrentDomain.UnhandledException += (_, _) => App.EmergencyRelease();
-        TaskScheduler.UnobservedTaskException += (_, e) => e.SetObserved();
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => { App.WriteCrash("process", e.ExceptionObject); App.EmergencyRelease(); };
+        // A fire-and-forget task that faulted: log it, never let it end the process.
+        TaskScheduler.UnobservedTaskException += (_, e) => { App.WriteCrash("background task", e.Exception); e.SetObserved(); };
 
         App.StartMinimized = args.Contains("--minimized");
         try

@@ -44,6 +44,7 @@ sealed class WindowsAppPlatform : IPlatform
         _vjoy = w.VJoy;
         _vigem = w.Vigem;
         Options = WindowsPlatform.Options();
+        try { WindowsSystem.RepairStartWithWindows(config.StartWithWindows); } catch { } // a locked-down registry only loses the repair
     }
 
     public InputRouter Router { get; }
