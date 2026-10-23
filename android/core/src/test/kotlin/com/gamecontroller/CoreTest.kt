@@ -7,6 +7,7 @@ import com.gamecontroller.engine.Route
 import com.gamecontroller.hid.HidDescriptor
 import com.gamecontroller.hid.HidState
 import com.gamecontroller.model.Action
+import com.gamecontroller.model.AxisRange
 import com.gamecontroller.model.ControlType
 import com.gamecontroller.model.Joystick
 import com.gamecontroller.model.FeedbackSource
@@ -409,6 +410,22 @@ class CoreTest {
             assertTrue(buttons.all { it in 1..32 }, "${page.name}: $buttons")
             assertEquals(buttons.size, buttons.toSet().size, "${page.name} reuses a button: $buttons")
         }
+    }
+
+    @Test fun a25_sliderRangeComesFromTheControl() {
+        val base = BuiltInProfiles.gamepad().pages[0].controls.first { it.id == "gp_axis_z" }
+        val bipolarControlUnipolarAction = base.copy(range = AxisRange.BIPOLAR, action = Action.VJoyAxis(1, "Z", AxisRange.UNIPOLAR))
+        assertEquals(AxisRange.BIPOLAR, (Protocol.effectiveAction(bipolarControlUnipolarAction) as Action.VJoyAxis).range)
+        assertFalse(InputEngine.isUnipolar(bipolarControlUnipolarAction, Action.VJoyAxis(1, "Z", AxisRange.UNIPOLAR)))
+        val unipolarControl = base.copy(range = AxisRange.UNIPOLAR, action = Action.VJoyAxis(1, "Z", AxisRange.BIPOLAR))
+        assertEquals(AxisRange.UNIPOLAR, (Protocol.effectiveAction(unipolarControl) as Action.VJoyAxis).range)
+    }
+
+    @Test fun r6_5_joystickIndicatorFollowsItsAxes() {
+        val p = BuiltInProfiles.bulldozer()
+        val r = Feedback.resolve(p, mapOf("dz_blade.y" to 0.8f), emptyMap(), emptyMap(), 0L)
+        assertTrue(r.indicators["dz_blade"]!!.lit)
+        assertFalse(Feedback.resolve(p, emptyMap(), emptyMap(), emptyMap(), 0L).indicators["dz_blade"]!!.lit)
     }
 
     @Test fun layoutOpsClampAndPages() {

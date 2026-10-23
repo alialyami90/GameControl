@@ -519,7 +519,7 @@ local function setGearboxMode(index)
   local mode = GEARBOX_MODES[math.floor(tonumber(index) or -1)]
   if not mode then return end
   if not features then scanVehicle() end
-  local mc = controller.mainController
+  local mc = controller and controller.mainController
   local target
   if features.gearboxModes then target = AUTO_GEAR_INDEX[mode] else target = MANUAL_GEAR_INDEX[mode] end
   if target == nil then return end -- P on a manual gearbox
@@ -530,7 +530,7 @@ local function setGearboxMode(index)
 end
 
 local function shift(up)
-  local mc = controller.mainController
+  local mc = controller and controller.mainController
   if not mc then return end
   local onDown = up and mc.shiftUpOnDown or mc.shiftDownOnDown
   local onUp = up and mc.shiftUpOnUp or mc.shiftDownOnUp
@@ -569,7 +569,7 @@ end
 
 local oneShots = {
   ["starter"] = function(val) starter(val >= 0.5) end,
-  ["horn"] = function(val) electrics.horn(val >= 0.5) end,
+  ["horn"] = function(val) if electrics.horn then electrics.horn(val >= 0.5) end end,
   ["gearbox.mode"] = function(val) setGearboxMode(val) end,
   ["gear.up"] = function(val) if val >= 0.5 then shift(true) end end,
   ["gear.down"] = function(val) if val >= 0.5 then shift(false) end end,

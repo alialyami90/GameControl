@@ -101,14 +101,18 @@ class CompanionClient(
     }
 
     fun disconnect() {
+        val wasConnected = isConnected
         userDisconnected = true
         closeSocket()
+        // The engine must hear about a user disconnect too, or held companion inputs stay "held" (A26).
+        if (wasConnected) listener?.onDisconnected()
         _state.update { ConnectionUi(status = ConnectionStatus.DISCONNECTED) }
     }
 
     private fun open(pin: String?) {
         val h = host ?: return
-        val token = settings.token(h)
+        // A PC whose IP changed (DHCP) is still recognised by name, so it doesn't ask for the PIN again (A19).
+        val token = settings.token(h) ?: if (pin == null) nameOf(h)?.let { settings.namedToken(it) } else null
         if (token == null && pin == null) {
             _state.update { it.copy(status = ConnectionStatus.PAIRING, host = h, message = null) }
             return
@@ -141,6 +145,8 @@ class CompanionClient(
         when (msg) {
             is Incoming.Welcome -> {
                 host?.let { settings.saveToken(it, msg.token) }
+                settings.saveNamedToken(msg.serverName, msg.token)
+                settings.lastServerName = msg.serverName
                 session = msg.session
                 udpPort = msg.udpPort
                 lastPong = System.currentTimeMillis()
@@ -163,7 +169,7 @@ class CompanionClient(
                     else -> msg.message.ifEmpty { "The companion reported an error (${msg.code})." }
                 }
                 if (msg.code in setOf("bad_pin", "bad_token", "not_paired", "rate_limited")) {
-                    host?.let { settings.clearToken(it) }
+                    host?.let { h -> settings.clearToken(h); nameOf(h)?.let { settings.clearNamedToken(it) } }
                     closeSocket()
                     _state.update { it.copy(status = ConnectionStatus.PAIRING, message = text) }
                 } else {
@@ -367,8 +373,19 @@ class CompanionClient(
         }
     }
 
+    /** The PC name for [h]: from discovery, or the last PC this phone paired with when [h] is its last address. */
+    private fun nameOf(h: String): String? =
+        _servers.value.firstOrNull { it.host == h }?.name
+            ?: settings.lastServerName?.takeIf { settings.lastHost?.let { parseHostPort(it).first } == h }
+
     private fun addServer(s: DiscoveredServer) {
         _servers.update { list -> if (list.any { it.host == s.host }) list else list + s }
+        // The last PC came back on a new address: follow it without asking for the PIN (A19).
+        val idle = _state.value.status == ConnectionStatus.DISCONNECTED || _state.value.status == ConnectionStatus.ERROR ||
+            (_state.value.status == ConnectionStatus.CONNECTING && !isConnected)
+        if (idle && !userDisconnected && s.name == settings.lastServerName && s.host != host && settings.namedToken(s.name) != null) {
+            connect(if (s.host.contains(':')) "[${s.host}]:${s.wsPort}" else "${s.host}:${s.wsPort}")
+        }
     }
 
     fun shutdown() {
@@ -435,4 +452,10 @@ class Settings(context: Context) {
     fun token(host: String): String? = prefs.getString("token:$host", null)
     fun saveToken(host: String, token: String) = prefs.edit().putString("token:$host", token).apply()
     fun clearToken(host: String) = prefs.edit().remove("token:$host").apply()
+    fun namedToken(serverName: String): String? = prefs.getString("token-name:$serverName", null)
+    fun saveNamedToken(serverName: String, token: String) = prefs.edit().putString("token-name:$serverName", token).apply()
+    fun clearNamedToken(serverName: String) = prefs.edit().remove("token-name:$serverName").apply()
+    var lastServerName: String?
+        get() = prefs.getString("lastServerName", null)
+        set(v) = prefs.edit().putString("lastServerName", v).apply()
 }

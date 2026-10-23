@@ -41,6 +41,7 @@ local fullPending = false     -- send a full snapshot when the vehicle answers
 local vehicleId = nil         -- player vehicle that is reporting
 local vehicleKeys = {}        -- keys that came from vehicle Lua, cleared on switch
 local vehicleSilence = 0
+local attachedId = nil        -- vehicle the vehicle part was last loaded into, waiting for its answer
 local gameTimer = 0
 
 local heldActions = {}        -- [actionName] = true while an action.* or hold command is down
@@ -392,6 +393,7 @@ local function attachVehicle()
     return
   end
   fullPending = true
+  attachedId = veh:getID()
   veh:queueLuaCommand("local m = extensions.gameControllerVehicle if not m then extensions.load('gameControllerVehicle') m = extensions.gameControllerVehicle end if m then m.requestFull() end")
 end
 
@@ -762,7 +764,9 @@ local function inProgress(err)
 end
 
 local function startConnect()
-  sock = socket.tcp()
+  local s, err = socket.tcp()
+  if not s then logW("could not create a socket: " .. tostring(err)) return end
+  sock = s
   sock:settimeout(0)
   local ok, err = sock:connect(HOST, PORT)
   if ok then
@@ -844,7 +848,9 @@ local function onUpdate(dtReal)
   local playerId = be:getPlayerVehicleID(0)
   if playerId == nil or playerId < 0 then
     if vehicleId ~= nil or fullPending then attachVehicle() end -- left the vehicle: report game state only
-  elseif (playerId ~= vehicleId and vehicleSilence > 0.5) or vehicleSilence > VEHICLE_TIMEOUT then
+  elseif (playerId ~= vehicleId and vehicleSilence > (attachedId == playerId and VEHICLE_TIMEOUT or 0.5))
+      or vehicleSilence > VEHICLE_TIMEOUT then
+    -- a vehicle that never answers (its Lua failed to load) is retried every VEHICLE_TIMEOUT, not every frame
     if playerId == vehicleId then logI("vehicle Lua went quiet, reloading the vehicle part") end
     attachVehicle()
   end
@@ -872,6 +878,15 @@ local function onVehicleSpawned(id)
   end
 end
 
+-- the level is going away with every vehicle in it: forget them, nothing is left to release
+local function onClientEndMission()
+  heldActions = {}
+  vehicleId = nil
+  attachedId = nil
+  actions = nil
+  fullPending = true
+end
+
 local function onExtensionLoaded()
   if socket then
     logI(string.format("Game Controller mod %s loaded, looking for the companion on %s:%d", MOD_VERSION, HOST, PORT))
@@ -887,6 +902,7 @@ M.onUpdate = onUpdate
 M.onVehicleSwitched = onVehicleSwitched
 M.onVehicleSpawned = onVehicleSpawned
 M.onExtensionLoaded = onExtensionLoaded
+M.onClientEndMission = onClientEndMission
 M.onExtensionUnloaded = onExtensionUnloaded
 
 M.onVehicleState = onVehicleState

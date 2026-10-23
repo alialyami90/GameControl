@@ -113,9 +113,8 @@ object Protocol {
     /** A slider that is unipolar on the control is reported unipolar on its axis action too (A7). */
     fun effectiveAction(control: Control): Action {
         val a = control.action
-        return if (control.type == ControlType.SLIDER && a is Action.VJoyAxis && control.range == AxisRange.UNIPOLAR) {
-            a.copy(range = AxisRange.UNIPOLAR)
-        } else a
+        // A slider's control range is the one truth for its axis (A25), both ways.
+        return if (control.type == ControlType.SLIDER && a is Action.VJoyAxis) a.copy(range = control.range) else a
     }
 
     fun action(action: Action): JsonElement = json.encodeToJsonElement(Action.serializer(), action)

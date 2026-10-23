@@ -29,7 +29,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit tests (core)
         run: ./gradlew --no-daemon :core:test
+      - name: Release key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "GAMECTL_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "Release key present: the release APK is signed with it."
+          else
+            echo "No release key secret: the release APK is signed with the debug key."
+          fi
       - name: Build APKs
+        env:
+          GAMECTL_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          GAMECTL_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: ./gradlew --no-daemon :app:assembleDebug :app:assembleRelease
       - name: Collect APK
         run: |
@@ -99,8 +113,19 @@ jobs:
         with:
           path: artifacts
       - name: Assemble package
+        env:
+          TAG: ${{ inputs.release_tag }}
         run: |
           set -e
+          # A v* release must be signed with the release key, never the debug key.
+          if [ "${TAG#v}" != "$TAG" ]; then
+            CERT=$(unzip -p artifacts/GameCtl-android/GameCtl.apk 'META-INF/*.RSA' 'META-INF/*.EC' 2>/dev/null | openssl pkcs7 -inform DER -print_certs 2>/dev/null | grep -i subject || true)
+            if [ -z "$CERT" ]; then
+              CERT=$("$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs artifacts/GameCtl-android/GameCtl.apk 2>/dev/null | grep -i "DN" | head -1 || true)
+            fi
+            echo "APK signer: $CERT"
+            case "$CERT" in *GameCtl*) ;; *) echo "::error::$TAG is not signed with the GameCtl release key"; exit 1;; esac
+          fi
           mkdir -p pkg
           cp artifacts/GameCtl-android/GameCtl.apk pkg/
           cp artifacts/GameCtl-beamng-mod/gamecontroller.zip pkg/
@@ -116,5 +141,11 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" pkg/* --clobber
           else
-            gh release create "$TAG" pkg/* --target "$GITHUB_SHA" --prerelease --title "GameCtl $TAG" --notes "Beta package built from $GITHUB_SHA. Install with INSTALL.md, then run SMOKE_TEST.md."
+            if [ "${TAG#v}" != "$TAG" ]; then
+              NOTES_FILE=docs/RELEASE_NOTES.md; FLAG=--latest
+            else
+              echo "Beta package built from $GITHUB_SHA. Install with INSTALL.md, then run SMOKE_TEST.md." > notes.txt
+              NOTES_FILE=notes.txt; FLAG=--prerelease
+            fi
+            gh release create "$TAG" pkg/* --target "$GITHUB_SHA" $FLAG --title "GameCtl $TAG" --notes-file "$NOTES_FILE"
           fi

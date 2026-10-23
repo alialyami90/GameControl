@@ -473,9 +473,13 @@ class InputEngine(
             else -> false
         }
 
-        /** A slider is unipolar when either the control or its axis action says so (A7). */
+        /**
+         * A slider's range is the control's range, whatever its axis action says, so the two can
+         * never disagree and leave half the travel dead (A7, A25). Other controls use the action's.
+         */
         fun isUnipolar(control: Control, action: Action.VJoyAxis): Boolean =
-            control.range == AxisRange.UNIPOLAR || action.range == AxisRange.UNIPOLAR
+            if (control.type == ControlType.SLIDER) control.range == AxisRange.UNIPOLAR
+            else action.range == AxisRange.UNIPOLAR
 
         /** True when every action on [control] can be produced by the "GameCtl Pad" HID device. */
         fun hidCapable(control: Control): Boolean {

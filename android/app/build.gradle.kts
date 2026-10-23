@@ -17,11 +17,23 @@ android {
         versionName = "1.0.0"
     }
 
+    // Release signing comes from the environment (CI secrets), never from the repository:
+    // GAMECTL_KEYSTORE (path to the .jks), GAMECTL_KEYSTORE_PASSWORD, GAMECTL_KEY_ALIAS.
+    // Without them (local builds, forks) the release APK is signed with the debug key.
+    val releaseKeystore = System.getenv("GAMECTL_KEYSTORE")?.let { file(it) }?.takeIf { it.exists() }
+    signingConfigs {
+        if (releaseKeystore != null) create("release") {
+            storeFile = releaseKeystore
+            storePassword = System.getenv("GAMECTL_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("GAMECTL_KEY_ALIAS") ?: "gamectl"
+            keyPassword = System.getenv("GAMECTL_KEYSTORE_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Signed with the debug key so the release APK installs without extra setup.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 

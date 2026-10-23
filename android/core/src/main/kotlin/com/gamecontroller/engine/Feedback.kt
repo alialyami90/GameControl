@@ -57,7 +57,11 @@ object Feedback {
         val unavailable = HashSet<String>()
         for (c in profile.pages.flatMap { it.controls }) {
             c.visibleWhen?.let { key -> if (truthy(game[key]) == false) unavailable += c.id }
-            indicators[c.id] = indicator(c, values[c.id] ?: 0f, game, isPending(c.id, pending, now))
+            // A joystick's value lives on its two axis ids; it is "on" while either is off centre (R6-5).
+            val value = if (c.type == ControlType.JOYSTICK) {
+                maxOf(kotlin.math.abs(values[c.id + Joystick.X] ?: 0f), kotlin.math.abs(values[c.id + Joystick.Y] ?: 0f))
+            } else values[c.id] ?: 0f
+            indicators[c.id] = indicator(c, value, game, isPending(c.id, pending, now))
         }
         return Resolved(indicators, unavailable)
     }

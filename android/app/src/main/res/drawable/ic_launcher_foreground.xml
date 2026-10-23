@@ -1,12 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Steering wheel over a toggle switch, amber on carbon. -->
+<!-- Race Front-End launcher mark: a cut-corner control cap with a lit racing stripe and a
+     steering wheel, on the blue-black ground. Everything sits inside the 66dp safe zone. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:strokeColor="#FFFFB000" android:strokeWidth="5" android:fillColor="#00000000"
-        android:pathData="M54,30a24,24 0,1 0,0.01 0z" />
-    <path android:strokeColor="#FFFFB000" android:strokeWidth="5" android:fillColor="#00000000"
+    <!-- Cap: square shoulders, top-right corner cut. -->
+    <path android:fillColor="#FF1C2333" android:strokeColor="#FF465170" android:strokeWidth="2"
+        android:pathData="M37,29H67L79,41V73Q79,79 73,79H37Q31,79 31,73V35Q31,29 37,29Z" />
+    <!-- Racing stripe across the cap's top, with forward speed slashes. -->
+    <path android:fillColor="#FFFF2E7E"
+        android:pathData="M35,33H66.5L72.5,39V41H35Z" />
+    <path android:fillColor="#4D000000"
+        android:pathData="M54,33H57L54,41H51ZM60,33H64L61,41H57ZM67,33H71.5L68.5,41H64Z" />
+    <!-- Steering wheel. -->
+    <path android:strokeColor="#FFF2F4F8" android:strokeWidth="4.5" android:fillColor="#00000000"
+        android:pathData="M55,48a13,13 0,1 0,0.01 0z" />
+    <path android:strokeColor="#FFF2F4F8" android:strokeWidth="4.5" android:fillColor="#00000000"
         android:strokeLineCap="round"
-        android:pathData="M31,52L48,55M77,52L60,55M54,61L54,77" />
-    <path android:fillColor="#FFFFB000" android:pathData="M54,48a6,6 0,1 0,0.01 0z" />
+        android:pathData="M42.5,60.5L50,62M67.5,60.5L60,62M55,66V73" />
+    <path android:fillColor="#FFFF2E7E" android:pathData="M55,57a4.5,4.5 0,1 0,0.01 0z" />
 </vector>

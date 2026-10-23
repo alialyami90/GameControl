@@ -158,15 +158,25 @@ local veh2 = {
   getJBeamFilename = function() return "van" end,
   queueLuaCommand = function(_, code) table.insert(veh2Queue, code) end,
 }
+-- a vehicle whose Lua never answers (its vehicle part failed to load)
+local veh3Queue = {}
+local veh3 = {
+  getID = function() return 9 end,
+  getJBeamFilename = function() return "broken" end,
+  queueLuaCommand = function(_, code) table.insert(veh3Queue, code) end,
+}
 local veh = {
   getID = function() return 7 end,
   getJBeamFilename = function() return "pickup" end,
   queueLuaCommand = function(_, code) table.insert(veQueue, code) end,
 }
 ge.be = {
-  getPlayerVehicle = function(_, i) if playerId == 8 then return veh2 end return playerId >= 0 and veh or nil end,
+  getPlayerVehicle = function(_, i)
+    if playerId == 8 then return veh2 elseif playerId == 9 then return veh3 end
+    return playerId >= 0 and veh or nil
+  end,
   getPlayerVehicleID = function(_, i) return playerId end,
-  getObjectByID = function(_, id) if id == 8 then return veh2 end return id == 7 and veh or nil end,
+  getObjectByID = function(_, id) if id == 8 then return veh2 elseif id == 9 then return veh3 end return id == 7 and veh or nil end,
   queueAllObjectLua = function(_, code) table.insert(veQueue, code) end,
 }
 ge.simTimeAuthority = {
@@ -627,6 +637,61 @@ client = nil
 -- reconnects after 3 s
 pump(80)
 check(client ~= nil and link._status() == "connected", "reconnects")
+
+-- level unload: every vehicle goes away, then the next level's car is picked up
+pump(10)
+command("horn", 1)
+link.onClientEndMission()
+playerId = -1
+pump(10)
+check(link._status() == "connected", "still connected after the level unloads")
+check(merged()["horn"] == nil and merged()["has.esc"] == nil, "vehicle values dropped after the level unloads")
+playerId = 7
+e.horn = 0
+pump(20)
+do local m = merged(); local ks = {} for k, v in pairs(m) do table.insert(ks, k .. "=" .. tostring(v)) end print("DBG", #inbox, table.concat(ks, " ")) end
+for i = #logs - 5, #logs do print("LOG", logs[i]) end
+check(merged()["ignition"] ~= nil and merged()["horn"] == false, "next level's car reports again")
+
+-- a vehicle whose Lua never answers is retried every 5 s, not every frame
+playerId = 9
+pump(40) -- 2 s
+check(#veh3Queue == 1, "silent vehicle: loaded once in 2 s, got " .. #veh3Queue)
+pump(80) -- 4 s more
+check(#veh3Queue == 2, "silent vehicle: retried after 5 s, got " .. #veh3Queue)
+playerId = 7
+pump(20)
+check(merged()["ignition"] ~= nil, "back in a working car")
+
+-- a vehicle without powertrain or controllers (trailer, prop): no Lua errors
+do
+  local tv = newEnv()
+  local toGeCode = {}
+  tv.obj = { getID = function() return 11 end, queueGameEngineLua = function(_, c) table.insert(toGeCode, c) end,
+    requestReset = function() end }
+  tv.electrics = { values = { wheelspeed = 0 } }
+  tv.v = { data = {} }
+  tv.RESET_PHYSICS = 1
+  local m = loadInto(tv, MOD .. "vehicle/extensions/gameControllerVehicle.lua")
+  m.onExtensionLoaded()
+  m.requestFull()
+  local before = #logs
+  for _ = 1, 10 do m.updateGFX(0.05) end
+  local ok, st = pcall(m._collectState)
+  check(ok and st["has.esc"] == nil and st["has.awd"] == nil and st["has.cruise"] == nil, "trailer: state collected, has.* left out")
+  check(#toGeCode > 0, "trailer: state sent to the game engine side")
+  for _, name in ipairs({ "gear.up", "gear.down", "gearbox.mode", "starter", "horn", "cruise.set", "recover", "reset" }) do
+    local okc, errc = pcall(m.command, name, "once", 1)
+    check(okc, "trailer: " .. name .. " runs without a Lua error " .. tostring(errc))
+  end
+  for _, name in ipairs({ "esc", "awd", "diff.front", "lights.fog", "ignition" }) do
+    local okc, errc = pcall(m.command, name, "toggle", 1)
+    check(okc, "trailer: " .. name .. " toggle runs without a Lua error " .. tostring(errc))
+  end
+  local bad = {}
+  for i = before + 1, #logs do if logs[i]:sub(1, 1) == "E" then table.insert(bad, logs[i]) end end
+  check(#bad == 0, "trailer: no errors logged: " .. table.concat(bad, " | "))
+end
 
 -- no errors logged by the mod
 local errors = {}
