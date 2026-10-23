@@ -165,10 +165,14 @@ local veh3 = {
   getJBeamFilename = function() return "broken" end,
   queueLuaCommand = function(_, code) table.insert(veh3Queue, code) end,
 }
+local veLoads = 0 -- times the vehicle part was (re)loaded into car 7
 local veh = {
   getID = function() return 7 end,
   getJBeamFilename = function() return "pickup" end,
-  queueLuaCommand = function(_, code) table.insert(veQueue, code) end,
+  queueLuaCommand = function(_, code)
+    if code:find("extensions.load('gameControllerVehicle')", 1, true) then veLoads = veLoads + 1 end
+    table.insert(veQueue, code)
+  end,
 }
 ge.be = {
   getPlayerVehicle = function(_, i)
@@ -707,6 +711,34 @@ do
   local bad = {}
   for i = before + 1, #logs do if logs[i]:sub(1, 1) == "E" then table.insert(bad, logs[i]) end end
   check(#bad == 0, "trailer: no errors logged: " .. table.concat(bad, " | "))
+end
+
+-- Ctrl+R twice on the same car, each time the first load is lost: both get the quick retry
+for round = 1, 2 do
+  ve.gameControllerVehicle.setActive(false) -- the reloaded car's Lua is fresh and quiet
+  link.onVehicleSpawned(7)
+  veQueue = {} -- the first load is lost
+  local before = veLoads
+  pump(14) -- 0.7 s
+  check(veLoads - before >= 1, "Ctrl+R " .. round .. ": lost load retried within 0.7 s, retries " .. (veLoads - before))
+  pump(10)
+  check(merged()["ignition"] ~= nil, "Ctrl+R " .. round .. ": car reports again")
+end
+
+-- socket.tcp() failing: one warning, however many retries
+do
+  local realTcp = socket.tcp
+  socket.tcp = function() return nil, "no buffer space" end
+  if client then client:close() end
+  client = nil
+  pump(200) -- 10 s, three or more retries
+  local warnings = 0
+  for _, l in ipairs(logs) do if l:find("could not create a socket", 1, true) then warnings = warnings + 1 end end
+  check(warnings == 1, "socket failure warned once over several retries, got " .. warnings)
+  check(link._status() == "idle", "still idle while sockets can't be created")
+  socket.tcp = realTcp
+  pump(80)
+  check(client ~= nil and link._status() == "connected", "connects once sockets work again")
 end
 
 -- no errors logged by the mod

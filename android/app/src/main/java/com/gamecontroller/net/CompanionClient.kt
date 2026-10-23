@@ -149,6 +149,7 @@ class CompanionClient(
                 host?.let { settings.saveToken(it, msg.token) }
                 settings.saveNamedToken(msg.serverName, msg.token)
                 settings.lastServerName = msg.serverName
+                settings.lastServerHost = host
                 session = msg.session
                 udpPort = msg.udpPort
                 lastPong = System.currentTimeMillis()
@@ -391,7 +392,9 @@ class CompanionClient(
         val idle = _state.value.status in setOf(
             ConnectionStatus.DISCONNECTED, ConnectionStatus.ERROR, ConnectionStatus.SEARCHING, ConnectionStatus.CONNECTING,
         ) && !isConnected
-        if (idle && !userDisconnected && s.name == settings.lastServerName && s.host != host && settings.namedToken(s.name) != null) {
+        // Only while the app is retrying that same PC's old address: a PC the user picked since is never overridden (A-2).
+        val retryingLast = host == null || host == settings.lastServerHost
+        if (idle && retryingLast && !userDisconnected && s.name == settings.lastServerName && s.host != host && settings.namedToken(s.name) != null) {
             connect(if (s.host.contains(':')) "[${s.host}]:${s.wsPort}" else "${s.host}:${s.wsPort}")
         }
     }
@@ -466,4 +469,8 @@ class Settings(context: Context) {
     var lastServerName: String?
         get() = prefs.getString("lastServerName", null)
         set(v) = prefs.edit().putString("lastServerName", v).apply()
+    /** The address [lastServerName] last welcomed this phone on. */
+    var lastServerHost: String?
+        get() = prefs.getString("lastServerHost", null)
+        set(v) = prefs.edit().putString("lastServerHost", v).apply()
 }

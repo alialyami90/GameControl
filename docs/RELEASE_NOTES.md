@@ -45,7 +45,7 @@ the companion's PIN once. Later versions install over 1.0 directly.
 
 ## Known limits
 
-- Keep GameCtl on screen while playing. Leaving it releases every control.
+- Keep GameCtl on screen while playing. Leaving it lets go of held buttons and sliders; toggles stay on.
 - Some phone makers remove Bluetooth HID support; on those phones use the companion over Wi-Fi.
 - When the phone pairs over Bluetooth, Windows may switch the PC's sound to the phone. INSTALL explains how to turn that off.
 - BeamNG: a held `action.*` command that targets the player's car is released in the new car after a vehicle switch

@@ -76,7 +76,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public bool IsWindows => _platform.IsWindows;
     public string ConfigPath => Host.Store.Path;
-    public string LogPath => Path.Combine(Path.GetDirectoryName(ConfigPath) ?? ".", "companion.log");
+    public string LogPath => Path.Combine(Path.GetDirectoryName(ConfigPath) ?? ".", App.SecondInstance ? "companion-second.log" : "companion.log");
     /// <summary>The product version from Directory.Build.props (InformationalVersion), as shown to people.</summary>
     public static string Version { get; } =
         typeof(MainViewModel).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
@@ -530,8 +530,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception e)
         {
-            // Usually the file is locked for a moment by antivirus or a sync client.
-            SettingsNote = $"Not saved: {Host.Store.Path} could not be written ({e.Message}). Try again in a moment.";
+            SettingsNote = Host.Store.WriteBlocked != null
+                // Blocked at start-up: no retry can succeed before a restart, so say what the banner says.
+                ? $"Not saved: {Host.Store.LoadNote}"
+                // Usually the file is locked for a moment by antivirus or a sync client.
+                : $"Not saved: {Host.Store.Path} could not be written ({e.Message}). Try again in a moment.";
             Host.Log("error", SettingsNote);
             return;
         }

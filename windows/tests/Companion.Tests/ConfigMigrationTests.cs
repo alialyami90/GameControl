@@ -102,6 +102,19 @@ public class ConfigMigrationTests
         (schema is { } v ? Beta2File(CompanionConfig.HashToken(token)).Replace("\"serverName\"", $"\"schema\": {v}, \"futureThing\": {{ \"x\": 1 }}, \"serverName\"") : Beta2File(CompanionConfig.HashToken(token)));
 
     [Fact]
+    public void A_repeated_key_is_treated_as_unreadable_not_a_crash()
+    {
+        var path = TempPath();
+        const string text = """{ "serverName": "A", "serverName": "B", "devices": [] }""";
+        File.WriteAllText(path, text);
+        var store = new ConfigStore(path); // threw ArgumentException in RC2
+        Assert.Contains("could not be read", store.LoadNote);
+        Assert.Null(store.WriteBlocked); // set aside, so saving is safe
+        var aside = Assert.Single(Directory.GetFiles(Path.GetDirectoryName(path)!, Path.GetFileName(path) + ".unreadable-*"));
+        Assert.Equal(text, File.ReadAllText(aside));
+    }
+
+    [Fact]
     public void A_briefly_locked_file_is_read_after_a_retry()
     {
         var path = TempPath();

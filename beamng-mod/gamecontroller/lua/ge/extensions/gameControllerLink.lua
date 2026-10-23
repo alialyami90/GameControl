@@ -364,6 +364,7 @@ local function onVehicleState(id, json, full)
   end
   vehicleSilence = 0
   vehicleId = id
+  attachTries = 0 -- it answered: the next reload of this car gets the quick retry again
   local values = decode(json) or {}
   if full then
     for k in pairs(vehicleKeys) do state[k] = nil end

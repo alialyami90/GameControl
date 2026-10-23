@@ -238,12 +238,12 @@ public sealed class CompanionHost : IDisposable
         }
     }
 
+    string? _lastScanError;
+
     /// <summary>
     /// The SetupAPI walk can take tens of milliseconds (more while Windows is adding a device), so it runs
     /// here rather than on the 100 ms input tick, where it would delay auto-release and idle checks.
     /// </summary>
-    string? _lastScanError;
-
     async Task ScanBluetoothLoop(CancellationToken stop)
     {
         using var timer = new PeriodicTimer(_options.BluetoothScanInterval);

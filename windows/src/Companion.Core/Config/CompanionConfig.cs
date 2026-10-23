@@ -116,7 +116,9 @@ public sealed class ConfigStore
         note = null;
         if (!File.Exists(path)) return new CompanionConfig();
 
-        // Antivirus, backup and sync clients (OneDrive) hold the file for a moment: retry for about 3 s.
+        // Antivirus, backup and sync clients (OneDrive) hold the file for a moment: 6 reads, 1.5 s of waits
+        // in all (100 + 200 + ... + 500 ms). This runs once at start-up, before the window is shown, so the
+        // wait is kept short; a lock that outlasts it leaves the file untouched (WriteBlocked) instead.
         string json;
         for (int attempt = 1; ; attempt++)
         {
@@ -142,7 +144,7 @@ public sealed class ConfigStore
             hadSchema = node is System.Text.Json.Nodes.JsonObject o && o.Any(kv => string.Equals(kv.Key, "schema", StringComparison.OrdinalIgnoreCase));
             config = JsonSerializer.Deserialize<CompanionConfig>(json, Options) ?? new CompanionConfig();
         }
-        catch (Exception e) when (e is JsonException or NotSupportedException or InvalidOperationException)
+        catch (Exception e) // the file is already in memory, so anything here is its content (bad JSON, a repeated key, a wrong type)
         {
             // Really unreadable: keep it next to the new one. If even that fails, never save over it.
             var aside = $"{path}.unreadable-{DateTime.Now:yyyyMMdd-HHmmss}";
