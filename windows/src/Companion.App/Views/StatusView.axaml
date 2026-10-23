@@ -28,6 +28,16 @@
           <TextBlock Grid.Column="1" Margin="12,1,0,0" Text="{Binding ServiceBanner}" Classes="wrap" />
         </Grid>
       </c:Plate>
+      <c:Plate Classes="banner attention" IsVisible="{Binding BluetoothOnlyBanner, Converter={x:Static c:Converters.NotEmpty}}">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <c:RigIcon Kind="bluetooth" Size="22" Foreground="{StaticResource Amber}" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Margin="12,0,16,0" Text="{Binding BluetoothOnlyBanner}" Classes="wrap" VerticalAlignment="Center" />
+          <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
+            <TextBlock Text="WI-FI" Classes="label" />
+            <TextBlock Text="Not linked" FontFamily="{StaticResource CondBold}" FontWeight="Bold" FontStyle="Italic" FontSize="16" Padding="0,0,4,0" Foreground="{StaticResource Amber}" />
+          </StackPanel>
+        </Grid>
+      </c:Plate>
       <c:Plate Classes="banner attention" IsVisible="{Binding BlockedBanner, Converter={x:Static c:Converters.NotEmpty}}">
         <Grid ColumnDefinitions="Auto,*">
           <c:RigIcon Kind="warning" Size="22" Foreground="{StaticResource Amber}" VerticalAlignment="Top" />

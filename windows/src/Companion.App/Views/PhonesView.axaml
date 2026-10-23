@@ -62,7 +62,10 @@
                       <ColumnDefinition Width="Auto" SharedSizeGroup="pa" /><ColumnDefinition Width="Auto" SharedSizeGroup="bt" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center" MinWidth="130" ClipToBounds="True">
-                      <c:RigIcon Kind="phone" Size="22" Foreground="{StaticResource InkMuted}" />
+                      <Panel>
+                        <c:RigIcon Kind="phone" Size="22" Foreground="{StaticResource InkMuted}" IsVisible="{Binding IsPaired}" />
+                        <c:RigIcon Kind="bluetooth" Size="22" Foreground="{StaticResource InkMuted}" IsVisible="{Binding !IsPaired}" />
+                      </Panel>
                       <StackPanel>
                         <TextBlock Text="{Binding Name}" Classes="h3" TextTrimming="CharacterEllipsis" />
                         <TextBlock Text="{Binding Address}" Classes="small faint num" IsVisible="{Binding Connected}" />
@@ -79,7 +82,7 @@
                     <TextBlock Grid.Column="3" Text="{Binding Events}" Classes="readout" FontSize="18" MinWidth="56" Margin="12,0,0,0" TextAlignment="Right" VerticalAlignment="Center" />
                     <TextBlock Grid.Column="4" Text="{Binding LastSeenText}" Classes="muted wide" MinWidth="84" Margin="20,0,0,0" VerticalAlignment="Center" />
                     <TextBlock Grid.Column="5" Text="{Binding PairedText}" Classes="muted wide extra" MinWidth="88" Margin="12,0,0,0" VerticalAlignment="Center" />
-                    <Button Grid.Column="6" Classes="danger" HorizontalAlignment="Right" Margin="12,0,0,0" Content="FORGET"
+                    <Button Grid.Column="6" Classes="danger" HorizontalAlignment="Right" Margin="12,0,0,0" Content="FORGET" IsVisible="{Binding IsPaired}"
                             Command="{Binding $parent[UserControl].((vm:MainViewModel)DataContext).ForgetCommand}" CommandParameter="{Binding}"
                             ToolTip.Tip="Removes this phone. It needs the PIN to connect again." />
                   </Grid>

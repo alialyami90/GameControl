@@ -64,6 +64,7 @@ public partial class App : Application
             BuildTray();
             _host.Pairing.PinChanged += () => Avalonia.Threading.Dispatcher.UIThread.Post(UpdateTray);
             _host.SessionsChanged += () => Avalonia.Threading.Dispatcher.UIThread.Post(UpdateTray);
+            _host.BluetoothChanged += () => Avalonia.Threading.Dispatcher.UIThread.Post(UpdateTray);
             UpdateTray();
 
             if (!(StartMinimized || store.Config.StartMinimized)) ShowWindow();
@@ -131,9 +132,12 @@ public partial class App : Application
     void UpdateTray()
     {
         if (_tray == null || _host == null) return;
-        int n = _host.Sessions.Count;
+        var phones = _host.Phones();
+        int n = phones.Count, btOnly = phones.Count(p => p.Wifi == null);
         var pin = _host.Pairing.Pin;
-        _tray.ToolTipText = n == 0 ? $"Game Controller: waiting for a phone (PIN {pin})" : $"Game Controller: {n} phone{(n == 1 ? "" : "s")} connected";
+        _tray.ToolTipText = n == 0 ? $"Game Controller: waiting for a phone (PIN {pin})"
+            : btOnly == n ? $"Game Controller: {n} phone{(n == 1 ? "" : "s")} on Bluetooth only (Wi-Fi not linked, PIN {pin})"
+            : $"Game Controller: {n} phone{(n == 1 ? "" : "s")} connected" + (btOnly > 0 ? $", {btOnly} on Bluetooth only" : "");
         if (_pinItem != null) _pinItem.Header = $"Pairing PIN  {pin[..3]} {pin[3..]}";
         _iconLive ??= LoadIcon("tray.png");
         _iconIdle ??= LoadIcon("tray-idle.png");

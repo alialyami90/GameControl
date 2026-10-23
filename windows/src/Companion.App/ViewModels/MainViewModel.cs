@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GameController.Companion.App.Controls;
 using GameController.Companion.App.Services;
+using GameController.Companion.Engine;
 using GameController.Companion.Input;
 using GameController.Companion.Net;
 using GameController.Companion.Protocol;
@@ -50,6 +51,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _addresses = "";
     [ObservableProperty] private string _portsText = "";
     [ObservableProperty] private int _connectedCount;
+    /// <summary>Phones linked over Wi-Fi (the companion's own link); <see cref="ConnectedCount"/> also counts Bluetooth.</summary>
+    [ObservableProperty] private int _wifiCount;
+    [ObservableProperty] private string? _bluetoothOnlyBanner;
     [ObservableProperty] private IReadOnlyList<SignalNode> _phoneNodes = Array.Empty<SignalNode>();
     [ObservableProperty] private IReadOnlyList<SignalNode> _outputNodes = Array.Empty<SignalNode>();
     [ObservableProperty] private string _hubDetail = "";
@@ -77,8 +81,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public bool HasConnected => ConnectedCount > 0;
     partial void OnConnectedCountChanged(int value) => OnPropertyChanged(nameof(HasConnected));
     public bool HasActivity => Activity.Count > 0;
-    public bool PinIsAttention => ConnectedCount == 0;
-    public string PinHint => ConnectedCount == 0
+    /// <summary>The PIN is what the Wi-Fi link needs, so it stays the thing to look at until one exists.</summary>
+    public bool PinIsAttention => WifiCount == 0;
+    public string PinHint => WifiCount == 0
         ? $"Open the phone app, tap Connect, pick {ServerName} and type this PIN."
         : "To add another phone, type this PIN on it. It changes after each pairing.";
 
@@ -112,6 +117,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Host.Logged += logged; _unsubscribe.Add(() => Host.Logged -= logged);
         Host.GameState += game; _unsubscribe.Add(() => Host.GameState -= game);
         Host.Router.Activity += activity; _unsubscribe.Add(() => Host.Router.Activity -= activity);
+        Host.BluetoothChanged += phones; _unsubscribe.Add(() => Host.BluetoothChanged -= phones);
 
         LoadSettings();
         RefreshPin();
@@ -152,31 +158,72 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     void RefreshPhones()
     {
         var sessions = Host.Sessions.ToList();
+        var pads = Host.BluetoothPads;
+        var linked = Host.Phones();
         var known = Host.Config.Devices.ToList();
+
+        // Which paired row a Bluetooth pad belongs to: the Wi-Fi phone it was merged with, else the
+        // only paired phone. Anything left gets a row of its own.
+        var padFor = new Dictionary<string, BluetoothPad>();
+        var spare = new List<BluetoothPad>();
+        foreach (var l in linked.Where(l => l.Bluetooth != null))
+        {
+            if (l.Wifi != null) padFor[l.Wifi.DeviceId] = l.Bluetooth!;
+            else spare.Add(l.Bluetooth!);
+        }
+        if (spare.Count > 0 && padFor.Count == 0 && sessions.Count == 0 && known.Count == 1)
+        {
+            padFor[known[0].DeviceId] = spare[0];
+            spare.RemoveAt(0);
+        }
+
         var rows = new List<PhoneRow>();
         foreach (var d in known.OrderByDescending(d => d.LastSeen))
         {
             var s = sessions.FirstOrDefault(x => x.DeviceId == d.DeviceId);
+            bool bt = padFor.ContainsKey(d.DeviceId);
             rows.Add(new PhoneRow
             {
                 DeviceId = d.DeviceId,
                 Name = d.DeviceName,
-                Connected = s != null,
-                Address = s?.RemoteAddress.ToString() ?? "",
+                Wifi = s != null,
+                Bluetooth = bt,
+                Address = s?.RemoteAddress.ToString() ?? (bt ? "Bluetooth controller" : ""),
                 Profile = s?.ProfileId is { Length: > 0 } pid ? pid : (s != null ? "No profile loaded yet" : ""),
                 Events = s != null ? Interlocked.Read(ref s.EventCount) : 0,
                 PairedText = d.PairedAt.LocalDateTime.ToString("d MMM yyyy"),
-                LastSeenText = s != null ? "now" : Ago(d.LastSeen),
+                LastSeenText = s != null || bt ? "now" : Ago(d.LastSeen),
             });
         }
+        foreach (var pad in spare)
+            rows.Add(new PhoneRow
+            {
+                DeviceId = "bt:" + pad.Id,
+                Name = pad.Name,
+                Bluetooth = true,
+                IsPaired = false,
+                Address = "Bluetooth controller",
+                Profile = "Not linked over Wi-Fi",
+                LastSeenText = "now",
+            });
         Phones.Clear();
         foreach (var r in rows) Phones.Add(r);
 
-        ConnectedCount = sessions.Count;
-        PhoneNodes = sessions.Select(s => new SignalNode(s.DeviceId, s.DeviceName,
-            s.ProfileId is { Length: > 0 } p ? $"{s.Engine.BindingCount} controls · {p}" : s.RemoteAddress.ToString(),
-            "phone", NodeState.Live)).ToList();
-        Nav[1].Badge = sessions.Count > 0 ? sessions.Count.ToString() : null;
+        WifiCount = sessions.Count;
+        ConnectedCount = linked.Count;
+        PhoneNodes = linked.Select(l =>
+        {
+            var links = new[] { new LinkTag("WI-FI", l.Wifi != null), new LinkTag("BT", l.Bluetooth != null) };
+            if (l.Wifi is { } s)
+                return new SignalNode(l.Key, s.DeviceName,
+                    s.ProfileId is { Length: > 0 } p ? $"{s.Engine.BindingCount} controls · {p}" : s.RemoteAddress.ToString(),
+                    "phone", NodeState.Live, links);
+            return new SignalNode(l.Key, l.Name, "Bluetooth · Wi-Fi not linked", "bluetooth", NodeState.Ready, links);
+        }).ToList();
+        BluetoothOnlyBanner = linked.Any(l => l.Wifi == null)
+            ? "A phone is connected over Bluetooth, so its controls reach Windows directly. Lamps, game state and BeamNG commands need the Wi-Fi link too: in the app tap Connect, pick this PC and type the PIN."
+            : null;
+        Nav[1].Badge = linked.Count > 0 ? linked.Count.ToString() : null;
         OnPropertyChanged(nameof(HasPhones));
         OnPropertyChanged(nameof(PinIsAttention));
         OnPropertyChanged(nameof(PinHint));
@@ -252,8 +299,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         RailHealth = !servicesOk ? "A listener failed" : ConnectedCount switch
         {
             0 => "Waiting for a phone",
-            1 => "1 phone connected",
-            var n => $"{n} phones connected",
+            1 => WifiCount == 0 ? "1 phone · Bluetooth only" : "1 phone connected",
+            var n => WifiCount < n ? $"{n} phones · {n - WifiCount} Bluetooth only" : $"{n} phones connected",
         };
     }
 

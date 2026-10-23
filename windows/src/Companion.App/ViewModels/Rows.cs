@@ -17,15 +17,28 @@ public sealed partial class PhoneRow : ObservableObject
 {
     public required string DeviceId { get; init; }
     [ObservableProperty] private string _name = "";
-    [ObservableProperty] private bool _connected;
+    /// <summary>Linked to the companion over Wi-Fi (lamps, game state, BeamNG commands).</summary>
+    [ObservableProperty] private bool _wifi;
+    /// <summary>Connected to Windows as the GameCtl Pad Bluetooth controller.</summary>
+    [ObservableProperty] private bool _bluetooth;
+    /// <summary>False for a Bluetooth pad that matches no paired phone (nothing to forget).</summary>
+    public bool IsPaired { get; init; } = true;
     [ObservableProperty] private string _address = "";
     [ObservableProperty] private string _profile = "";
     [ObservableProperty] private long _events;
     [ObservableProperty] private string _pairedText = "";
     [ObservableProperty] private string _lastSeenText = "";
 
-    public string StatusText => Connected ? "Connected" : "Offline";
-    partial void OnConnectedChanged(bool value) => OnPropertyChanged(nameof(StatusText));
+    public bool Connected => Wifi || Bluetooth;
+    public string StatusText => (Wifi, Bluetooth) switch
+    {
+        (true, true) => "Wi-Fi + Bluetooth",
+        (true, false) => "Wi-Fi",
+        (false, true) => "Bluetooth only",
+        _ => "Offline",
+    };
+    partial void OnWifiChanged(bool value) { OnPropertyChanged(nameof(StatusText)); OnPropertyChanged(nameof(Connected)); }
+    partial void OnBluetoothChanged(bool value) { OnPropertyChanged(nameof(StatusText)); OnPropertyChanged(nameof(Connected)); }
 }
 
 public sealed partial class OutputRow : ObservableObject

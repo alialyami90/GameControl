@@ -29,6 +29,8 @@ public sealed class HostOptions
     public IPAddress Bind { get; init; } = IPAddress.Any;
     /// <summary>The phone pings every 2 s; after this much silence its session is closed and released.</summary>
     public TimeSpan IdleTimeout { get; init; } = TimeSpan.FromSeconds(8);
+    /// <summary>Finds the phone's Bluetooth HID controller (Windows: SetupAPI); none elsewhere.</summary>
+    public IBluetoothPads BluetoothPads { get; init; } = new NoBluetoothPads();
 }
 
 /// <summary>
@@ -57,6 +59,9 @@ public sealed class CompanionHost : IDisposable
     Timer? _timer;
     int _tickCount;
     int _ticking;
+    IReadOnlyList<BluetoothPad> _pads = Array.Empty<BluetoothPad>();
+    string _padsKey = "";
+    readonly object _padsGate = new();
     IReadOnlySet<IPAddress> _localAddresses = new HashSet<IPAddress>();
     long _localAddressesAtMs = long.MinValue;
 
@@ -67,6 +72,12 @@ public sealed class CompanionHost : IDisposable
     public CompanionConfig Config => _store.Config;
 
     public IReadOnlyCollection<PhoneSession> Sessions => _sessions.Values.ToList();
+    /// <summary>GameCtl Pad devices connected over Bluetooth right now (refreshed every 2 s).</summary>
+    public IReadOnlyList<BluetoothPad> BluetoothPads => Volatile.Read(ref _pads);
+    /// <summary>Sessions and pads paired up, one entry per phone (see <see cref="PhoneLinks.Merge"/>).</summary>
+    public List<LinkedPhone> Phones() => PhoneLinks.Merge(Sessions.OrderBy(s => s.DeviceName).ToList(), BluetoothPads);
+    /// <summary>A Bluetooth pad connected or disconnected.</summary>
+    public event Action? BluetoothChanged;
     public IReadOnlyCollection<ServiceStatus> Services => _status.Values.OrderBy(s => s.Name).ToList();
     public bool OutGaugeActive => Environment.TickCount64 - Interlocked.Read(ref _lastOutGaugeMs) < OutGaugeStale.TotalMilliseconds;
 
@@ -152,6 +163,7 @@ public sealed class CompanionHost : IDisposable
             });
 
         _lastCapabilities = Capabilities().ToJsonString();
+        ScanBluetooth();
         _timer = new Timer(_ => Tick(), null, 100, 100);
         Log("info", $"Companion ready as \"{c.ServerName}\". Pairing PIN {Pairing.Pin}");
     }
@@ -187,6 +199,7 @@ public sealed class CompanionHost : IDisposable
         foreach (var s in _sessions.Values) s.Engine.Tick(now);
         DropIdleSessions();
         FlushOutGauge(now);
+        if (_tickCount % 20 == 0) ScanBluetooth();
 
         bool active = OutGaugeActive;
         if (active != _outgaugeWasActive)
@@ -205,6 +218,30 @@ public sealed class CompanionHost : IDisposable
             try { changed |= Router.XInput.Refresh(); } catch { }
             if (changed) { PushCapabilities(); StatusChanged?.Invoke(); }
         }
+    }
+
+    /// <summary>
+    /// Polls for the Bluetooth pad. Polling every 2 s keeps this testable and cheap (one SetupAPI walk);
+    /// a pad that is switched off or out of range drops out because Windows removes its HID interface.
+    /// </summary>
+    public void ScanBluetooth()
+    {
+        IReadOnlyList<BluetoothPad> now, before;
+        lock (_padsGate)
+        {
+            try { now = _options.BluetoothPads.Present(); }
+            catch (Exception) { return; }
+            var key = string.Join("|", now.Select(p => p.Id).Order());
+            if (key == _padsKey) return;
+            before = _pads;
+            _padsKey = key;
+            Volatile.Write(ref _pads, now);
+        }
+        foreach (var p in now.Where(p => before.All(b => b.Id != p.Id)))
+            Log("info", $"{p.Name} connected over Bluetooth (controls go straight to Windows; lamps and BeamNG commands need the Wi-Fi link)");
+        foreach (var p in before.Where(b => now.All(x => x.Id != b.Id)))
+            Log("info", $"{p.Name} disconnected from Bluetooth");
+        BluetoothChanged?.Invoke();
     }
 
     void DropIdleSessions()

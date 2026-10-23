@@ -1,3 +1,4 @@
+using GameController.Companion.Engine;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
@@ -53,7 +54,8 @@ c.ServerName = "RIG-PC";
 c.WsPort = FreeTcp(); c.UdpPort = FreeUdp(); c.DiscoveryPort = FreeUdp(); c.BeamNgPort = FreeTcp(); c.OutGaugePort = FreeUdp();
 c.EnableMdns = false;
 var platform = PlatformFactory.Create(c);
-var host = new CompanionHost(store, platform.Router, platform.Options);
+var pads = new SnapPads();
+var host = new CompanionHost(store, platform.Router, new HostOptions { Identity = platform.Options.Identity, BluetoothPads = pads });
 var vm = new MainViewModel(host, platform);
 host.Pairing.UsePin("482913");
 host.Start();
@@ -68,6 +70,14 @@ vm.GoCommand.Execute("phones"); Snap(win, "02-phones-empty");
 vm.GoCommand.Execute("outputs"); Snap(win, "03-outputs");
 vm.GoCommand.Execute("settings"); Snap(win, "04-settings");
 vm.GoCommand.Execute("status");
+
+// 1b. The phone connects over Bluetooth only (controls work, Wi-Fi not linked yet).
+pads.Now.Add(new BluetoothPad("pad-1", "GameCtl Pad"));
+host.ScanBluetooth(); Pump(300);
+Snap(win, "12-status-bluetooth-only");
+vm.GoCommand.Execute("phones"); Snap(win, "13-phones-bluetooth-only");
+vm.GoCommand.Execute("status");
+// From here on the same phone also links over Wi-Fi, so live shots show both links.
 
 // 2. Live: phone pairs, mod connects, inputs flow.
 var ws = new ClientWebSocket();
@@ -125,3 +135,9 @@ vm.GoCommand.Execute("phones"); Pump(200); Snap(win, "11-phones-min-size");
 
 host.Dispose();
 return 0;
+
+sealed class SnapPads : IBluetoothPads
+{
+    public List<BluetoothPad> Now { get; } = new();
+    public IReadOnlyList<BluetoothPad> Present() => Now.ToList();
+}

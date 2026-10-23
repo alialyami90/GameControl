@@ -14,6 +14,13 @@ public sealed class HostIntegrationTests : IDisposable
     readonly RecordingOutputs _out = new();
     readonly CompanionHost _host;
     readonly ConfigStore _store;
+    readonly FakePads _pads = new();
+
+    sealed class FakePads : GameController.Companion.Engine.IBluetoothPads
+    {
+        public List<GameController.Companion.Engine.BluetoothPad> Now { get; } = new();
+        public IReadOnlyList<GameController.Companion.Engine.BluetoothPad> Present() { lock (Now) return Now.ToList(); }
+    }
 
     static int FreeTcp() { var l = new TcpListener(IPAddress.Loopback, 0); l.Start(); int p = ((IPEndPoint)l.LocalEndpoint).Port; l.Stop(); return p; }
     static int FreeUdp() { using var u = new UdpClient(0); return ((IPEndPoint)u.Client.LocalEndPoint!).Port; }
@@ -25,7 +32,7 @@ public sealed class HostIntegrationTests : IDisposable
         c.ServerName = "TEST";
         c.WsPort = FreeTcp(); c.UdpPort = FreeUdp(); c.DiscoveryPort = FreeUdp(); c.BeamNgPort = FreeTcp(); c.OutGaugePort = FreeUdp();
         c.EnableMdns = false;
-        _host = new CompanionHost(_store, new InputRouter(_out, _out, _out), new HostOptions { Bind = IPAddress.Loopback, IdleTimeout = TimeSpan.FromSeconds(1.5) });
+        _host = new CompanionHost(_store, new InputRouter(_out, _out, _out), new HostOptions { Bind = IPAddress.Loopback, IdleTimeout = TimeSpan.FromSeconds(1.5), BluetoothPads = _pads });
         _host.Pairing.UsePin("424242");
         _host.Start();
     }
@@ -255,6 +262,37 @@ public sealed class HostIntegrationTests : IDisposable
         Assert.ThrowsAny<Exception>(() => _host.ForgetDevice("dev1"));
         Assert.Empty(_host.Sessions);
         Assert.Contains("key H up", _out.Log);
+    }
+
+    [Fact]
+    public async Task Bluetooth_pad_is_shown_and_counted_once_with_its_wifi_link()
+    {
+        int changes = 0;
+        _host.BluetoothChanged += () => Interlocked.Increment(ref changes);
+
+        // Bluetooth only: one phone, no Wi-Fi link.
+        lock (_pads.Now) _pads.Now.Add(new("pad1", "GameCtl Pad"));
+        _host.ScanBluetooth();
+        var only = Assert.Single(_host.Phones());
+        Assert.Null(only.Wifi);
+        Assert.Equal("GameCtl Pad", only.Name);
+        Assert.Equal(1, changes);
+        _host.ScanBluetooth();
+        Assert.Equal(1, changes); // no change, no event
+
+        // The same phone links over Wi-Fi too: still one phone, with both links.
+        var (p, _, _) = await Pair();
+        await using var _p = p;
+        var both = Assert.Single(_host.Phones());
+        Assert.NotNull(both.Wifi);
+        Assert.NotNull(both.Bluetooth);
+
+        // Pad switched off: it drops out, the Wi-Fi link stays.
+        lock (_pads.Now) _pads.Now.Clear();
+        _host.ScanBluetooth();
+        var wifi = Assert.Single(_host.Phones());
+        Assert.Null(wifi.Bluetooth);
+        Assert.Equal(2, changes);
     }
 
     [Fact]

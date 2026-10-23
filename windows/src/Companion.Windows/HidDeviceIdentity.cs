@@ -36,7 +36,7 @@ public sealed class HidDeviceIdentity : IDeviceIdentity
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     static extern SafeFileHandle CreateFile(string name, uint access, uint share, IntPtr sec, uint disposition, uint flags, IntPtr template);
 
-    public sealed record HidInfo(string Product, ushort Vid, ushort Pid)
+    public sealed record HidInfo(string Product, ushort Vid, ushort Pid, string Path = "")
     {
         public string VidPid => $"{Pid:x4}{Vid:x4}";
     }
@@ -73,7 +73,7 @@ public sealed class HidDeviceIdentity : IDeviceIdentity
                     Marshal.WriteInt32(buf, IntPtr.Size == 8 ? 8 : 6);
                     if (!SetupDiGetDeviceInterfaceDetail(set, ref data, buf, size, out _, IntPtr.Zero)) continue;
                     var path = Marshal.PtrToStringUni(buf + 4);
-                    if (path != null && Read(path) is { } info) list.Add(info);
+                    if (path != null && Read(path) is { } info) list.Add(info with { Path = path });
                 }
                 finally { Marshal.FreeHGlobal(buf); }
             }
@@ -93,4 +93,22 @@ public sealed class HidDeviceIdentity : IDeviceIdentity
         string product = HidD_GetProductString(h, name, name.Length) ? Encoding.Unicode.GetString(name).TrimEnd('\0').Split('\0')[0] : "";
         return new HidInfo(product, attr.VendorID, attr.ProductID);
     }
+}
+
+/// <summary>
+/// The phone's Bluetooth controller as Windows sees it: present HID interfaces whose product string is
+/// "GameCtl Pad". A classic Bluetooth HID device only has HID interfaces while its link is up, and
+/// opening one must succeed, so a paired pad that is switched off or out of range is not listed.
+/// </summary>
+[SupportedOSPlatform("windows")]
+public sealed class WindowsBluetoothPads : IBluetoothPads
+{
+    public const string PadName = "GameCtl Pad";
+
+    public IReadOnlyList<BluetoothPad> Present() =>
+        HidDeviceIdentity.Enumerate()
+            .Where(d => d.Product.Contains(PadName, StringComparison.OrdinalIgnoreCase))
+            .Select(d => new BluetoothPad(BluetoothPadKey.FromHidPath(d.Path), d.Product))
+            .DistinctBy(p => p.Id)
+            .ToList();
 }

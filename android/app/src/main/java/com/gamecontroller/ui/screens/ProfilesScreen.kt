@@ -1,5 +1,9 @@
 package com.gamecontroller.ui.screens
 
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.layout.heightIn
 import com.gamecontroller.ui.components.BluetoothLinkBadge
 import com.gamecontroller.model.HidUi
@@ -146,11 +150,15 @@ fun ProfilesScreen(
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 300.dp),
-                    contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 120.dp),
+                    contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 24.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
+                    // New profile sits in the list as its first row, so nothing floats over the cards.
+                    item(key = "new", span = { GridItemSpan(maxLineSpan) }) {
+                        NewProfileRow { creating = true }
+                    }
                     items(profiles, key = { it.id }) { p ->
                         ProfileCard(
                             profile = p,
@@ -163,13 +171,15 @@ fun ProfilesScreen(
                 }
             }
         }
-        SlantButton(
-            text = "New profile",
-            icon = Icons.Rounded.Add,
-            onClick = { creating = true },
-            style = SlantStyle.PRIMARY,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp),
-        )
+        if (profiles.isEmpty()) {
+            SlantButton(
+                text = "New profile",
+                icon = Icons.Rounded.Add,
+                onClick = { creating = true },
+                style = SlantStyle.PRIMARY,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp),
+            )
+        }
     }
 
     if (creating) {
@@ -203,6 +213,37 @@ fun ProfilesScreen(
             dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Keep it") } },
             containerColor = Race.PanelRaised,
         )
+    }
+}
+
+/** Full-width first row of the list: a dashed slot to start a new profile, like an empty garage bay. */
+@Composable
+private fun NewProfileRow(onClick: () -> Unit) {
+    val shape = CapShape(cut = 16.dp, radius = 8.dp)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .clip(shape)
+            .clickable(onClickLabel = "Create a new profile", onClick = onClick)
+            .drawBehind {
+                drawOutline(
+                    shape.createOutline(size, layoutDirection, this),
+                    Race.LineStrong,
+                    style = Stroke(1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx()))),
+                )
+            }
+            .padding(horizontal = 20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(32.dp).clip(SlantShape()).background(Race.Electric), contentAlignment = Alignment.Center) {
+            Icon(Icons.Rounded.Add, contentDescription = null, tint = OnAccent, modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text("NEW PROFILE", style = RaceType.capLabelLarge.copy(fontStyle = FontStyle.Italic), color = Race.Ink)
+            Text("Start empty for any game, or duplicate a built-in from its menu.", style = MaterialTheme.typography.bodySmall, color = Race.InkMuted)
+        }
     }
 }
 

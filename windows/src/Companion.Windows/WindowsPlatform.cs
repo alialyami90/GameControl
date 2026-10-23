@@ -20,6 +20,7 @@ public static class WindowsPlatform
     public static HostOptions Options() => new()
     {
         Identity = new HidDeviceIdentity(),
+        BluetoothPads = new WindowsBluetoothPads(),
         PlatformMdns = c => new WindowsMdns(c.ServerName, ProtocolInfo.MdnsService, (ushort)c.WsPort,
             new Dictionary<string, string> { ["v"] = ProtocolInfo.Version.ToString(), ["name"] = c.ServerName, ["udp"] = c.UdpPort.ToString() }),
     };

@@ -8,7 +8,10 @@ namespace GameController.Companion.App.Controls;
 public enum NodeState { Off, Ready, Live, Attention, Failed }
 
 /// <summary>One box on the signal path: a phone on the left, an output on the right.</summary>
-public sealed record SignalNode(string Key, string Title, string Detail, string Icon, NodeState State);
+public sealed record SignalNode(string Key, string Title, string Detail, string Icon, NodeState State, IReadOnlyList<LinkTag>? Links = null);
+
+/// <summary>A link a phone node shows as a small tag ("WI-FI", "BT"): filled when up, hollow when not.</summary>
+public sealed record LinkTag(string Label, bool Up);
 
 /// <summary>
 /// The companion's signature: wires from each phone, through this PC, to each output. When an
@@ -165,7 +168,8 @@ public sealed class SignalPath : Control
         // Wires first, nodes on top.
         for (int i = 0; i < phones.Count; i++)
         {
-            bool linked = phones[i].State is NodeState.Live or NodeState.Ready;
+            // The wire is the Wi-Fi link to this PC; a Bluetooth-only phone reaches Windows around it.
+            bool linked = phones[i].Links is { } tags ? tags.Any(t => t.Label == "WI-FI" && t.Up) : phones[i].State is NodeState.Live or NodeState.Ready;
             DrawWire(ctx, phoneCurves[i], linked, Heat("ph:" + phones[i].Key, now), Electric);
         }
         for (int i = 0; i < Outputs.Count; i++)
@@ -281,8 +285,20 @@ public sealed class SignalPath : Control
         var iconColor = n.State switch { NodeState.Live => Electric, NodeState.Off => InkFaint, NodeState.Attention => Amber, NodeState.Failed => Red, _ => Ink };
         DrawIcon(ctx, n.Icon, new Rect(well.X + 8, well.Y + 8, 22, 22), iconColor);
 
-        double tx = well.Right + 10, tw = r.Right - tx - 26;
+        double tx = well.Right + 10;
         var titleInk = n.State == NodeState.Off ? InkMuted : Ink;
+        if (n.Links is { Count: > 0 } links)
+        {
+            // Phone: the name gets the whole first line; the link tags lead the second, then the detail.
+            double full = r.Right - tx - 14;
+            DrawText(ctx, n.Title, TitleFace, r.Width >= 190 ? 16 : 14.5, titleInk, new Point(tx, r.Y + 8), full);
+            double used = DrawLinkTags(ctx, links, new Point(tx, r.Y + 32));
+            if (full - used > 40)
+                DrawText(ctx, n.Detail, DetailFace, 12.5, InkMuted, new Point(tx + used + 6, r.Y + 31), full - used - 6);
+            return;
+        }
+
+        double tw = r.Right - tx - 26;
         if (r.Width >= 190)
         {
             DrawText(ctx, n.Title, TitleFace, 16, titleInk, new Point(tx, r.Y + 8), tw);
@@ -323,6 +339,27 @@ public sealed class SignalPath : Control
                 ctx.DrawEllipse(null, new Pen(lampBrush, 1.5), lc, 4, 4);
                 break;
         }
+    }
+
+    static readonly Typeface TagFace = new(new FontFamily("avares://GameControllerCompanion/Assets/Fonts#Barlow Condensed SemiBold"));
+
+    /// <summary>Small slanted tags, left to right from <paramref name="topLeft"/>: green fill when up, hollow
+    /// outline when not. Returns the width they took.</summary>
+    static double DrawLinkTags(DrawingContext ctx, IReadOnlyList<LinkTag> links, Point topLeft)
+    {
+        double x = topLeft.X;
+        foreach (var t in links)
+        {
+            var ft = Layout(t.Label, TagFace, 10.5, t.Up ? Ground : InkFaint, 60, 1);
+            double w = Math.Max(30, ft.Width + 14);
+            var rect = new Rect(x, topLeft.Y, w, 15);
+            var g = Shapes.Slant(rect);
+            if (t.Up) ctx.DrawGeometry(new SolidColorBrush(Green), null, g);
+            else ctx.DrawGeometry(null, new Pen(new SolidColorBrush(InkFaint), 1), g);
+            ctx.DrawText(ft, new Point(rect.X + (w - ft.Width) / 2, rect.Y + (15 - ft.Height) / 2));
+            x += w + 4;
+        }
+        return x - 4 - topLeft.X;
     }
 
     /// <summary>This PC: a slanted title plate, the centre of the path.</summary>

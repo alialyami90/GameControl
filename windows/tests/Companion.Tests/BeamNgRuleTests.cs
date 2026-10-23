@@ -144,6 +144,17 @@ public class BeamNgRuleTests
     }
 
     [Fact]
+    public void Rebind_then_lost_release_does_not_swallow_the_next_press()
+    {
+        var r = new Rig(B("momentary", "hazard.toggle"));
+        r.Send("c", 1);
+        r.Load(B("momentary", "camera.next"));   // edited while held; every copy of the release is lost
+        r.Now = 1500; r.Engine.Tick(r.Now);
+        r.Send("c", 1);                          // a real new press
+        Assert.Equal(new[] { ("hazard.toggle", 1.0), ("camera.next", 1.0) }, r.Commands.Sent);
+    }
+
+    [Fact]
     public void Setters_are_not_zeroed_on_session_end()
     {
         var r = new Rig(B("latching", "lights.low"));

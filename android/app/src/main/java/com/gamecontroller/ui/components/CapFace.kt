@@ -45,7 +45,8 @@ fun CapFace(
         val wide = maxWidth >= 120.dp
         // Small caps (48-64dp inside) keep the label in the compact unit style rather than dropping it.
         val showLabel = maxHeight >= 48.dp && label.isNotBlank()
-        val small = maxHeight < 64.dp
+        // Narrow caps also take the compact style, so labels like IGNITION fit instead of truncating.
+        val small = maxHeight < 64.dp || maxWidth < 76.dp
         val vector = IconLibrary[icon]
         val iconSize = (minSide * if (showLabel) 0.42f else 0.56f).coerceIn(20.dp, 56.dp)
         Column(

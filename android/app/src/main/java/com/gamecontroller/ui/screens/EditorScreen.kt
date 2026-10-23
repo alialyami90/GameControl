@@ -1,5 +1,6 @@
 package com.gamecontroller.ui.screens
 
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.ui.graphics.Brush
 import com.gamecontroller.ui.components.StatusLamp
 import com.gamecontroller.model.BindResult
@@ -403,15 +404,18 @@ private fun Palette(rail: Boolean, full: Boolean, onAdd: (ControlType) -> Unit) 
     val scroll = rememberScrollState()
     Box(Modifier.width(if (rail) 56.dp else 104.dp).fillMaxHeight()) {
         PaletteItems(rail, full, onAdd, scroll)
-        // Scroll cue: the last items fade out while more are below.
+        // Scroll cue: a lit fade and a chevron at the bottom while more items are below.
         if (scroll.canScrollForward) {
             Box(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .height(28.dp)
-                    .background(Brush.verticalGradient(listOf(Race.Ground.copy(alpha = 0f), Race.Ground))),
-            )
+                    .height(40.dp)
+                    .background(Brush.verticalGradient(listOf(Race.Ground.copy(alpha = 0f), Race.CapHigh))),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, tint = Race.Ink, modifier = Modifier.size(24.dp))
+            }
         }
     }
 }
@@ -634,10 +638,14 @@ private fun PageAndProfile(
 }
 
 /** "hid" / "vjoy1" from the companion, as a person would name the device. */
-private fun bindDeviceName(device: String): String = when {
-    device.equals("hid", ignoreCase = true) -> "the Bluetooth gamepad (GameCtl Pad)"
-    device.startsWith("vjoy", ignoreCase = true) -> "vJoy device " + device.drop(4).ifBlank { "1" }
-    else -> device
+private fun bindDeviceName(device: String): String {
+    val key = device.lowercase().filter { it.isLetterOrDigit() }
+    return when {
+        key == "hid" || key.startsWith("bluetooth") || key.contains("gamectl") -> "the Bluetooth gamepad (GameCtl Pad)"
+        // "vjoy1", "vjoy 1", "vJoy device 1": keep only the device number.
+        key.startsWith("vjoy") -> "vJoy device " + key.takeLastWhile { it.isDigit() }.ifBlank { "1" }
+        else -> device
+    }
 }
 
 /**
@@ -703,7 +711,7 @@ private fun BindInGame(
             Column {
                 Text(headline, style = MaterialTheme.typography.bodyMedium, color = Race.Ink)
                 Text("on ${bindDeviceName(result.device)}", style = MaterialTheme.typography.bodySmall, color = Race.InkMuted)
-                if (rejected) Text("BeamNG is still writing the last request. Try again in a second.", style = MaterialTheme.typography.bodySmall, color = Race.Red)
+                if (rejected) Text(result.message.ifBlank { "BeamNG is still writing the last request. Try again in a second." }, style = MaterialTheme.typography.bodySmall, color = Race.Red)
                 else if (result.message.isNotBlank() && !result.ok) Text(result.message, style = MaterialTheme.typography.bodySmall, color = Race.Red)
                 if (result.unknown.isNotEmpty()) {
                     Text("BeamNG didn't recognise: " + result.unknown.joinToString(), style = MaterialTheme.typography.bodySmall, color = Race.Amber)

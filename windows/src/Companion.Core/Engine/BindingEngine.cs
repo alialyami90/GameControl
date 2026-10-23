@@ -166,6 +166,7 @@ public sealed class BindingEngine
                 // must see the next press as a new rising edge.
                 if (st.Holding) ReleaseControl(id, st, "auto-released (no update for 1 s)", parkAxis: false);
                 if (st.LastApplied is > 0) st.LastApplied = 0;
+                st.Rebound = false; // the press it guarded is long over
             }
         }
     }
